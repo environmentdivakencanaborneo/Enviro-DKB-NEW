@@ -1,0 +1,233 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information stored on the user profile",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "company": { "type": "string" },
+        "role": { "type": "string" }
+      },
+      "required": ["name", "email", "company", "role"]
+    },
+    "Wastewater": {
+      "title": "Wastewater Monitoring Entry",
+      "description": "Mining wastewater pH and heavy metal indicators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "location": { "type": "string" },
+        "officer": { "type": "string" },
+        "ph": { "type": "number" },
+        "tss": { "type": "number" },
+        "debit": { "type": "number" },
+        "fe": { "type": "number" },
+        "mn": { "type": "number" },
+        "status": { "type": "string", "enum": ["Safe", "Warning", "Exceeded"] }
+      },
+      "required": ["id", "date", "location", "officer", "ph", "tss", "debit", "fe", "mn", "status"]
+    },
+    "Rainfall": {
+      "title": "Rainfall Monitoring Entry",
+      "description": "Daily precipitation logs at various mining telemetry stations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "duration": { "type": "number" },
+        "station": { "type": "string" },
+        "gaugeType": { "type": "string", "enum": ["Manual", "Automatic"] },
+        "rainfall": { "type": "number" },
+        "intensity": { "type": "number" },
+        "weather": { "type": "string", "enum": ["Clear", "Cloudy", "Light Rain", "Heavy Rain", "Storm"] },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "date", "startTime", "endTime", "duration", "station", "gaugeType", "rainfall", "intensity", "weather"]
+    },
+    "Nursery": {
+      "title": "Nursery Seedling Progress",
+      "description": "Revegetation seedling inventory tracker",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "plantType": { "type": "string" },
+        "quantity": { "type": "number" },
+        "source": { "type": "string" },
+        "ageWeeks": { "type": "number" },
+        "heightCm": { "type": "number" },
+        "status": { "type": "string", "enum": ["Healthy", "Need Care", "Critical"] },
+        "location": { "type": "string" },
+        "dateIn": { "type": "string", "format": "date" }
+      },
+      "required": ["id", "plantType", "quantity", "source", "ageWeeks", "heightCm", "status", "location", "dateIn"]
+    },
+    "ReclamationPlan": {
+      "title": "Reclamation Block Target",
+      "description": "Mine block restoration targets and species lists",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "areaName": { "type": "string" },
+        "sizeHa": { "type": "number" },
+        "targetYear": { "type": "number" },
+        "plantType": { "type": "string" },
+        "method": { "type": "string" },
+        "estimatedCost": { "type": "number" },
+        "status": { "type": "string", "enum": ["Draft", "Approved", "In Progress", "Completed"] },
+        "pic": { "type": "string" }
+      },
+      "required": ["id", "areaName", "sizeHa", "targetYear", "plantType", "method", "estimatedCost", "status", "pic"]
+    },
+    "ReclamationGuarantee": {
+      "title": "Reclamation Bond Guarantee",
+      "description": "Financial guarantees submitted to authorities",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "guaranteeNo": { "type": "string" },
+        "guaranteeType": { "type": "string", "enum": ["Bank Guarantee", "Time Deposit", "Environmental Bond"] },
+        "value": { "type": "number" },
+        "issuingInstitution": { "type": "string" },
+        "issuedDate": { "type": "string", "format": "date" },
+        "dueDate": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["Active", "Renewal Needed", "Claimed", "Released"] },
+        "docUrl": { "type": "string" }
+      },
+      "required": ["id", "guaranteeNo", "guaranteeType", "value", "issuingInstitution", "issuedDate", "dueDate", "status"]
+    },
+    "WasteIn": {
+      "title": "TPS B3 Intake Log",
+      "description": "Hazardous B3 waste entrance recording",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "dateIn": { "type": "string", "format": "date" },
+        "wasteType": { "type": "string" },
+        "source": { "type": "string" },
+        "weightKg": { "type": "number" },
+        "characteristic": { "type": "string", "enum": ["Flammable", "Toxic", "Corrosive", "Reactive", "Infectious"] },
+        "code": { "type": "string" },
+        "tpsLocation": { "type": "string" },
+        "officer": { "type": "string" },
+        "documentationUrl": { "type": "string" }
+      },
+      "required": ["id", "dateIn", "wasteType", "source", "weightKg", "characteristic", "code", "tpsLocation", "officer"]
+    },
+    "WasteOut": {
+      "title": "TPS B3 Dispatch Log",
+      "description": "Hazardous B3 waste transportation and manifest recording",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "dateOut": { "type": "string", "format": "date" },
+        "wasteType": { "type": "string" },
+        "weightKg": { "type": "number" },
+        "destination": { "type": "string" },
+        "transporter": { "type": "string" },
+        "manifestNo": { "type": "string" },
+        "vehicleNo": { "type": "string" },
+        "driverName": { "type": "string" },
+        "recipient": { "type": "string" },
+        "documentationUrl": { "type": "string" }
+      },
+      "required": ["id", "dateOut", "wasteType", "weightKg", "destination", "transporter", "manifestNo", "vehicleNo", "driverName", "recipient"]
+    },
+    "EnvironmentalDocument": {
+      "title": "Environmental Permit compliance",
+      "description": "Licensing documents: AMDAL, UKL/UPL, and sector permits",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["AMDAL", "UKL-UPL", "Izin Lingkungan", "Izin TPS B3", "Izin Pembuangan Air Limbah"] },
+        "docNo": { "type": "string" },
+        "issuedDate": { "type": "string", "format": "date" },
+        "expiryDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Expired", "Renewal Needed"] },
+        "pic": { "type": "string" },
+        "fileSize": { "type": "string" }
+      },
+      "required": ["id", "name", "type", "docNo", "issuedDate", "expiryDate", "status", "pic"]
+    },
+    "ComplianceEvent": {
+      "title": "Licensing Calendar Event",
+      "description": "Deadlines, reporting cycles, and inspections",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["Reporting", "Inspection", "Exceedance", "Permit Expiry"] },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Completed", "Overdue"] }
+      },
+      "required": ["id", "date", "title", "type", "description", "status"]
+    },
+    "Alert": {
+      "title": "System Alert Notice",
+      "description": "Real-time exceedance alerts or expiration notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["Critical", "Warning", "Info"] },
+        "category": { "type": "string", "enum": ["Wastewater", "B3 Waste", "Permit", "Guarantee"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "timestamp", "type", "category", "title", "message", "read"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profile definitions"
+    },
+    "wastewater/{wastewaterId}": {
+      "schema": "Wastewater",
+      "description": "Wastewater quality log entries"
+    },
+    "rainfall/{rainfallId}": {
+      "schema": "Rainfall",
+      "description": "Mine telemetry rainfall entries"
+    },
+    "nursery/{nurseryId}": {
+      "schema": "Nursery",
+      "description": "Plant nursery stock inventory records"
+    },
+    "reclamation_plans/{planId}": {
+      "schema": "ReclamationPlan",
+      "description": "Mining blocks recovery schedules"
+    },
+    "reclamation_guarantees/{guaranteeId}": {
+      "schema": "ReclamationGuarantee",
+      "description": "Mine rehabilitation financial bonds"
+    },
+    "waste_in/{itemId}": {
+      "schema": "WasteIn",
+      "description": "TPS B3 inbound waste collection items"
+    },
+    "waste_out/{itemId}": {
+      "schema": "WasteOut",
+      "description": "TPS B3 outbound manifest logistics entries"
+    },
+    "environmental_documents/{docId}": {
+      "schema": "EnvironmentalDocument",
+      "description": "Authorized compliance permits and AMDALs"
+    },
+    "compliance_calendar/{eventId}": {
+      "schema": "ComplianceEvent",
+      "description": "Scheduled environmental reporting and inspections"
+    },
+    "alerts/{alertId}": {
+      "schema": "Alert",
+      "description": "Generated compliance threshold warnings"
+    }
+  }
+}

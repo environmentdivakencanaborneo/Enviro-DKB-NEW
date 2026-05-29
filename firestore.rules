@@ -1,0 +1,282 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Reusable Primitives and Safety Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validation Blueprints ---
+
+    function isValidUser(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 100
+        && data.company is string && data.company.size() > 0 && data.company.size() <= 100
+        && data.role is string && data.role.size() > 0 && data.role.size() <= 100;
+    }
+
+    function isValidWastewater(data) {
+      return data.id is string && data.id.size() <= 64
+        && data.date is string && data.date.size() == 10
+        && data.location is string && data.location.size() <= 100
+        && data.officer is string && data.officer.size() <= 100
+        && data.ph is number && data.ph >= 0.0 && data.ph <= 14.0
+        && data.tss is number && data.tss >= 0.0
+        && data.debit is number && data.debit >= 0.0
+        && data.fe is number && data.fe >= 0.0
+        && data.mn is number && data.mn >= 0.0
+        && (data.status == 'Safe' || data.status == 'Warning' || data.status == 'Exceeded');
+    }
+
+    function isValidRainfall(data) {
+      return data.id is string && data.id.size() <= 64
+        && data.date is string && data.date.size() == 10
+        && data.startTime is string && data.startTime.size() <= 10
+        && data.endTime is string && data.endTime.size() <= 10
+        && data.duration is number && data.duration >= 0
+        && data.station is string && data.station.size() <= 100
+        && (data.gaugeType == 'Manual' || data.gaugeType == 'Automatic')
+        && data.rainfall is number && data.rainfall >= 0.0
+        && data.intensity is number && data.intensity >= 0.0
+        && (data.weather == 'Clear' || data.weather == 'Cloudy' || data.weather == 'Light Rain' || data.weather == 'Heavy Rain' || data.weather == 'Storm');
+    }
+
+    function isValidNursery(data) {
+      return data.id is string && data.id.size() <= 64
+        && data.plantType is string && data.plantType.size() <= 100
+        && data.quantity is number && data.quantity >= 0
+        && data.source is string && data.source.size() <= 100
+        && data.ageWeeks is number && data.ageWeeks >= 0
+        && data.heightCm is number && data.heightCm >= 0.0
+        && (data.status == 'Healthy' || data.status == 'Need Care' || data.status == 'Critical')
+        && data.location is string && data.location.size() <= 100
+        && data.dateIn is string && data.dateIn.size() == 10;
+    }
+
+    function isValidReclamationPlan(data) {
+      return data.id is string && data.id.size() <= 64
+        && data.areaName is string && data.areaName.size() <= 100
+        && data.sizeHa is number && data.sizeHa >= 0.0
+        && data.targetYear is number && data.targetYear >= 2000 && data.targetYear <= 2100
+        && data.plantType is string && data.plantType.size() <= 100
+        && data.method is string && data.method.size() <= 100
+        && data.estimatedCost is number && data.estimatedCost >= 0
+        && (data.status == 'Draft' || data.status == 'Approved' || data.status == 'In Progress' || data.status == 'Completed')
+        && data.pic is string && data.pic.size() <= 100;
+    }
+
+    function isValidReclamationGuarantee(data) {
+      return data.id is string && data.id.size() <= 64
+        && data.guaranteeNo is string && data.guaranteeNo.size() <= 100
+        && (data.guaranteeType == 'Bank Guarantee' || data.guaranteeType == 'Time Deposit' || data.guaranteeType == 'Environmental Bond')
+        && data.value is number && data.value >= 0
+        && data.issuingInstitution is string && data.issuingInstitution.size() <= 100
+        && data.issuedDate is string && data.issuedDate.size() == 10
+        && data.dueDate is string && data.dueDate.size() == 10
+        && (data.status == 'Active' || data.status == 'Renewal Needed' || data.status == 'Claimed' || data.status == 'Released');
+    }
+
+    function isValidWasteIn(data) {
+      return data.id is string && data.id.size() <= 64
+        && data.dateIn is string && data.dateIn.size() == 10
+        && data.wasteType is string && data.wasteType.size() <= 128
+        && data.source is string && data.source.size() <= 128
+        && data.weightKg is number && data.weightKg >= 0.0
+        && (data.characteristic == 'Flammable' || data.characteristic == 'Toxic' || data.characteristic == 'Corrosive' || data.characteristic == 'Reactive' || data.characteristic == 'Infectious')
+        && data.code is string && data.code.size() <= 64
+        && data.tpsLocation is string && data.tpsLocation.size() <= 128
+        && data.officer is string && data.officer.size() <= 128;
+    }
+
+    function isValidWasteOut(data) {
+      return data.id is string && data.id.size() <= 64
+        && data.dateOut is string && data.dateOut.size() == 10
+        && data.wasteType is string && data.wasteType.size() <= 128
+        && data.weightKg is number && data.weightKg >= 0.0
+        && data.destination is string && data.destination.size() <= 128
+        && data.transporter is string && data.transporter.size() <= 128
+        && data.manifestNo is string && data.manifestNo.size() <= 128
+        && data.vehicleNo is string && data.vehicleNo.size() <= 64
+        && data.driverName is string && data.driverName.size() <= 128
+        && data.recipient is string && data.recipient.size() <= 128;
+    }
+
+    function isValidEnvironmentalDocument(data) {
+      return data.id is string && data.id.size() <= 64
+        && data.name is string && data.name.size() <= 200
+        && (data.type == 'AMDAL' || data.type == 'UKL-UPL' || data.type == 'Izin Lingkungan' || data.type == 'Izin TPS B3' || data.type == 'Izin Pembuangan Air Limbah')
+        && data.docNo is string && data.docNo.size() <= 128
+        && data.issuedDate is string && data.issuedDate.size() == 10
+        && data.expiryDate is string && data.expiryDate.size() <= 24
+        && (data.status == 'Active' || data.status == 'Expired' || data.status == 'Renewal Needed')
+        && data.pic is string && data.pic.size() <= 128;
+    }
+
+    // --- Matches for Collections ---
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && request.auth.uid == userId;
+      allow create: if isVerifiedUser() && request.auth.uid == userId 
+                    && incoming().keys().hasAll(['name', 'email', 'company', 'role'])
+                    && incoming().keys().size() == 4
+                    && isValidUser(incoming());
+      allow update: if isVerifiedUser() && request.auth.uid == userId 
+                    && isValidUser(incoming())
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'company', 'role']);
+      allow delete: if false; // User accounts are managed or permanent
+    }
+
+    // WASTEWATER COLLECTION
+    match /wastewater/{wastewaterId} {
+      allow read: if isVerifiedUser();
+      allow create: if isVerifiedUser() && isValidId(wastewaterId)
+                    && incoming().keys().hasAll(['id', 'date', 'location', 'officer', 'ph', 'tss', 'debit', 'fe', 'mn', 'status'])
+                    && incoming().keys().size() == 10
+                    && isValidWastewater(incoming());
+      allow update: if isVerifiedUser() && isValidId(wastewaterId)
+                    && isValidWastewater(incoming())
+                    && incoming().id == existing().id // id immortal
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['location', 'officer', 'ph', 'tss', 'debit', 'fe', 'mn', 'status']);
+      allow delete: if isVerifiedUser() && isValidId(wastewaterId);
+    }
+
+    // RAINFALL COLLECTION
+    match /rainfall/{rainfallId} {
+      allow read: if isVerifiedUser();
+      allow create: if isVerifiedUser() && isValidId(rainfallId)
+                    && (incoming().keys().hasAll(['id', 'date', 'startTime', 'endTime', 'duration', 'station', 'gaugeType', 'rainfall', 'intensity', 'weather', 'notes']) || incoming().keys().hasAll(['id', 'date', 'startTime', 'endTime', 'duration', 'station', 'gaugeType', 'rainfall', 'intensity', 'weather']))
+                    && isValidRainfall(incoming());
+      allow update: if isVerifiedUser() && isValidId(rainfallId)
+                    && isValidRainfall(incoming())
+                    && incoming().id == existing().id
+                    && incoming().diff(existing()).affectedKeys().hasAny(['startTime', 'endTime', 'duration', 'station', 'gaugeType', 'rainfall', 'intensity', 'weather', 'notes']);
+      allow delete: if isVerifiedUser() && isValidId(rainfallId);
+    }
+
+    // NURSERY COLLECTION
+    match /nursery/{nurseryId} {
+      allow read: if isVerifiedUser();
+      allow create: if isVerifiedUser() && isValidId(nurseryId)
+                    && incoming().keys().hasAll(['id', 'plantType', 'quantity', 'source', 'ageWeeks', 'heightCm', 'status', 'location', 'dateIn'])
+                    && incoming().keys().size() == 9
+                    && isValidNursery(incoming());
+      allow update: if isVerifiedUser() && isValidId(nurseryId)
+                    && isValidNursery(incoming())
+                    && incoming().id == existing().id
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['plantType', 'quantity', 'source', 'ageWeeks', 'heightCm', 'status', 'location']);
+      allow delete: if isVerifiedUser() && isValidId(nurseryId);
+    }
+
+    // RECLAMATION PLANS COLLECTION
+    match /reclamation_plans/{planId} {
+      allow read: if isVerifiedUser();
+      allow create: if isVerifiedUser() && isValidId(planId)
+                    && incoming().keys().hasAll(['id', 'areaName', 'sizeHa', 'targetYear', 'plantType', 'method', 'estimatedCost', 'status', 'pic'])
+                    && incoming().keys().size() == 9
+                    && isValidReclamationPlan(incoming());
+      allow update: if isVerifiedUser() && isValidId(planId)
+                    && isValidReclamationPlan(incoming())
+                    && incoming().id == existing().id
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['areaName', 'sizeHa', 'targetYear', 'plantType', 'method', 'estimatedCost', 'status', 'pic']);
+      allow delete: if isVerifiedUser() && isValidId(planId);
+    }
+
+    // RECLAMATION GUARANTEES COLLECTION
+    match /reclamation_guarantees/{guaranteeId} {
+      allow read: if isVerifiedUser();
+      allow create: if isVerifiedUser() && isValidId(guaranteeId)
+                    && (incoming().keys().hasAll(['id', 'guaranteeNo', 'guaranteeType', 'value', 'issuingInstitution', 'issuedDate', 'dueDate', 'status', 'docUrl']) || incoming().keys().hasAll(['id', 'guaranteeNo', 'guaranteeType', 'value', 'issuingInstitution', 'issuedDate', 'dueDate', 'status']))
+                    && isValidReclamationGuarantee(incoming());
+      allow update: if isVerifiedUser() && isValidId(guaranteeId)
+                    && isValidReclamationGuarantee(incoming())
+                    && incoming().id == existing().id
+                    && incoming().diff(existing()).affectedKeys().hasAny(['guaranteeNo', 'guaranteeType', 'value', 'issuingInstitution', 'issuedDate', 'dueDate', 'status', 'docUrl']);
+      allow delete: if isVerifiedUser() && isValidId(guaranteeId);
+    }
+
+    // WASTE IN COLLECTION
+    match /waste_in/{itemId} {
+      allow read: if isVerifiedUser();
+      allow create: if isVerifiedUser() && isValidId(itemId)
+                    && (incoming().keys().hasAll(['id', 'dateIn', 'wasteType', 'source', 'weightKg', 'characteristic', 'code', 'tpsLocation', 'officer', 'documentationUrl']) || incoming().keys().hasAll(['id', 'dateIn', 'wasteType', 'source', 'weightKg', 'characteristic', 'code', 'tpsLocation', 'officer']))
+                    && isValidWasteIn(incoming());
+      allow update: if isVerifiedUser() && isValidId(itemId)
+                    && isValidWasteIn(incoming())
+                    && incoming().id == existing().id
+                    && incoming().diff(existing()).affectedKeys().hasAny(['dateIn', 'wasteType', 'source', 'weightKg', 'characteristic', 'code', 'tpsLocation', 'officer', 'documentationUrl']);
+      allow delete: if isVerifiedUser() && isValidId(itemId);
+    }
+
+    // WASTE OUT COLLECTION
+    match /waste_out/{itemId} {
+      allow read: if isVerifiedUser();
+      allow create: if isVerifiedUser() && isValidId(itemId)
+                    && (incoming().keys().hasAll(['id', 'dateOut', 'wasteType', 'weightKg', 'destination', 'transporter', 'manifestNo', 'vehicleNo', 'driverName', 'recipient', 'documentationUrl']) || incoming().keys().hasAll(['id', 'dateOut', 'wasteType', 'weightKg', 'destination', 'transporter', 'manifestNo', 'vehicleNo', 'driverName', 'recipient']))
+                    && isValidWasteOut(incoming());
+      allow update: if isVerifiedUser() && isValidId(itemId)
+                    && isValidWasteOut(incoming())
+                    && incoming().id == existing().id
+                    && incoming().diff(existing()).affectedKeys().hasAny(['dateOut', 'wasteType', 'weightKg', 'destination', 'transporter', 'manifestNo', 'vehicleNo', 'driverName', 'recipient', 'documentationUrl']);
+      allow delete: if isVerifiedUser() && isValidId(itemId);
+    }
+
+    // ENVIRONMENTAL DOCUMENTS COLLECTION
+    match /environmental_documents/{docId} {
+      allow read: if isVerifiedUser();
+      allow create: if isVerifiedUser() && isValidId(docId)
+                    && (incoming().keys().hasAll(['id', 'name', 'type', 'docNo', 'issuedDate', 'expiryDate', 'status', 'pic', 'fileSize']) || incoming().keys().hasAll(['id', 'name', 'type', 'docNo', 'issuedDate', 'expiryDate', 'status', 'pic']))
+                    && isValidEnvironmentalDocument(incoming());
+      allow update: if isVerifiedUser() && isValidId(docId)
+                    && isValidEnvironmentalDocument(incoming())
+                    && incoming().id == existing().id
+                    && incoming().diff(existing()).affectedKeys().hasAny(['name', 'type', 'docNo', 'issuedDate', 'expiryDate', 'status', 'pic', 'fileSize']);
+      allow delete: if isVerifiedUser() && isValidId(docId);
+    }
+
+    // COMPLIANCE CALENDAR COLLECTION
+    match /compliance_calendar/{eventId} {
+      allow read: if isVerifiedUser();
+      allow create: if isVerifiedUser() && isValidId(eventId)
+                    && incoming().keys().hasAll(['id', 'date', 'title', 'type', 'description', 'status'])
+                    && incoming().keys().size() == 6
+                    && (incoming().status == 'Pending' || incoming().status == 'Completed' || incoming().status == 'Overdue');
+      allow update: if isVerifiedUser() && isValidId(eventId)
+                    && incoming().id == existing().id
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['date', 'title', 'type', 'description', 'status']);
+      allow delete: if isVerifiedUser() && isValidId(eventId);
+    }
+
+    // ALERTS COLLECTION
+    match /alerts/{alertId} {
+      allow read: if isVerifiedUser();
+      allow create: if isVerifiedUser() && isValidId(alertId);
+      allow update: if isVerifiedUser() && isValidId(alertId)
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isVerifiedUser() && isValidId(alertId);
+    }
+
+  }
+}
