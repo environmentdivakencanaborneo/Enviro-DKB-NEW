@@ -1,71 +1,175 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* 1. Import fonts */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 @import "tailwindcss";
 
+/* 2. Theme tokens for Tailwind v4 */
 @theme {
-  --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Poppins", sans-serif;
+  --font-manrope: "Manrope", sans-serif;
+  --font-mono: "Manrope", monospace;
+  
+  --color-forest-900: #2E4B3D;
+  --color-forest-800: #2F5A46;
+  --color-forest-700: #365645;
+  --color-forest-600: #4D7C5A;
+  --color-forest-300: #A8B9A5;
+  --color-forest-100: #DCE5DA;
+  --color-forest-50: #F5F6F2;
+  
+  --color-success: #3FA66B;
+  --color-warning: #E2A43B;
+  --color-danger: #D95C5C;
+  --color-info: #5C8DBA;
+  
+  --color-text-primary: #23312B;
+  --color-text-secondary: #6D7B73;
+  --color-border-custom: #E6ECE6;
 }
 
-/* Premium custom Frosted Glass patterns */
+/* 3. Base reset & background */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background-color: #F5F6F2;
+  color: #23312B;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 4. Glass components & sidebar styles */
 .glass-panel {
-  background: rgba(26, 31, 53, 0.6);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-}
-
-.glass-panel-interactive:hover {
-  background: rgba(30, 36, 61, 0.75);
-  border-color: rgba(16, 185, 129, 0.3);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-}
-
-.glass-panel-active {
-  background: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.glass-panel-light {
-  background: rgba(26, 31, 53, 0.35);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid #E6ECE6;
+  box-shadow: 0 8px 30px rgba(32, 52, 43, 0.04), inset 0 1px 0 rgba(255,255,255,0.6);
 }
 
 .glass-aside {
-  background: rgba(10, 15, 30, 0.8);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  background: #2E4B3D;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .glass-header {
-  background: rgba(10, 15, 30, 0.45);
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid #E6ECE6;
 }
 
-/* Pulsing ambient bg glow circles */
+/* 5. Custom animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounceShort {
+  0%, 100% { transform: translateY(0); }
+  40%      { transform: translateY(-5px); }
+  70%      { transform: translateY(-2px); }
+}
+
 @keyframes floatGlow {
-  0% {
-    transform: translate(0px, 0px) scale(1);
-  }
-  33% {
-    transform: translate(30px, -50px) scale(1.15);
-  }
-  66% {
-    transform: translate(-20px, 20px) scale(0.9);
-  }
-  100% {
-    transform: translate(0px, 0px) scale(1);
-  }
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(20px, -40px) scale(1.1); }
+  66%  { transform: translate(-15px, 15px) scale(0.95); }
+  100% { transform: translate(0, 0) scale(1); }
 }
 
-.glow-bubble-1 {
-  animation: floatGlow 15s ease-in-out infinite;
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to   { background-position: 200% center; }
 }
 
-.glow-bubble-2 {
-  animation: floatGlow 20s ease-in-out infinite alternate;
+.animate-fade-in    { animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-bounce-short { animation: bounceShort 0.5s ease-out both; }
+.glow-bubble-1      { animation: floatGlow 15s ease-in-out infinite; }
+.glow-bubble-2      { animation: floatGlow 20s ease-in-out infinite alternate; }
+
+/* 6. Skeleton loading shimmer */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(77, 124, 90, 0.03) 25%,
+    rgba(77, 124, 90, 0.08) 50%,
+    rgba(77, 124, 90, 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s linear infinite;
+  border-radius: 12px;
+}
+
+/* 7. Beautiful rounded elements & UI blocks */
+.rounded-20 {
+  border-radius: 20px;
+}
+
+.shadow-custom {
+  box-shadow: 0 8px 30px rgba(32, 52, 43, 0.06);
+}
+
+.shadow-custom-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.shadow-custom-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 36px rgba(32, 52, 43, 0.1);
+}
+
+/* 8. Status badges */
+.badge-safe     { background: rgba(63, 166, 107, 0.08); color: #2E5A46; border: 1px solid rgba(63, 166, 107, 0.2); }
+.badge-warning  { background: rgba(226, 164, 59, 0.08); color: #8F5E13; border: 1px solid rgba(226, 164, 59, 0.2); }
+.badge-exceeded { background: rgba(217, 92, 92, 0.08);  color: #9C3333; border: 1px solid rgba(217, 92, 92, 0.2); }
+
+/* 9. Scrollbar — minimal forest style */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(77, 124, 90, 0.15); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(77, 124, 90, 0.3); }
+
+/* 10. Forms, Input fields & Select elements */
+input, select, textarea {
+  background-color: #FFFFFF !important;
+  border: 1px solid #E6ECE6 !important;
+  color: #23312B !important;
+  border-radius: 12px !important;
+  padding: 0.625rem 1rem !important;
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.875rem !important;
+  transition: all 0.2s ease !important;
+}
+input::placeholder, textarea::placeholder {
+  color: #A8B9A5 !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: #4D7C5A !important;
+  box-shadow: 0 0 0 4px rgba(77, 124, 90, 0.12) !important;
+  outline: none !important;
+}
+
+/* Premium 3D Card effects for Forest Theme */
+.card-3d {
+  background: #FFFFFF;
+  position: relative;
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  box-shadow: 0 8px 32px rgba(32, 52, 43, 0.05);
+  border-radius: 20px;
+}
+
+.card-3d::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  z-index: -1;
+  background: linear-gradient(160deg, #E6ECE6, rgba(255,255,255,0.4) 40%, #E6ECE6);
+}
+
+.nav-glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid #E6ECE6;
 }

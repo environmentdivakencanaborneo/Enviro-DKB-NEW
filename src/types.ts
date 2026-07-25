@@ -8,12 +8,29 @@ export interface WastewaterData {
   date: string;
   location: string;
   officer: string;
-  ph: number;       // standard: 6.0 - 9.0 (PP 22/2021)
+  ph: number;       // standard: 6.0 - 9.0 (PP No. 22 Tahun 2021)
   tss: number;      // standard: max 200 mg/L (or based on regional)
   debit: number;    // discharge flow rate, allow 3 decimal places
   fe: number;       // Iron - standard: max 7 mg/L
   mn: number;       // Mangan - standard: max 4 mg/L
   status: 'Safe' | 'Warning' | 'Exceeded'; 
+  monitoringType?: 'Harian' | 'Bulanan';
+}
+
+export interface SurfaceWaterData {
+  id: string;
+  date: string;
+  location: string;
+  officer: string;
+  ph: number;       // standard: 6.0 - 9.0
+  tss: number;      // standard: max 50 mg/L (PP No. 22 Tahun 2021 Lampiran VI Kelas II)
+  doVal: number;    // Dissolved Oxygen - standard: min 4 mg/L
+  bod: number;      // standard: max 3 mg/L
+  cod: number;      // standard: max 25 mg/L
+  fe: number;       // Besi terlarut - standard: max 0.3 mg/L
+  mn: number;       // Mangan terlarut - standard: max 0.1 mg/L
+  status: 'Safe' | 'Warning' | 'Exceeded';
+  monitoringType?: 'Harian' | 'Bulanan';
 }
 
 export interface RainfallData {
@@ -45,11 +62,16 @@ export interface NurseryData {
 export interface ReclamationPlan {
   id: string;
   areaName: string;
-  sizeHa: number;
-  targetYear: number;
-  plantType: string;
-  method: string;
-  estimatedCost: number;
+  sizeHa: number; // target / planned size
+  realizedSizeHa?: number; // realized / actual size
+  targetYear: number; // target / planned year
+  realizedYear?: number; // realized / actual year
+  plantType: string; // target / planned plant type
+  realizedPlantType?: string; // realized / actual plant type
+  method: string; // target / planned method
+  realizedMethod?: string; // realized / actual method
+  estimatedCost: number; // target / planned cost
+  realizedCost?: number; // realized / actual cost
   status: 'Draft' | 'Approved' | 'In Progress' | 'Completed';
   pic: string;
 }
@@ -93,6 +115,13 @@ export interface WasteOut {
   documentationUrl?: string;
 }
 
+export interface BatchWarning {
+  batchId: string;
+  weightRemaining: number;
+  daysRemaining: number;
+  entryDate: string;
+}
+
 export interface WasteStock {
   wasteType: string;
   code: string;
@@ -101,17 +130,21 @@ export interface WasteStock {
   currentStock: number;
   earliestDateIn: string | null;
   daysInTps: number; // warning if near 90 days from earliest check
+  batchWarnings?: BatchWarning[];
 }
 
 export interface EnvironmentalDocument {
   id: string;
   name: string;
-  type: 'AMDAL' | 'UKL-UPL' | 'Izin Lingkungan' | 'Izin TPS B3' | 'Izin Pembuangan Air Limbah';
+  type: 'AMDAL' | 'UKL-UPL' | 'Persetujuan Lingkungan' | 'Pertek Air Limbah' | 'Pertek Emisi' | 'Izin TPS B3' | 'Izin Pemanfaatan' | 'Persetujuan Rencana Reklamasi' | 'Lainnya';
   docNo: string;
   issuedDate: string;
   expiryDate: string | 'N/A';
   status: 'Active' | 'Expired' | 'Renewal Needed';
   pic: string;
+  issuer?: string;
+  obligations?: string;
+  documentUrl?: string;
   fileSize?: string;
 }
 
@@ -122,16 +155,21 @@ export interface ComplianceCalendarEvent {
   type: 'Reporting' | 'Inspection' | 'Exceedance' | 'Permit Expiry';
   description: string;
   status: 'Pending' | 'Completed' | 'Overdue';
+  assignedTo?: string;
+  progress?: number;
 }
 
 export interface AlertNotification {
   id: string;
   timestamp: string;
   type: 'Critical' | 'Warning' | 'Info';
-  category: 'Wastewater' | 'B3 Waste' | 'Permit' | 'Guarantee';
+  category: 'Wastewater' | 'B3 Waste' | 'Permit' | 'Guarantee' | 'SurfaceWater';
   title: string;
   message: string;
   read: boolean;
+  createdBy: string; // ← TAMBAHKAN INI: email user yang memicu notifikasi
+  readBy?: string[];
+  clearedBy?: string[]; // track users who have read system notifications
 }
 
 export interface UserProfile {
@@ -139,6 +177,21 @@ export interface UserProfile {
   email: string;
   company: string;
   role: string;
+}
+
+export interface SolidWasteData {
+  id: string;
+  date: string;
+  source: string;              // "Kantor", "Messe Karyawan", "Kantin", "Bengkel", "Washing Bay" etc
+  organicKg: number;           // organic generated
+  inorganicKg: number;         // inorganic generated
+  residueKg: number;           // residue generated
+  compostedKg: number;         // organic processed/composted
+  recycledKg: number;          // inorganic processed/recycled
+  officer: string;
+  transporterVehicle?: string; // Kendaraan pengangkut
+  finalDestination?: string;   // Tujuan akhir
+  notes?: string;
 }
 
 export interface GoogleSyncConfig {
@@ -156,4 +209,102 @@ export interface SyncQueueItem {
   table: string;
   action: 'insert' | 'update' | 'delete';
   data: any;
+}
+
+export interface EnvironmentalCost {
+  id: string;
+  year: number;
+  period: string; // e.g. "Q1", "Q2", "Q3", "Q4", "Semester I", "Semester II", "Tahunan"
+  category: string; // e.g. "Pemantauan Kualitas Lingkungan", "Reklamasi & Revegetasi", "Pengelolaan Limbah Terpadu", "Water Treatment (KPL)", "Izin LH & Administrasi"
+  plannedOpex: number;
+  plannedCapex: number;
+  realizedOpex: number;
+  realizedCapex: number;
+  notes?: string;
+  officer: string;
+}
+
+
+export type FindingSeverity = 'NC Mayor' | 'NC Minor' | 'Observasi' | 'OFI';
+export type FindingStatus = 'Terbuka' | 'Dalam Proses' | 'Verifikasi' | 'Selesai';
+export type FindingSource = 'Audit Internal' | 'Audit Eksternal' | 'Inspeksi DLH' | 'Inspeksi Internal' | 'PROPER' | 'Lainnya';
+
+export interface CapaHistory {
+  status: FindingStatus;
+  notes: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface CapaData {
+  id: string;
+  source: FindingSource;
+  title: string;
+  description: string;
+  severity: FindingSeverity;
+  discoveryDate: string;
+  targetDate: string;
+  pic: string;
+  why1?: string;
+  why2?: string;
+  why3?: string;
+  why4?: string;
+  why5?: string;
+  rootCause?: string;
+  correctiveAction: string;
+  preventiveAction: string;
+  status: FindingStatus;
+  history: CapaHistory[];
+  verificationNotes?: string;
+  closedDate?: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+export type ComplianceAspect = 'Kualitas Air' | 'Kualitas Udara/Emisi' | 'Pengelolaan Limbah B3' | 'Sosial/Masyarakat' | 'Flora/Fauna' | 'Lainnya';
+export type ComplianceStatus = 'Taat' | 'Belum Taat' | 'Tidak Taat' | 'Tidak Relevan';
+
+export interface ComplianceMatrixData {
+  id: string;
+  period: string; // e.g., "H1-2023"
+  aspect: ComplianceAspect;
+  impactDetails: string;
+  target: string;
+  status: ComplianceStatus;
+  evidenceUrl?: string;
+  notes?: string;
+  createdAt?: string;
+  createdBy?: string;
+}
+
+export type IncidentCategory = 'Tumpahan Hidrokarbon' | 'Tanggul Jebol' | 'Air Asam Tambang' | 'Kebakaran Hutan/Lahan' | 'Emisi Asap Tebal' | 'Lainnya';
+export type IncidentStatus = 'Dilaporkan' | 'Investigasi' | 'Tindakan Korektif' | 'Ditutup';
+
+export interface IncidentData {
+  id: string;
+  date: string;
+  time: string;
+  category: IncidentCategory;
+  location: string;
+  chronology: string;
+  firstAction: string;
+  status: IncidentStatus;
+  environmentalLoss: string; // Deskripsi dampak/kerugian
+  documentationUrl?: string;
+  reporter: string;
+  createdAt?: string;
+  createdBy?: string;
+}
+
+export interface RegulatoryWatchData {
+  id: string;
+  source: string;
+  regulationNo: string;
+  about: string;
+  issueDate: string;
+  implication: string;
+  status: 'Draft' | 'Berlaku' | 'Dicabut';
+  link?: string;
+  createdAt?: string;
+  createdBy?: string;
 }

@@ -144,7 +144,7 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "type": { "type": "string", "enum": ["AMDAL", "UKL-UPL", "Izin Lingkungan", "Izin TPS B3", "Izin Pembuangan Air Limbah"] },
+        "type": { "type": "string", "enum": ["AMDAL", "UKL-UPL", "Izin Lingkungan", "Izin TPS B3", "Izin Pembuangan Air Limbah", "Persetujuan Rencana Reklamasi", "Persetujuan Pasca Tambang"] },
         "docNo": { "type": "string" },
         "issuedDate": { "type": "string", "format": "date" },
         "expiryDate": { "type": "string" },
@@ -176,18 +176,75 @@
         "id": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
         "type": { "type": "string", "enum": ["Critical", "Warning", "Info"] },
-        "category": { "type": "string", "enum": ["Wastewater", "B3 Waste", "Permit", "Guarantee"] },
+        "category": { "type": "string" },
         "title": { "type": "string" },
         "message": { "type": "string" },
         "read": { "type": "boolean" }
       },
       "required": ["id", "timestamp", "type", "category", "title", "message", "read"]
+    },
+    "EnvironmentalCost": {
+      "title": "Environmental Budget Cost",
+      "description": "Opex and Capex planning and realization mapping for reclamation and monitoring programs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "year": { "type": "number" },
+        "period": { "type": "string" },
+        "category": { "type": "string" },
+        "plannedOpex": { "type": "number" },
+        "plannedCapex": { "type": "number" },
+        "realizedOpex": { "type": "number" },
+        "realizedCapex": { "type": "number" },
+        "notes": { "type": "string" },
+        "officer": { "type": "string" }
+      },
+      "required": ["id", "year", "period", "category", "plannedOpex", "plannedCapex", "realizedOpex", "realizedCapex", "officer"]
+    },
+    "AuditLog": {
+      "title": "Database Mutation Audit Trail",
+      "description": "Automated logs monitoring data modification, insertion, and deletion",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "user": { "type": "string" },
+        "collection": { "type": "string" },
+        "recordId": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "user", "collection", "recordId", "action", "details"]
+    },
+    "SolidWaste": {
+      "title": "Solid Waste Processing Entry",
+      "description": "Solid waste sorting and reduction tracking under Permen LH No 7 Tahun 2025",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "source": { "type": "string" },
+        "organicKg": { "type": "number" },
+        "inorganicKg": { "type": "number" },
+        "residueKg": { "type": "number" },
+        "compostedKg": { "type": "number" },
+        "recycledKg": { "type": "number" },
+        "officer": { "type": "string" },
+        "transporterVehicle": { "type": "string" },
+        "finalDestination": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "date", "source", "organicKg", "inorganicKg", "residueKg", "compostedKg", "recycledKg", "officer"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
       "description": "User profile definitions"
+    },
+    "solid_waste/{wasteId}": {
+      "schema": "SolidWaste",
+      "description": "Solid waste generation, composting, and recycling log entries"
     },
     "wastewater/{wastewaterId}": {
       "schema": "Wastewater",
@@ -201,33 +258,29 @@
       "schema": "Nursery",
       "description": "Plant nursery stock inventory records"
     },
-    "reclamation_plans/{planId}": {
-      "schema": "ReclamationPlan",
-      "description": "Mining blocks recovery schedules"
+    "reclamation/{docId}": {
+      "schema": "ReclamationPlan || ReclamationGuarantee",
+      "description": "Mining blocks recovery schedules and financial guarantee bonds"
     },
-    "reclamation_guarantees/{guaranteeId}": {
-      "schema": "ReclamationGuarantee",
-      "description": "Mine rehabilitation financial bonds"
+    "waste_b3/{docId}": {
+      "schema": "WasteIn || WasteOut",
+      "description": "TPS B3 inbound, outbound manifest log entries"
     },
-    "waste_in/{itemId}": {
-      "schema": "WasteIn",
-      "description": "TPS B3 inbound waste collection items"
+    "documents/{docId}": {
+      "schema": "EnvironmentalDocument || ComplianceEvent",
+      "description": "Authorized compliance permits and license calendar timelines"
     },
-    "waste_out/{itemId}": {
-      "schema": "WasteOut",
-      "description": "TPS B3 outbound manifest logistics entries"
+    "costs/{costId}": {
+      "schema": "EnvironmentalCost",
+      "description": "Mine recovery program budget logs"
     },
-    "environmental_documents/{docId}": {
-      "schema": "EnvironmentalDocument",
-      "description": "Authorized compliance permits and AMDALs"
-    },
-    "compliance_calendar/{eventId}": {
-      "schema": "ComplianceEvent",
-      "description": "Scheduled environmental reporting and inspections"
-    },
-    "alerts/{alertId}": {
+    "notifications/{alertId}": {
       "schema": "Alert",
-      "description": "Generated compliance threshold warnings"
+      "description": "System notices and compliance trigger warnings"
+    },
+    "audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Security audit trails"
     }
   }
 }

@@ -1,24 +1,14 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState } from 'react';
+import { motion } from 'motion/react';
 import { 
-  LayoutDashboard, 
-  Droplet, 
-  Sprout, 
-  Trash2, 
-  FileText, 
-  FileLock, 
-  Bell, 
-  CloudLightning,
   ChevronLeft,
   ChevronRight,
-  HardHat,
+  LogOut,
   RefreshCw
 } from 'lucide-react';
 import { GoogleSyncConfig } from '../types';
+import DivaLogo from './DivaLogo';
+import { APP_MENU_GROUPS } from '../data/navigation';
 
 interface SidebarProps {
   currentTab: string;
@@ -26,6 +16,7 @@ interface SidebarProps {
   syncConfig: GoogleSyncConfig;
   user: any;
   setSyncModalOpen: (open: boolean) => void;
+  onLogout?: () => void;
 }
 
 export default function Sidebar({ 
@@ -33,136 +24,167 @@ export default function Sidebar({
   setCurrentTab, 
   syncConfig, 
   user,
-  setSyncModalOpen
+  setSyncModalOpen,
+  onLogout
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
-
-  const menuItems = [
-    { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
-    { id: 'monitoring', name: 'Pemantauan Lingkungan', icon: Droplet },
-    { id: 'reclamation', name: 'Reklamasi Tambang', icon: Sprout },
-    { id: 'waste', name: 'Limbah B3 TPS', icon: Trash2 },
-    { id: 'reports', name: 'Laporan Tambang', icon: FileText },
-    { id: 'documents', name: 'Dokumen & Perizinan', icon: FileLock },
-    { id: 'notifications', name: 'Notifikasi & Alerts', icon: Bell },
-  ];
 
   return (
     <aside 
       id="sidebar-container"
-      className={`glass-aside text-slate-200 transition-all duration-300 flex flex-col justify-between select-none h-screen sticky top-0 md:relative z-40 ${
-        collapsed ? 'w-16' : 'w-72'
+      className={`bg-[#2E4B3D] border-r border-forest-800 transition-all duration-300 ease-in-out hidden md:flex flex-col justify-between select-none h-screen sticky top-0 md:relative z-40 ${
+        collapsed ? 'w-[72px]' : 'w-72'
       }`}
     >
       {/* Upper Brand Section */}
-      <div>
-        <div className="flex items-center justify-between p-4 border-b border-white/5">
-          {!collapsed && (
-            <div className="flex items-center gap-2.5 animate-fade-in">
-              <div className="bg-emerald-500 text-slate-950 p-2 rounded-lg font-bold shadow-lg shadow-emerald-500/10">
-                <HardHat className="h-5 w-5" />
-              </div>
-              <div>
-                <h1 className="text-sm font-bold tracking-tight text-white font-sans">
-                  ENV-COAL <span className="text-emerald-500 font-extrabold">PRO</span>
-                </h1>
-                <p className="text-[10px] text-slate-500 font-mono tracking-wider">INDONESIA COMPLIANCE</p>
-              </div>
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="flex items-center justify-between p-[20px] border-b border-white/5 relative shrink-0">
+          {!collapsed ? (
+            <div className="flex items-center gap-2.5 animate-fade-in pl-1 text-white filter brightness-0 invert">
+              <DivaLogo variant="full" size={42} />
+            </div>
+          ) : (
+            <div className="mx-auto flex items-center justify-center animate-fade-in text-white filter brightness-0 invert">
+              <DivaLogo variant="icon" size={32} />
             </div>
           )}
-          {collapsed && (
-            <div className="bg-emerald-500 text-slate-950 p-2 rounded-lg font-bold mx-auto">
-              <HardHat className="h-5 w-5" />
-            </div>
-          )}
-          <button 
+          
+          <motion.button whileTap={{ scale: 0.9 }} 
             id="sidebar-toggle-btn"
             onClick={() => setCollapsed(!collapsed)}
-            className="hidden md:block p-1 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="hidden md:flex items-center justify-center absolute -right-3 top-6 h-6 w-6 bg-white border border-[#E6ECE6] rounded-full hover:bg-forest-50 text-forest-900 hover:text-forest-600 transition-colors cursor-pointer z-50 shadow-sm"
+            title={collapsed ? "Expand Menu" : "Collapse Menu"}
           >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </button>
+            {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+          </motion.button>
         </div>
- 
+
         {/* Navigation Items */}
-        <nav className="p-3 space-y-1.5 flex-1">
-          {menuItems.map(item => {
-            const IconComponent = item.icon;
-            const isActive = currentTab === item.id;
-            return (
-              <button
-                id={`sidebar-link-${item.id}`}
-                key={item.id}
-                onClick={() => setCurrentTab(item.id)}
-                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-200 group text-left cursor-pointer ${
-                  isActive 
-                    ? 'bg-white/10 text-emerald-400 border border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]' 
-                    : 'text-slate-400 hover:bg-white/5 hover:text-slate-200 border border-transparent'
-                }`}
-              >
-                <IconComponent className={`h-5 w-5 shrink-0 transition-transform group-hover:scale-105 ${
-                  isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-200'
-                }`} />
-                {!collapsed && (
-                  <span className="text-sm font-medium tracking-wide">
-                    {item.name}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        <nav className="p-4 space-y-6 mt-4 flex-1 pb-4">
+          {APP_MENU_GROUPS.map((group, gIdx) => (
+            <div key={gIdx} className="space-y-1.5">
+              {!collapsed && (
+                <div className="px-3 pb-2 pt-1 text-[10px] font-bold tracking-widest text-[#A8B9A5]/80 uppercase font-sans">
+                  {group.group}
+                </div>
+              )}
+              {group.items.map(item => {
+                const IconComponent = item.icon;
+                const isActive = currentTab === item.id;
+                return (
+                  <motion.button whileTap={{ scale: 0.97 }}
+                    id={`sidebar-link-${item.id}`}
+                    key={item.id}
+                    onClick={() => setCurrentTab(item.id)}
+                    title={collapsed ? item.name : undefined}
+                    className={`w-full flex items-center ${collapsed ? 'justify-center' : 'justify-start'} gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-left cursor-pointer relative overflow-hidden ${
+                      isActive 
+                        ? 'bg-[#4D7C5A] text-white font-semibold shadow-[0_4px_16px_rgba(77,124,90,0.25)]' 
+                        : 'text-white/80 hover:bg-[#365645] hover:text-white'
+                    }`}
+                  >
+                    <div className="relative flex items-center justify-center shrink-0">
+                      <IconComponent className={`h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-105 stroke-[1.5] ${
+                        isActive ? 'text-white' : 'text-white/80 group-hover:text-white'
+                      }`} />
+                      
+                      {item.hasBadge && (
+                        <div className="absolute -top-1 -right-1 h-2 w-2 bg-[#D95C5C] rounded-full shadow-[0_0_6px_rgba(217,92,92,0.6)]"></div>
+                      )}
+                    </div>
+                    
+                    {!collapsed && (
+                      <span className={`text-[13.5px] tracking-wide font-sans whitespace-nowrap ${isActive ? 'font-semibold text-white' : 'font-medium text-white/80'}`}>
+                        {item.name}
+                      </span>
+                    )}
+                  </motion.button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </div>
 
-      {/* Database/Sync widget */}
-      <div className="p-3 border-t border-white/5">
+      {/* Database/Sync & Profile widget */}
+      <div className="p-4 border-t border-white/5">
         {!collapsed ? (
-          <div className="bg-white/5 p-3.5 rounded-2xl border border-white/5 shadow-inner">
+          <div className="bg-[#365645] p-4 rounded-2xl border border-white/5 shadow-inner">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-400">Google Sync</span>
+              <span className="text-[10px] font-bold tracking-wider uppercase text-[#A8B9A5]">Sync Status</span>
               <button 
                 id="sidebar-sync-settings"
                 onClick={() => setSyncModalOpen(true)}
-                className="text-[10px] text-emerald-400 hover:underline cursor-pointer"
+                className="text-[9px] font-bold text-white/90 hover:text-[#DCE5DA] tracking-wider transition-colors cursor-pointer uppercase"
               >
-                Atur
+                CONFIG
               </button>
             </div>
-            <div className="flex items-center gap-2">
-              <div className={`h-2 w-2 rounded-full animate-pulse ${
-                syncConfig.syncStatus === 'synced' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
-                syncConfig.syncStatus === 'syncing' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'bg-red-500'
+            <div className="flex items-center gap-2 mb-1">
+              <div className={`h-2 w-2 rounded-full ${
+                syncConfig.syncStatus === 'synced' ? 'bg-[#3FA66B]' :
+                syncConfig.syncStatus === 'syncing' ? 'bg-[#E2A43B] animate-pulse' : 'bg-[#D95C5C]'
               }`} />
-              <p className="text-xs font-medium text-slate-300 capitalize">
-                {syncConfig.syncStatus === 'synced' ? 'Terhubung & Sinkron' :
-                 syncConfig.syncStatus === 'syncing' ? 'Menyingkronkan...' : 'Mode Lokal (Offline)'}
+              <p className="text-[12px] font-medium text-white">
+                {syncConfig.syncStatus === 'synced' ? 'Online & Synced' : 
+                 syncConfig.syncStatus === 'syncing' ? 'Syncing data...' : 'Local / Offline'}
               </p>
             </div>
             {syncConfig.lastSynced && (
-              <p className="text-[9px] text-slate-500 mt-1.5 font-mono">
-                Terakhir: {new Date(syncConfig.lastSynced).toLocaleString('id-ID')}
+              <p className="text-[9px] text-[#A8B9A5] font-manrope pl-4 font-mono">
+                Last: {new Date(syncConfig.lastSynced).toLocaleString('id-ID')}
               </p>
             )}
             
-            <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2 text-slate-400">
-              <div className="h-7 w-7 rounded-full bg-white/10 border border-white/5 flex items-center justify-center text-[10px] font-bold text-emerald-400">
-                {user?.name?.slice(0, 2).toUpperCase() || 'AD'}
+            <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 overflow-hidden">
+                <div className="h-8 w-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                  {user?.name?.slice(0, 2).toUpperCase() || 'US'}
+                </div>
+                <div className="overflow-hidden flex flex-col justify-center">
+                  <p className="text-[12.5px] font-semibold text-white truncate leading-tight">{user?.name || 'Administrator'}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[8px] bg-white/20 text-[#DCE5DA] px-1.5 py-[1px] rounded uppercase font-bold tracking-wider">
+                      {user?.role || 'ENV LEAD'}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="overflow-hidden">
-                <p className="text-[11px] font-semibold text-slate-300 truncate">{user?.name || 'User Tambang'}</p>
-                <p className="text-[9px] text-slate-500 truncate">{user?.company || 'PT Diva Kencana'}</p>
-              </div>
+              
+              {onLogout && (
+                <button
+                  id="sidebar-logout-btn"
+                  onClick={onLogout}
+                  className="p-2 bg-white/5 hover:bg-white/10 text-white/80 hover:text-[#D95C5C] rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0 ml-1"
+                  title="Keluar dari Panel"
+                >
+                  <LogOut className="h-[14px] w-[14px]" />
+                </button>
+              )}
             </div>
           </div>
         ) : (
-          <button 
-            id="sidebar-quick-config-btn"
-            onClick={() => setSyncModalOpen(true)}
-            className="mx-auto w-10 h-10 bg-white/5 rounded-xl border border-white/5 flex items-center justify-center hover:border-emerald-500/50 text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
-            title="Kelola Google Sync"
-          >
-            <RefreshCw className={`h-4.5 w-4.5 ${syncConfig.syncStatus === 'syncing' ? 'animate-spin text-amber-400' : ''}`} />
-          </button>
+          <div className="flex flex-col gap-3 items-center">
+            <button 
+              id="sidebar-quick-config-btn"
+              onClick={() => setSyncModalOpen(true)}
+              className="w-10 h-10 bg-white/5 rounded-xl border border-white/5 flex items-center justify-center hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer group"
+              title="Google Sync Settings"
+            >
+              <RefreshCw className={`h-[18px] w-[18px] group-hover:scale-105 transition-transform ${syncConfig.syncStatus === 'syncing' ? 'animate-spin text-[#E2A43B]' : ''}`} />
+            </button>
+            
+            {onLogout && (
+              <button 
+                id="sidebar-quick-logout-btn"
+                onClick={onLogout}
+                className="w-10 h-10 bg-[#D95C5C]/10 hover:bg-[#D95C5C]/20 text-white/80 hover:text-[#D95C5C] rounded-xl flex items-center justify-center transition-all cursor-pointer"
+                title="Keluar"
+              >
+                <LogOut className="h-[18px] w-[18px]" />
+              </button>
+            )}
+          </div>
         )}
       </div>
     </aside>

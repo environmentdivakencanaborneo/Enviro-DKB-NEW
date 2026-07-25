@@ -1,8 +1,9 @@
 {
-  "name": "Monitoring Lingkungan Batubara",
+  "name": "DEM (diva enviro monitor) system",
   "description": "Sistem monitoring lingkungan pertambangan batubara responsif dan premium dengan sinkronisasi regulasi lingkungan hidup Indonesia.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }
+
