@@ -22,7 +22,8 @@ import firebaseConfig from '../../firebase-applet-config.json';
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+const dbId = (firebaseConfig as any).firestoreDatabaseId;
+export const db = (dbId && dbId !== '(default)') ? getFirestore(app, dbId) : getFirestore(app);
 
 // Validate Connection to Firestore (MANDATORY REQUIREMENT)
 async function testConnection() {

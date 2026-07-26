@@ -44,6 +44,7 @@ import ComplianceMatrixView from './components/ComplianceMatrixView';
 import IncidentView from './components/IncidentView';
 import ExecutiveDashboardView from './components/ExecutiveDashboardView';
 import RegulatoryWatchView from './components/RegulatoryWatchView';
+import AdminManagementView from './components/AdminManagementView';
 
 import { useAuth } from './services/authService';
 import { useFirestoreData } from './hooks/useFirestoreData';
@@ -1064,6 +1065,28 @@ export default function App() {
             />
           </ModuleErrorBoundary>
         );
+
+      case 'registration_approval':
+        return (
+          <ModuleErrorBoundary moduleName="Registration Approval">
+            <AdminManagementView initialTab="approval" />
+          </ModuleErrorBoundary>
+        );
+
+      case 'user_management':
+        return (
+          <ModuleErrorBoundary moduleName="User Management">
+            <AdminManagementView initialTab="users" />
+          </ModuleErrorBoundary>
+        );
+
+      case 'role_management':
+        return (
+          <ModuleErrorBoundary moduleName="Role Management">
+            <AdminManagementView initialTab="roles" />
+          </ModuleErrorBoundary>
+        );
+
       default:
         return <div className="p-8 text-center text-slate-900">Modul tidak ditemukan.</div>;
     }

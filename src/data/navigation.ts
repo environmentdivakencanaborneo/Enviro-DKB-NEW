@@ -15,6 +15,9 @@ import {
   AlertOctagon,
   CheckSquare,
   Flame,
+  UserCheck,
+  Users,
+  ShieldCheck,
   LucideIcon
 } from 'lucide-react';
 
@@ -65,6 +68,14 @@ export const APP_MENU_GROUPS: NavGroup[] = [
       { id: 'proper', name: 'Simulasi PROPER', icon: Award },
       { id: 'costs', name: 'Biaya Lingkungan', icon: Coins },
       { id: 'notifications', name: 'Notifikasi', icon: Bell, hasBadge: true },
+    ]
+  },
+  {
+    group: 'ADMINISTRASI',
+    items: [
+      { id: 'registration_approval', name: 'Registration Approval', icon: UserCheck },
+      { id: 'user_management', name: 'User Management', icon: Users },
+      { id: 'role_management', name: 'Role Management', icon: ShieldCheck },
     ]
   }
 ];

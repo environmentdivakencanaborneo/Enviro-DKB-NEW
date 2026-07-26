@@ -173,10 +173,49 @@ export interface AlertNotification {
 }
 
 export interface UserProfile {
+  uid?: string;
   name: string;
+  fullName?: string;
   email: string;
-  company: string;
+  company?: string;
+  phone?: string;
+  department?: string;
+  position?: string;
+  site?: string;
+  nik?: string;
+  photoURL?: string;
+  status?: 'Pending' | 'Active' | 'Rejected' | 'Disabled' | 'Deleted';
   role: string;
+  isApproved?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  lastLogin?: string | null;
+  loginCount?: number;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  rejectedBy?: string | null;
+  rejectedAt?: string | null;
+  rejectReason?: string | null;
+  isActive?: boolean;
+  deleted?: boolean;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+}
+
+export interface PermissionMatrixItem {
+  module: string;
+  label: string;
+  view: boolean;
+  create: boolean;
+  edit: boolean;
+  delete: boolean;
+  export: boolean;
+  approve: boolean;
+}
+
+export interface RolePermissions {
+  role: string;
+  permissions: Record<string, PermissionMatrixItem>;
 }
 
 export interface SolidWasteData {

@@ -1,9 +1,12 @@
 {
-  "projectId": "pacific-biplane-frtgb",
-  "appId": "1:755515280339:web:80c953c0a01173d1ddfd26",
-  "apiKey": "AIzaSyA4i6t3XDPGke-7Kp90mTOtZ2-CIlJt96s",
-  "authDomain": "pacific-biplane-frtgb.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-4135b179-2e45-45b0-b4ff-85ed6938415e",
-  "storageBucket": "pacific-biplane-frtgb.firebasestorage.app",
-  "messagingSenderId": "755515280339"
+  "projectId": "dkb-emms",
+  "appId": "1:514173088619:web:58fd8ade129fff71f3122e",
+  "apiKey": "AIzaSyBIAp_zF6FrLNG95AXuoQJ4CzzS0CvfIhc",
+  "authDomain": "dkb-emms.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "dkb-emms.firebasestorage.app",
+  "messagingSenderId": "514173088619",
+  "measurementId": "",
+  "oAuthClientId": "514173088619-5d092fpplrtvjt6j5o3e5rarqp62abng.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }
