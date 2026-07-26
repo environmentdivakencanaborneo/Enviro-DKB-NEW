@@ -271,7 +271,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (result.user) {
         setUser(result.user);
         const p = await fetchUserProfile(result.user);
-        if (p && p.status === 'Active' && p.isApproved) {
+        if (p && (p.status === 'Active' || p.isApproved)) {
           await updateDoc(doc(db, 'users', result.user.uid), {
             lastLogin: new Date().toISOString(),
             loginCount: (p.loginCount || 0) + 1
@@ -297,12 +297,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithEmail = async (email: string, pass: string) => {
     try {
       setLoading(true);
+      setAuthError(null);
       const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
       const firebaseUser = cred.user;
       setUser(firebaseUser);
       const p = await fetchUserProfile(firebaseUser);
 
-      if (p && p.status === 'Active' && p.isApproved) {
+      if (p && (p.status === 'Active' || p.isApproved)) {
         await updateDoc(doc(db, 'users', firebaseUser.uid), {
           lastLogin: new Date().toISOString(),
           loginCount: (p.loginCount || 0) + 1
@@ -314,8 +315,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           details: `LOGIN: ${firebaseUser.email}`
         }).catch(() => {});
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login email failed:", error);
+      const errorMsg = error?.message || "Gagal masuk. Periksa email dan password.";
+      setAuthError(errorMsg);
       throw error;
     } finally {
       setLoading(false);
@@ -329,6 +332,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       setLoading(true);
+      setAuthError(null);
       const cred = await createUserWithEmailAndPassword(auth, data.email.trim(), data.password);
       const firebaseUser = cred.user;
 
@@ -344,6 +348,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userDocData = {
         uid: firebaseUser.uid,
         fullName: data.fullName,
+        displayName: data.fullName,
         name: data.fullName,
         email: data.email.trim(),
         company: 'PT Diva Kencana Borneo',
@@ -354,7 +359,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         nik: data.nik || '',
         photoURL: data.photoURL || '',
         status: 'Pending' as const,
-        role: 'Pending',
+        role: 'User',
         isApproved: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -386,6 +391,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsNewUser(false);
     } catch (error: any) {
       console.error("Registration failed in registerUser:", error);
+      const errorMsg = error?.message || "Gagal melakukan pendaftaran akun.";
+      setAuthError(errorMsg);
       throw error;
     } finally {
       setLoading(false);
@@ -394,6 +401,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const sendPasswordReset = async (email: string) => {
     try {
+      setLoading(true);
+      setAuthError(null);
       await sendPasswordResetEmail(auth, email.trim());
       await auditService.createLog({
         collection: 'users',
@@ -401,9 +410,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         action: 'update',
         details: `RESET_PASSWORD email sent to ${email}`
       }).catch(() => {});
-    } catch (error) {
+    } catch (error: any) {
       console.error("Reset password failed:", error);
+      const errorMsg = error?.message || "Gagal mengirimkan email reset password.";
+      setAuthError(errorMsg);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 

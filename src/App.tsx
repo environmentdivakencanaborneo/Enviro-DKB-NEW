@@ -73,6 +73,7 @@ export default function App() {
     token, 
     loading, 
     isNewUser, 
+    authError,
     hasWriteAuthority, 
     logout 
   } = useAuth();
@@ -1092,8 +1093,10 @@ export default function App() {
     }
   };
 
+  const isApprovedUser = user && profile && (profile.status === 'Active' || profile.isApproved === true);
+
   // Show a full-screen sleek loader if checking auth states
-  if (loading && !user) {
+  if (loading && !user && !authError) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-slate-700 font-sans">
         <div className="h-10 w-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -1103,8 +1106,8 @@ export default function App() {
     );
   }
 
-  // Handle Login Wall
-  if (!user || isNewUser) {
+  // Handle Login Wall & Unapproved / Pending Wall
+  if (!user || isNewUser || !isApprovedUser) {
     return (
       <AuthView />
     );

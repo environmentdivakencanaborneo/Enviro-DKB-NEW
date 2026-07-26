@@ -38,6 +38,7 @@ export default function AuthView() {
     registerUser,
     sendPasswordReset,
     logout,
+    refreshProfile,
     loading,
     authError
   } = useAuth();
@@ -277,40 +278,51 @@ export default function AuthView() {
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-xl font-bold text-slate-100">Pendaftaran Berhasil</h2>
+              <h2 className="text-xl font-bold text-slate-100">Registration Successful</h2>
               <p className="text-xs text-slate-300 leading-relaxed max-w-md mx-auto">
-                Akun Anda <span className="font-mono text-emerald-400 font-semibold">{user.email}</span> berhasil dibuat. Saat ini akun masih menunggu persetujuan Administrator. Anda akan dapat menggunakan aplikasi setelah akun disetujui.
+                Your account is awaiting administrator approval.
               </p>
             </div>
 
             <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-4 text-left text-xs space-y-2 text-slate-300">
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                <span className="text-slate-400">Status Akun:</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  Menunggu Persetujuan
+                <span className="text-slate-400">Status:</span>
+                <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Pending
                 </span>
               </div>
               <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                <span className="text-slate-400">Peran Default:</span>
-                <span className="font-semibold text-slate-200">{profile?.role || 'Viewer'}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                <span className="text-slate-400">Departemen:</span>
-                <span className="text-slate-200">{profile?.department || '-'}</span>
+                <span className="text-slate-400">Email:</span>
+                <span className="font-semibold text-slate-200">{user?.email}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Lokasi Site:</span>
-                <span className="text-slate-200">{profile?.site || '-'}</span>
+                <span className="text-slate-400">Role:</span>
+                <span className="text-slate-200">{profile?.role || 'User'}</span>
               </div>
             </div>
 
-            <button
-              onClick={handleReturnToLogin}
-              className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Kembali ke Login
-            </button>
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 font-medium">
+              Please contact the system administrator.
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={refreshProfile}
+                className="py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Cek Status Approval
+              </button>
+              <button
+                type="button"
+                onClick={handleReturnToLogin}
+                className="py-3 bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Keluar
+              </button>
+            </div>
           </div>
         ) : isRejectedUser ? (
           /* PENDAFTARAN DITOLAK SCREEN */
