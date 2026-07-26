@@ -889,7 +889,7 @@ export default function App() {
             findings={capaFindings}
             isLoading={isLoadingCapa}
             userEmail={user?.email || undefined}
-            userRole={profile?.role}
+            canEdit={hasWriteAuthority}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -899,7 +899,7 @@ export default function App() {
           <ComplianceMatrixView
             data={complianceMatrix}
             isLoading={isLoadingCompliance}
-            userRole={profile?.role}
+            canEdit={hasWriteAuthority}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -909,7 +909,7 @@ export default function App() {
           <IncidentView
             incidents={incidents}
             isLoading={isLoadingIncidents}
-            userRole={profile?.role}
+            canEdit={hasWriteAuthority}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -931,7 +931,7 @@ export default function App() {
           <RegulatoryWatchView
             data={regulatory}
             isLoading={isLoadingRegulatory}
-            userRole={profile?.role}
+            canEdit={hasWriteAuthority}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -1024,7 +1024,7 @@ export default function App() {
               onAddEvent={handleAddCalendarEvent}
               onDeleteEvent={handleDeleteCalendarEvent}
               onUpdateEventStatus={handleUpdateCalendarStatus}
-              userRole={profile?.role}
+              canEdit={hasWriteAuthority}
               onUnauthorizedAction={showAuthorityWarning}
             />
           </ModuleErrorBoundary>

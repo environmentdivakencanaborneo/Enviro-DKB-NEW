@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { ComplianceMatrixData } from '../types';
 import { complianceMatrixService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
-import { mapRole } from '../services/permissionService';
 import { 
   CheckSquare, Plus, Search, Download, 
   Trash2, Edit, X, Link as LinkIcon
@@ -12,14 +11,14 @@ import ModuleErrorBoundary from './ModuleErrorBoundary';
 interface ComplianceMatrixViewProps {
   data: ComplianceMatrixData[];
   isLoading: boolean;
-  userRole?: string;
+  canEdit?: boolean;
   onUnauthorizedAction: (action: string) => void;
 }
 
 export default function ComplianceMatrixView({ 
   data, 
   isLoading, 
-  userRole, 
+  canEdit = false, 
   onUnauthorizedAction 
 }: ComplianceMatrixViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,9 +40,6 @@ export default function ComplianceMatrixView({
   });
 
   const [deleteConfirm, setDeleteConfirm] = useState<{id: string, message: string} | null>(null);
-
-  const effectiveRole = mapRole(userRole);
-  const canEdit = ['Admin', 'Superintendent', 'Operator'].includes(effectiveRole);
 
   const periods = useMemo(() => Array.from(new Set(data.map(d => d.period))).sort().reverse(), [data]);
 

@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { RegulatoryWatchData } from '../types';
 import { regulatoryService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
-import { mapRole } from '../services/permissionService';
 import { 
   BookOpen, Plus, Search, Filter, Download, 
   Trash2, Edit, AlertTriangle, X,
@@ -13,14 +12,14 @@ import ModuleErrorBoundary from './ModuleErrorBoundary';
 interface RegulatoryWatchViewProps {
   data: RegulatoryWatchData[];
   isLoading: boolean;
-  userRole?: string;
+  canEdit?: boolean;
   onUnauthorizedAction: (action: string) => void;
 }
 
 export default function RegulatoryWatchView({ 
   data, 
   isLoading, 
-  userRole, 
+  canEdit = false, 
   onUnauthorizedAction 
 }: RegulatoryWatchViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,9 +39,6 @@ export default function RegulatoryWatchView({
   });
 
   const [deleteConfirm, setDeleteConfirm] = useState<{id: string, message: string} | null>(null);
-
-  const effectiveRole = mapRole(userRole);
-  const canEdit = ['Admin', 'Superintendent', 'Operator'].includes(effectiveRole);
 
   const filteredData = useMemo(() => {
     return data.filter(f => {

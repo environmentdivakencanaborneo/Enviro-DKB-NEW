@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { IncidentData } from '../types';
 import { incidentService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
-import { mapRole } from '../services/permissionService';
 import { 
   Flame, Plus, Search, Download, 
   Trash2, Edit, AlertTriangle, X,
@@ -13,14 +12,14 @@ import ModuleErrorBoundary from './ModuleErrorBoundary';
 interface IncidentViewProps {
   incidents: IncidentData[];
   isLoading: boolean;
-  userRole?: string;
+  canEdit?: boolean;
   onUnauthorizedAction: (action: string) => void;
 }
 
 export default function IncidentView({ 
   incidents, 
   isLoading, 
-  userRole, 
+  canEdit = false, 
   onUnauthorizedAction 
 }: IncidentViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,9 +43,6 @@ export default function IncidentView({
   });
 
   const [deleteConfirm, setDeleteConfirm] = useState<{id: string, message: string} | null>(null);
-
-  const effectiveRole = mapRole(userRole);
-  const canEdit = ['Admin', 'Superintendent', 'Operator'].includes(effectiveRole);
 
   const filteredData = useMemo(() => {
     return incidents.filter(f => {

@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { CapaData, CapaHistory } from '../types';
 import { capaService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
-import { mapRole } from '../services/permissionService';
 import { 
   AlertOctagon, Plus, Search, Filter, Download, 
   Trash2, Edit, CheckCircle, Clock, ShieldAlert,
@@ -14,7 +13,7 @@ interface CapaViewProps {
   findings: CapaData[];
   isLoading: boolean;
   userEmail?: string;
-  userRole?: string;
+  canEdit?: boolean;
   onUnauthorizedAction: (action: string) => void;
 }
 
@@ -22,7 +21,7 @@ export default function CapaView({
   findings, 
   isLoading, 
   userEmail, 
-  userRole, 
+  canEdit = false, 
   onUnauthorizedAction 
 }: CapaViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,9 +52,6 @@ export default function CapaView({
     preventiveAction: '',
     status: 'Terbuka'
   });
-
-  const effectiveRole = mapRole(userRole);
-  const canEdit = ['Admin', 'Superintendent', 'Operator'].includes(effectiveRole);
 
   const filteredFindings = useMemo(() => {
     return findings.filter(f => {

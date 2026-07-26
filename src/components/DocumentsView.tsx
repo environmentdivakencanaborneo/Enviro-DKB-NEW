@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { EnvironmentalDocument, ComplianceCalendarEvent } from '../types';
 import { computeDocumentStatus } from '../utils/documentStatus';
-import { mapRole } from '../services/permissionService';
 import { 
   Plus, 
   Trash2, 
@@ -23,7 +22,7 @@ interface DocumentsViewProps {
   onAddEvent: (item: any) => void;
   onUpdateEventStatus: (id: string, data: any) => void;
   onDeleteEvent: (id: string) => void;
-  userRole?: string;
+  canEdit?: boolean;
   onUnauthorizedAction: (action: string) => void;
 }
 
@@ -36,7 +35,7 @@ export default function DocumentsView({
   onAddEvent,
   onUpdateEventStatus,
   onDeleteEvent,
-  userRole,
+  canEdit = false,
   onUnauthorizedAction
 }: DocumentsViewProps) {
   const [activeTab, setActiveTab] = useState<'documents' | 'calendar'>('documents');
@@ -65,9 +64,6 @@ export default function DocumentsView({
   const [eventType, setEventType] = useState('Pelaporan');
 
   const [deleteConfirm, setDeleteConfirm] = useState<{id: string, type: 'document'|'event', message: string} | null>(null);
-
-  const effectiveRole = mapRole(userRole);
-  const canEdit = ['Admin', 'Superintendent', 'Operator'].includes(effectiveRole);
 
   const filteredDocs = documents.filter(doc => 
     doc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 

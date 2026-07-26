@@ -13,10 +13,6 @@ import {
 
 export type { Role };
 
-export function mapRole(roleString: string | null | undefined): Role {
-  return normalizeRole(roleString);
-}
-
 export function canRead(): boolean {
   return !!auth.currentUser;
 }
