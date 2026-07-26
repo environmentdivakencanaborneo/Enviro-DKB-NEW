@@ -47,6 +47,7 @@ import RegulatoryWatchView from './components/RegulatoryWatchView';
 import AdminManagementView from './components/AdminManagementView';
 
 import { useAuth } from './services/authService';
+import { canAccessModule, isAdmin } from './services/permissionService';
 import { useFirestoreData } from './hooks/useFirestoreData';
 import { handleGlobalError } from './utils/errorHandler';
 import { 
@@ -65,6 +66,7 @@ import type { BackupStatus } from './services/backupService';
 import { getScopedKey } from './utils/googleSync';
 
 import { VALID_TABS, AppTabId } from './data/navigation';
+import { ShieldAlert } from 'lucide-react';
 
 export default function App() {
   const { 
@@ -281,7 +283,7 @@ export default function App() {
 
   // Seed database hanya sekali saat user pertama kali login, dengan guard useRef menghindari race condition
   useEffect(() => {
-    if (!user || !profile || seedAttempted.current) return;
+    if (!import.meta.env.DEV || !user || !profile || !isAdmin(profile) || seedAttempted.current) return;
     seedAttempted.current = true;
     import('./services/seedService').then(({ seedFirestoreDatabaseIfEmpty }) => {
       seedFirestoreDatabaseIfEmpty();
@@ -1068,25 +1070,34 @@ export default function App() {
         );
 
       case 'registration_approval':
-        return (
-          <ModuleErrorBoundary moduleName="Registration Approval">
-            <AdminManagementView initialTab="approval" />
-          </ModuleErrorBoundary>
-        );
-
       case 'user_management':
-        return (
-          <ModuleErrorBoundary moduleName="User Management">
-            <AdminManagementView initialTab="users" />
-          </ModuleErrorBoundary>
-        );
+      case 'role_management': {
+        if (!canAccessModule(profile, activeTab)) {
+          return (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Modul administrasi ini hanya dapat diakses oleh Environment Manager atau Administrator sistem.
+              </p>
+            </div>
+          );
+        }
 
-      case 'role_management':
+        const adminTabMap: Record<string, 'approval' | 'users' | 'roles'> = {
+          registration_approval: 'approval',
+          user_management: 'users',
+          role_management: 'roles'
+        };
+
         return (
-          <ModuleErrorBoundary moduleName="Role Management">
-            <AdminManagementView initialTab="roles" />
+          <ModuleErrorBoundary moduleName="Administrasi Sistem">
+            <AdminManagementView initialTab={adminTabMap[activeTab] || 'users'} />
           </ModuleErrorBoundary>
         );
+      }
 
       default:
         return <div className="p-8 text-center text-slate-900">Modul tidak ditemukan.</div>;

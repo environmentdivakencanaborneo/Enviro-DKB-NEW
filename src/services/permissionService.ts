@@ -2,14 +2,21 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { auth } from '../utils/firebaseAuth';
+import { 
+  Role, 
+  DEFAULT_ROLE, 
+  normalizeRole, 
+  atLeast 
+} from '../utils/roles';
 
-export type Role = 'Viewer' | 'Operator' | 'Superintendent' | 'Admin';
+export type { Role };
 
-/**
- * Validasi apakah pengguna saat ini berhak membaca data.
- * Semua pengguna yang terautentikasi memiliki akses baca.
- */
+export function mapRole(roleString: string | null | undefined): Role {
+  return normalizeRole(roleString);
+}
+
 export function canRead(): boolean {
   return !!auth.currentUser;
 }
@@ -21,37 +28,73 @@ export async function refreshAndGetClaims(): Promise<Record<string, any>> {
   return token.claims;
 }
 
-export function mapRole(roleString: string | null | undefined): Role {
-  if (!roleString) return 'Viewer';
-  const role = roleString.toLowerCase().trim();
-  
-  if (role === 'admin' || role === 'super admin' || role.includes('admin') || role.includes('administrator') || role.includes('env manager') || role.includes('environment manager')) {
-    return 'Admin';
-  }
-  
-  if (role.includes('superintendent') || role.includes('chief') || role.includes('pimpinan') || (role.includes('manager') && !role.includes('env manager'))) {
-    return 'Superintendent';
-  }
-  
-  if (role.includes('user') || role.includes('supervisor') || role.includes('foreman') || role.includes('operator') || role.includes('lead') || role.includes('inspector') || role.includes('pengawas') || role.includes('staff')) {
-    return 'Operator';
-  }
-  
-  if (role.includes('viewer') || role.includes('auditor') || role.includes('direktur') || role.includes('guest') || role.includes('baca')) {
-    return 'Viewer';
-  }
-  
-  return 'Viewer';
+export interface UserProfileLike {
+  role?: string;
+  level?: string;
+  status?: string;
+  isApproved?: boolean;
+  isActive?: boolean;
+  deleted?: boolean;
 }
 
-export function canWrite(profile: { role?: string, level?: string } | null | undefined): boolean {
+export function isActiveApproved(profile: UserProfileLike | null | undefined): boolean {
   if (!profile) return false;
-  const role = (profile.level as Role) || mapRole(profile.role);
-  return role === 'Operator' || role === 'Superintendent' || role === 'Admin';
+  const isStatusActiveOrApproved = (profile.status === 'Active' || profile.isApproved === true);
+  const isNotDisabled = profile.isActive !== false;
+  const isNotDeleted = profile.deleted !== true;
+  return isStatusActiveOrApproved && isNotDisabled && isNotDeleted;
 }
 
-export function isAdmin(profile: { role?: string, level?: string } | null | undefined): boolean {
-  if (!profile) return false;
-  const role = (profile.level as Role) || mapRole(profile.role);
-  return role === 'Admin';
+export function effectiveRole(profile: UserProfileLike | null | undefined): Role {
+  if (!isActiveApproved(profile)) {
+    return DEFAULT_ROLE;
+  }
+  const rawRole = profile?.level ?? profile?.role;
+  return normalizeRole(rawRole);
+}
+
+export function canWrite(profile: UserProfileLike | null | undefined): boolean {
+  if (!auth.currentUser || !isActiveApproved(profile)) {
+    return false;
+  }
+  return atLeast(effectiveRole(profile), 'Operator');
+}
+
+export function isSuperintendent(profile: UserProfileLike | null | undefined): boolean {
+  return atLeast(effectiveRole(profile), 'Environment Superintendent');
+}
+
+export function isAdmin(profile: UserProfileLike | null | undefined): boolean {
+  return atLeast(effectiveRole(profile), 'Environment Manager');
+}
+
+export const MODULE_MIN_ROLE: Record<string, Role> = {
+  registration_approval: 'Environment Manager',
+  user_management: 'Environment Manager',
+  role_management: 'Admin',
+  executive: 'Environment Superintendent',
+  costs: 'Environment Superintendent',
+  audit_log: 'Environment Superintendent',
+  dashboard: 'Viewer',
+  monitoring: 'Viewer',
+  surfacewater: 'Viewer',
+  rainfall: 'Viewer',
+  reclamation: 'Viewer',
+  nursery: 'Viewer',
+  waste: 'Viewer',
+  solid_waste: 'Viewer',
+  capa: 'Viewer',
+  incidents: 'Viewer',
+  documents: 'Viewer',
+  compliance: 'Viewer',
+  regulatory: 'Viewer',
+  reports: 'Viewer'
+};
+
+export function canAccessModule(profile: UserProfileLike | null | undefined, moduleKey: string): boolean {
+  if (!isActiveApproved(profile)) {
+    return false;
+  }
+  const requiredRole = MODULE_MIN_ROLE[moduleKey] ?? 'Admin'; // Fail-closed for unregistered modules
+  return atLeast(effectiveRole(profile), requiredRole);
 }

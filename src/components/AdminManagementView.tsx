@@ -47,20 +47,13 @@ import { db } from '../utils/firebaseAuth';
 import { UserProfile, PermissionMatrixItem, RolePermissions } from '../types';
 import { useAuth } from '../services/authService';
 import { auditService } from '../services/auditService';
+import { ROLES } from '../utils/roles';
 
 interface AdminManagementViewProps {
   initialTab?: 'approval' | 'users' | 'roles' | 'audit';
 }
 
-const AVAILABLE_ROLES = [
-  'Admin',
-  'Environment Manager',
-  'Environment Superintendent',
-  'Foreman',
-  'Operator',
-  'Auditor',
-  'Viewer'
-];
+const AVAILABLE_ROLES = ROLES;
 
 const MODULE_PERMISSIONS = [
   { key: 'dashboard', label: 'Dashboard Operasional' },

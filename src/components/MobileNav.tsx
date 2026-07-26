@@ -13,6 +13,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { GoogleSyncConfig } from '../types';
 import DivaLogo from './DivaLogo';
 import { APP_TABS, MOBILE_PRIMARY_TABS, MOBILE_SECONDARY_TABS } from '../data/navigation';
+import { useAuth } from '../services/authService';
+import { canAccessModule } from '../services/permissionService';
 
 interface MobileNavProps {
   currentTab: string;
@@ -34,9 +36,10 @@ export default function MobileNav({
   onLogout
 }: MobileNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { profile } = useAuth();
 
-  const primaryTabs = APP_TABS.filter(t => MOBILE_PRIMARY_TABS.includes(t.id));
-  const secondaryTabs = APP_TABS.filter(t => MOBILE_SECONDARY_TABS.includes(t.id));
+  const primaryTabs = APP_TABS.filter(t => MOBILE_PRIMARY_TABS.includes(t.id) && canAccessModule(profile, t.id));
+  const secondaryTabs = APP_TABS.filter(t => MOBILE_SECONDARY_TABS.includes(t.id) && canAccessModule(profile, t.id));
 
   const handleTabClick = (id: string) => {
     setCurrentTab(id);

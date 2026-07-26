@@ -9,6 +9,8 @@ import {
 import { GoogleSyncConfig } from '../types';
 import DivaLogo from './DivaLogo';
 import { APP_MENU_GROUPS } from '../data/navigation';
+import { useAuth } from '../services/authService';
+import { canAccessModule } from '../services/permissionService';
 
 interface SidebarProps {
   currentTab: string;
@@ -28,6 +30,12 @@ export default function Sidebar({
   onLogout
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const { profile } = useAuth();
+
+  const filteredGroups = APP_MENU_GROUPS.map(group => ({
+    ...group,
+    items: group.items.filter(item => canAccessModule(profile, item.id))
+  })).filter(group => group.items.length > 0);
 
   return (
     <aside 
@@ -61,7 +69,7 @@ export default function Sidebar({
 
         {/* Navigation Items */}
         <nav className="p-4 space-y-6 mt-4 flex-1 pb-4">
-          {APP_MENU_GROUPS.map((group, gIdx) => (
+          {filteredGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-1.5">
               {!collapsed && (
                 <div className="px-3 pb-2 pt-1 text-[10px] font-bold tracking-widest text-[#A8B9A5]/80 uppercase font-sans">

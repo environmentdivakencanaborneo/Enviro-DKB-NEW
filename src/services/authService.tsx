@@ -20,6 +20,7 @@ import { auth, db } from '../utils/firebaseAuth';
 import { UserProfile } from '../types';
 import { canWrite } from './permissionService';
 import { auditService } from './auditService';
+import { normalizeRole } from '../utils/roles';
 
 export interface RegisterUserData {
   fullName: string;
@@ -115,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           displayName: data.displayName || data.fullName || data.name || firebaseUser.displayName || 'Pengguna',
           email: firebaseUser.email || data.email || '',
           photoURL: firebaseUser.photoURL || data.photoURL || '',
-          role: data.role || 'User',
+          role: normalizeRole(data.role),
           status: data.status || (data.isApproved === true ? 'Active' : 'Pending'),
           isApproved: data.isApproved ?? (data.status === 'Active'),
           isActive: data.isActive ?? true,
@@ -142,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           position: 'Staff',
           site: 'Main Site',
           status: 'Pending' as const,
-          role: 'User',
+          role: 'Viewer',
           isApproved: false,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -359,7 +360,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         nik: data.nik || '',
         photoURL: data.photoURL || '',
         status: 'Pending' as const,
-        role: 'User',
+        role: 'Viewer',
         isApproved: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -432,7 +433,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name,
       email,
       company,
-      role: 'Pending',
+      role: 'Viewer',
       status: 'Pending' as const,
       isApproved: false,
       createdAt: serverTimestamp(),
