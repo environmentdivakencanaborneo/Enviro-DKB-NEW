@@ -48,6 +48,7 @@ import { UserProfile, PermissionMatrixItem, RolePermissions } from '../types';
 import { useAuth } from '../services/authService';
 import { auditService } from '../services/auditService';
 import { ROLES } from '../utils/roles';
+import { getTimeMs, formatTimestamp } from '../utils/dateUtils';
 
 interface AdminManagementViewProps {
   initialTab?: 'approval' | 'users' | 'roles' | 'audit';
@@ -124,7 +125,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
       users.sort((a, b) => {
         if (a.status === 'Pending' && b.status !== 'Pending') return -1;
         if (a.status !== 'Pending' && b.status === 'Pending') return 1;
-        return (b.createdAt || '').localeCompare(a.createdAt || '');
+        return getTimeMs(b.createdAt) - getTimeMs(a.createdAt);
       });
       setUsersList(users);
       setLoadingUsers(false);
@@ -146,7 +147,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
         snapshot.forEach((docSnap) => {
           logs.push(docSnap.data());
         });
-        logs.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+        logs.sort((a, b) => getTimeMs(b.timestamp) - getTimeMs(a.timestamp));
         setAuditLogs(logs);
         setLoadingAudit(false);
       }, (err) => {
@@ -536,7 +537,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                       <td className="p-3.5">{u.position || '-'}</td>
                       <td className="p-3.5">{u.site || '-'}</td>
                       <td className="p-3.5 font-mono text-[11px] text-slate-400">
-                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                        {formatTimestamp(u.createdAt, 'id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td className="p-3.5">
                         <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1">
@@ -670,7 +671,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                         <p className="text-[10px] text-slate-400">{u.site || '-'}</p>
                       </td>
                       <td className="p-3.5 font-mono text-[10px] text-slate-400">
-                        {u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Belum Pernah'}
+                        {formatTimestamp(u.lastLogin, 'id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }, 'Belum Pernah')}
                       </td>
                       <td className="p-3.5 font-mono font-bold text-slate-300 text-center">
                         {u.loginCount || 0}
@@ -854,7 +855,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                   {auditLogs.map((log, idx) => (
                     <tr key={log.id || idx} className="hover:bg-slate-700/30 transition-colors text-[11px]">
                       <td className="p-3.5 text-slate-400 whitespace-nowrap">
-                        {log.timestamp ? new Date(log.timestamp).toLocaleString('id-ID') : '-'}
+                        {formatTimestamp(log.timestamp, 'id-ID')}
                       </td>
                       <td className="p-3.5 text-emerald-400 font-semibold">{log.user || 'system'}</td>
                       <td className="p-3.5 text-slate-300">{log.collection || 'users'}</td>

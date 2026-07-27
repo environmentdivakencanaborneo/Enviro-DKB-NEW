@@ -1,7 +1,41 @@
 rules_version = '2';
 
+// ============================================================================
+// FIRESTORE SECURITY RULES - ENV-COAL PRO
+// ============================================================================
+//  Aplikasi : System Manajemen Lingkungan Pertambangan (ENV-COAL PRO)
+//  Revisi   : 02a
+//  Tanggal  : 2026
+//  Fokus    : Hardened ABAC Security Rules with Field Validation
+// ============================================================================
+//  PERUBAHAN UTAMA:
+//  1. Penambahan validator skema & batas ukuran field (shapeOk, isText, isOptText).
+//  2. Penataan ulang RBAC berbasis per-koleksi.
+//  8. Rev. 02a: koreksi vCapa (batas field), enum tipe dokumen, dan tiga batas shapeOk
+//     hasil verifikasi silang terhadap src/types.ts dan src/utils/validation.ts.
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Helper: Validasi batas jumlah max key dalam dokumen
+    function shapeOk(maxKeys) {
+      return request.resource.data.keys().size() <= maxKeys;
+    }
+
+    // Helper: Validasi format ID dokumen
+    function isValidDocId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Helper: Validasi teks wajib & max len
+    function isText(val, maxLen) {
+      return val is string && val.size() <= maxLen;
+    }
+
+    // Helper: Validasi teks opsional & max len
+    function isOptText(val, maxLen) {
+      return val == null || (val is string && val.size() <= maxLen);
+    }
     
     // Helper: Is user authenticated
     function isVerifiedUser() {
@@ -50,6 +84,73 @@ service cloud.firestore {
       return isSuperintendent() || role == 'Operator' || role == 'OPERATOR' || role == 'operator' || role == 'Supervisor' || role == 'Foreman';
     }
 
+    // --- DOMAIN VALIDATORS ---
+
+    function vCapa() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','source','title','status'])
+        && shapeOk(30)
+        && isValidDocId(d.id)
+        && isText(d.title, 300)
+        && isText(d.status, 50)
+        && isText(d.source, 100)
+        && isOptText(d.get('description', null), 4000)
+        && isOptText(d.get('rootCause', null), 4000)
+        && isOptText(d.get('correctiveAction', null), 4000)
+        && isOptText(d.get('preventiveAction', null), 4000)
+        && isOptText(d.get('verificationNotes', null), 4000)
+        && isOptText(d.get('pic', null), 100);
+    }
+
+    function vEnvDocument() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','name','type','docNo','issuedDate','expiryDate','status','pic'])
+        && shapeOk(14)
+        && isValidDocId(d.id)
+        && isText(d.name, 300)
+        && d.type in ['AMDAL','UKL-UPL','Persetujuan Lingkungan','Pertek Air Limbah',
+                      'Pertek Emisi','Izin TPS B3','Izin Pemanfaatan',
+                      'Persetujuan Rencana Reklamasi','Lainnya']
+        && isText(d.docNo, 100)
+        && isText(d.issuedDate, 50)
+        && isText(d.expiryDate, 50)
+        && isText(d.status, 50)
+        && isText(d.pic, 100);
+    }
+
+    function vIncident() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','title','date','severity','status'])
+        && shapeOk(22)
+        && isValidDocId(d.id)
+        && isText(d.title, 300)
+        && isText(d.date, 50)
+        && isText(d.severity, 50)
+        && isText(d.status, 50);
+    }
+
+    function vComplianceMatrix() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','regulation','aspect','status'])
+        && shapeOk(20)
+        && isValidDocId(d.id)
+        && isText(d.regulation, 300)
+        && isText(d.aspect, 200)
+        && isText(d.status, 50);
+    }
+
+    function vRegulatory() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','title','category','status'])
+        && shapeOk(20)
+        && isValidDocId(d.id)
+        && isText(d.title, 300)
+        && isText(d.category, 100)
+        && isText(d.status, 50);
+    }
+
+    // --- COLLECTION MATCHES ---
+
     // --- COLLECTION: users ---
     match /users/{userId} {
       allow read: if isVerifiedUser();
@@ -86,28 +187,28 @@ service cloud.firestore {
     // Compliance Matrix
     match /compliance_matrix/{matrixId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if (isOperator() || isVerifiedUser()) && vComplianceMatrix();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
     // Regulatory Watch
     match /regulatory/{regId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isSuperintendent() || isVerifiedUser();
+      allow create, update: if (isSuperintendent() || isVerifiedUser()) && vRegulatory();
       allow delete: if isAdmin();
     }
     
     // Incidents
     match /incidents/{incidentId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if (isOperator() || isVerifiedUser()) && vIncident();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
     // CAPA Findings
     match /capa/{capaId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if (isOperator() || isVerifiedUser()) && vCapa();
       allow delete: if isAdmin() || isSuperintendent();
     }
 
@@ -164,7 +265,7 @@ service cloud.firestore {
     
     match /documents/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isSuperintendent() || isVerifiedUser();
+      allow create, update: if (isSuperintendent() || isVerifiedUser()) && vEnvDocument();
       allow delete: if isAdmin();
     }
     

@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import ModalPortal from './ModalPortal';
 import { NurseryData, ReclamationPlan, ReclamationGuarantee } from '../types';
 import { 
   Plus, 
@@ -1474,56 +1475,58 @@ export default function ReclamationView({
       )}
 
       {deleteConfirm && (
-        <div id="delete-confirm-modal-rec" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-700 text-left">
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-red-500/10 text-red-500">
-                <Trash2 size={16} />
-              </span>
-              Konfirmasi Tindakan
-            </h3>
-            <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-              {deleteConfirm.message}
-            </p>
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-3.5 py-2 rounded-xl text-xs bg-white hover:bg-slate-100 text-slate-600 font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={async () => {
-                  const { id, type } = deleteConfirm;
-                  setDeleteConfirm(null);
-                  try {
-                    if (type === 'nursery') {
-                      await onDeleteNursery(id);
-                    } else if (type === 'plan') {
-                      await onDeletePlan(id);
-                    } else if (type === 'reset-plan') {
-                      await onUpdatePlan(id, {
-                        realizedSizeHa: undefined,
-                        realizedYear: undefined,
-                        realizedPlantType: undefined,
-                        realizedMethod: undefined,
-                        realizedCost: undefined,
-                        status: 'In Progress'
-                      });
-                    } else if (type === 'guarantee') {
-                      await onDeleteGuarantee(id);
+        <ModalPortal>
+          <div id="delete-confirm-modal-rec" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-700 text-left">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <span className="p-1 rounded-lg bg-red-500/10 text-red-500">
+                  <Trash2 size={16} />
+                </span>
+                Konfirmasi Tindakan
+              </h3>
+              <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+                {deleteConfirm.message}
+              </p>
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="px-3.5 py-2 rounded-xl text-xs bg-white hover:bg-slate-100 text-slate-600 font-bold transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={async () => {
+                    const { id, type } = deleteConfirm;
+                    setDeleteConfirm(null);
+                    try {
+                      if (type === 'nursery') {
+                        await onDeleteNursery(id);
+                      } else if (type === 'plan') {
+                        await onDeletePlan(id);
+                      } else if (type === 'reset-plan') {
+                        await onUpdatePlan(id, {
+                          realizedSizeHa: undefined,
+                          realizedYear: undefined,
+                          realizedPlantType: undefined,
+                          realizedMethod: undefined,
+                          realizedCost: undefined,
+                          status: 'In Progress'
+                        });
+                      } else if (type === 'guarantee') {
+                        await onDeleteGuarantee(id);
+                      }
+                    } catch (err: any) {
+                      alert('Gagal mengeksekusi tindakan: ' + err.message);
                     }
-                  } catch (err: any) {
-                    alert('Gagal mengeksekusi tindakan: ' + err.message);
-                  }
-                }}
-                className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-slate-900 font-bold transition-colors cursor-pointer"
-              >
-                Konfirmasi
-              </button>
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-slate-900 font-bold transition-colors cursor-pointer"
+                >
+                  Konfirmasi
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

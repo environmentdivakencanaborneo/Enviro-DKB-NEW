@@ -132,11 +132,13 @@ export const EnvironmentalDocumentSchema = z.object({
   type: z.enum([
     "AMDAL",
     "UKL-UPL",
-    "Izin Lingkungan",
+    "Persetujuan Lingkungan",
+    "Pertek Air Limbah",
+    "Pertek Emisi",
     "Izin TPS B3",
-    "Izin Pembuangan Air Limbah",
+    "Izin Pemanfaatan",
     "Persetujuan Rencana Reklamasi",
-    "Persetujuan Pasca Tambang"
+    "Lainnya"
   ]),
   docNo: z.string().trim().min(1, "Nomor izin dokumen wajib diisi"),
   issuedDate: z.string().regex(dateRegex, "Format tanggal penerbitan harus YYYY-MM-DD"),

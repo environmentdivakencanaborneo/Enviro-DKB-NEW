@@ -7,7 +7,7 @@
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 class Logger {
-  private isDev = process.env.NODE_ENV !== 'production';
+  private isDev = import.meta.env.DEV;
 
   private formatMessage(level: LogLevel, message: string, data?: any) {
     const timestamp = new Date().toISOString();

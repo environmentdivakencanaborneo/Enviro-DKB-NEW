@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import ModalPortal from './ModalPortal';
 import { IncidentData } from '../types';
 import { incidentService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
@@ -13,6 +14,7 @@ interface IncidentViewProps {
   incidents: IncidentData[];
   isLoading: boolean;
   canEdit?: boolean;
+  canDelete?: boolean;
   onUnauthorizedAction: (action: string) => void;
 }
 
@@ -20,8 +22,10 @@ export default function IncidentView({
   incidents, 
   isLoading, 
   canEdit = false, 
+  canDelete,
   onUnauthorizedAction 
 }: IncidentViewProps) {
+  const allowedDelete = canDelete ?? false;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
@@ -79,6 +83,7 @@ export default function IncidentView({
   };
 
   const handleDelete = async (id: string) => {
+    if (!allowedDelete) return onUnauthorizedAction("Hapus Laporan Insiden");
     try {
       await incidentService.delete(id);
       setDeleteConfirm(null);
@@ -282,7 +287,7 @@ export default function IncidentView({
                     </button>
                     <button 
                       onClick={() => {
-                        if (!canEdit) return onUnauthorizedAction("Hapus Insiden");
+                        if (!allowedDelete) return onUnauthorizedAction("Hapus Insiden");
                         setDeleteConfirm({
                           id: item.id,
                           message: `Apakah Anda yakin ingin menghapus laporan insiden secara permanen? Tindakan ini tidak dapat dibatalkan.`
@@ -301,114 +306,118 @@ export default function IncidentView({
 
         {/* Add/Edit Form Modal */}
         {formOpen && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-3xl max-h-[90vh] flex flex-col animate-fade-in">
-              <div className="px-6 py-4 border-b border-[#E6ECE6] flex justify-between items-center shrink-0">
-                <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
-                  <AlertTriangle className="text-[#A33E3E] h-5 w-5" />
-                  {editingId ? 'Update Insiden Lingkungan' : 'Lapor Insiden Kedaruratan Baru'}
-                </h3>
-                <button onClick={() => setFormOpen(false)} className="p-2 bg-forest-50 hover:bg-[#DCE5DA] rounded-full text-[#2F5A46] cursor-pointer transition-colors">
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto text-left space-y-5">
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TANGGAL INSIDEN</label>
-                    <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">JAM KEJADIAN</label>
-                    <input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KATEGORI INSIDEN</label>
-                    <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as any})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] cursor-pointer font-medium">
-                      <option value="Tumpahan Hidrokarbon">Tumpahan Hidrokarbon</option>
-                      <option value="Tanggul Jebol">Tanggul Jebol / Longsor</option>
-                      <option value="Air Asam Tambang">Limpasan Air Asam Tambang</option>
-                      <option value="Kebakaran Hutan/Lahan">Kebakaran Hutan/Lahan</option>
-                      <option value="Emisi Asap Tebal">Emisi Asap Tebal</option>
-                      <option value="Lainnya">Lainnya</option>
-                    </select>
-                  </div>
+          <ModalPortal>
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-3xl max-h-[90vh] flex flex-col animate-fade-in">
+                <div className="px-6 py-4 border-b border-[#E6ECE6] flex justify-between items-center shrink-0">
+                  <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                    <AlertTriangle className="text-[#A33E3E] h-5 w-5" />
+                    {editingId ? 'Update Insiden Lingkungan' : 'Lapor Insiden Kedaruratan Baru'}
+                  </h3>
+                  <button onClick={() => setFormOpen(false)} className="p-2 bg-forest-50 hover:bg-[#DCE5DA] rounded-full text-[#2F5A46] cursor-pointer transition-colors">
+                    <X size={16} />
+                  </button>
                 </div>
+                <div className="p-6 overflow-y-auto text-left space-y-5">
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TANGGAL INSIDEN</label>
+                      <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">JAM KEJADIAN</label>
+                      <input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KATEGORI INSIDEN</label>
+                      <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as any})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] cursor-pointer font-medium">
+                        <option value="Tumpahan Hidrokarbon">Tumpahan Hidrokarbon</option>
+                        <option value="Tanggul Jebol">Tanggul Jebol / Longsor</option>
+                        <option value="Air Asam Tambang">Limpasan Air Asam Tambang</option>
+                        <option value="Kebakaran Hutan/Lahan">Kebakaran Hutan/Lahan</option>
+                        <option value="Emisi Asap Tebal">Emisi Asap Tebal</option>
+                        <option value="Lainnya">Lainnya</option>
+                      </select>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">LOKASI KEJADIAN</label>
-                    <input type="text" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" placeholder="Workshop / KM 12 / Settling Pond..." />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">LOKASI KEJADIAN</label>
+                      <input type="text" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" placeholder="Workshop / KM 12 / Settling Pond..." />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">NAMA PELAPOR & DEPARTEMEN</label>
+                      <input type="text" value={formData.reporter} onChange={e => setFormData({...formData, reporter: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" placeholder="Nama Lengkap / Dept HSE..." />
+                    </div>
                   </div>
+
                   <div>
-                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">NAMA PELAPOR & DEPARTEMEN</label>
-                    <input type="text" value={formData.reporter} onChange={e => setFormData({...formData, reporter: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" placeholder="Nama Lengkap / Dept HSE..." />
+                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KRONOLOGI KEJADIAN (SECARA DETAIL)</label>
+                    <textarea value={formData.chronology} onChange={e => setFormData({...formData, chronology: e.target.value})} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] resize-none" placeholder="Jelaskan secara kronologis bagaimana insiden terjadi di area operasional..." />
                   </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TINDAKAN PERTAMA (RESPONS CEPAT)</label>
+                      <textarea value={formData.firstAction} onChange={e => setFormData({...formData, firstAction: e.target.value})} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] resize-none" placeholder="Isolasi area tumpahan, memasang oil boom, penyebaran absorbent..." />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">DAMPAK / ESTIMASI KERUGIAN LINGKUNGAN</label>
+                      <textarea value={formData.environmentalLoss} onChange={e => setFormData({...formData, environmentalLoss: e.target.value})} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] resize-none" placeholder="Luas tanah terkontaminasi +/- 5m2, ceceran solar ke drainase..." />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">STATUS PENANGANAN</label>
+                      <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] cursor-pointer font-medium">
+                        <option value="Dilaporkan">Baru Dilaporkan</option>
+                        <option value="Investigasi">Dalam Investigasi</option>
+                        <option value="Tindakan Korektif">Tindakan Korektif Berjalan</option>
+                        <option value="Ditutup">Selesai (Ditutup)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TAUTAN DOKUMENTASI & BUKTI (URL FOTO/PDF)</label>
+                      <input type="url" value={formData.documentationUrl} onChange={e => setFormData({...formData, documentationUrl: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" placeholder="https://drive.google.com/..." />
+                    </div>
+                  </div>
+
                 </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KRONOLOGI KEJADIAN (SECARA DETAIL)</label>
-                  <textarea value={formData.chronology} onChange={e => setFormData({...formData, chronology: e.target.value})} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] resize-none" placeholder="Jelaskan secara kronologis bagaimana insiden terjadi di area operasional..." />
+                <div className="p-4 border-t border-[#E6ECE6] flex justify-end gap-2.5 shrink-0 bg-white rounded-b-[20px]">
+                  <button onClick={() => setFormOpen(false)} className="px-5 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all cursor-pointer">Batal</button>
+                  <button 
+                    onClick={handleSave}
+                    disabled={!formData.location || !formData.chronology || !formData.environmentalLoss}
+                    className="px-5 py-2.5 text-xs font-bold text-white bg-[#4D7C5A] hover:bg-[#2F5A46] disabled:opacity-40 rounded-xl transition-all cursor-pointer shadow-sm"
+                  >
+                    Simpan Laporan
+                  </button>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TINDAKAN PERTAMA (RESPONS CEPAT)</label>
-                    <textarea value={formData.firstAction} onChange={e => setFormData({...formData, firstAction: e.target.value})} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] resize-none" placeholder="Isolasi area tumpahan, memasang oil boom, penyebaran absorbent..." />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">DAMPAK / ESTIMASI KERUGIAN LINGKUNGAN</label>
-                    <textarea value={formData.environmentalLoss} onChange={e => setFormData({...formData, environmentalLoss: e.target.value})} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] resize-none" placeholder="Luas tanah terkontaminasi +/- 5m2, ceceran solar ke drainase..." />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">STATUS PENANGANAN</label>
-                    <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] cursor-pointer font-medium">
-                      <option value="Dilaporkan">Baru Dilaporkan</option>
-                      <option value="Investigasi">Dalam Investigasi</option>
-                      <option value="Tindakan Korektif">Tindakan Korektif Berjalan</option>
-                      <option value="Ditutup">Selesai (Ditutup)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TAUTAN DOKUMENTASI & BUKTI (URL FOTO/PDF)</label>
-                    <input type="url" value={formData.documentationUrl} onChange={e => setFormData({...formData, documentationUrl: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" placeholder="https://drive.google.com/..." />
-                  </div>
-                </div>
-
-              </div>
-              <div className="p-4 border-t border-[#E6ECE6] flex justify-end gap-2.5 shrink-0 bg-white rounded-b-[20px]">
-                <button onClick={() => setFormOpen(false)} className="px-5 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all cursor-pointer">Batal</button>
-                <button 
-                  onClick={handleSave}
-                  disabled={!formData.location || !formData.chronology || !formData.environmentalLoss}
-                  className="px-5 py-2.5 text-xs font-bold text-white bg-[#4D7C5A] hover:bg-[#2F5A46] disabled:opacity-40 rounded-xl transition-all cursor-pointer shadow-sm"
-                >
-                  Simpan Laporan
-                </button>
               </div>
             </div>
-          </div>
+          </ModalPortal>
         )}
 
         {/* Delete Confirm Modal */}
         {deleteConfirm && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-md p-6 text-left animate-fade-in">
-              <h3 className="text-sm font-bold text-text-primary flex items-center gap-2.5">
-                <span className="p-2 rounded-xl bg-[#A33E3E]/10 text-[#A33E3E]"><Trash2 size={16}/></span>
-                Konfirmasi Hapus Laporan
-              </h3>
-              <p className="text-xs text-text-secondary mt-4 leading-relaxed">{deleteConfirm.message}</p>
-              <div className="flex gap-2.5 justify-end mt-6">
-                <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all">Batal</button>
-                <button onClick={() => handleDelete(deleteConfirm.id)} className="px-4 py-2.5 text-xs font-bold text-white bg-[#A33E3E] hover:bg-[#853030] rounded-xl transition-all shadow-sm">Hapus Permanen</button>
+          <ModalPortal>
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-md p-6 text-left animate-fade-in">
+                <h3 className="text-sm font-bold text-text-primary flex items-center gap-2.5">
+                  <span className="p-2 rounded-xl bg-[#A33E3E]/10 text-[#A33E3E]"><Trash2 size={16}/></span>
+                  Konfirmasi Hapus Laporan
+                </h3>
+                <p className="text-xs text-text-secondary mt-4 leading-relaxed">{deleteConfirm.message}</p>
+                <div className="flex gap-2.5 justify-end mt-6">
+                  <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all">Batal</button>
+                  <button onClick={() => handleDelete(deleteConfirm.id)} className="px-4 py-2.5 text-xs font-bold text-white bg-[#A33E3E] hover:bg-[#853030] rounded-xl transition-all shadow-sm">Hapus Permanen</button>
+                </div>
               </div>
             </div>
-          </div>
+          </ModalPortal>
         )}
 
       </div>

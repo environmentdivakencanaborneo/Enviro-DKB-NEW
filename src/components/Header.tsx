@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { AlertNotification } from '../types';
 import { BackupStatus } from '../services/backupService';
+import { formatTimestamp } from '../utils/dateUtils';
 
 interface HeaderProps {
   backupStatus: BackupStatus;
@@ -207,7 +208,7 @@ export default function Header({
                             {alert.category}
                           </span>
                           <span className="text-[9px] text-[#6D7B73] font-manrope">
-                            {new Date(alert.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                            {formatTimestamp(alert.timestamp, 'id-ID', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">

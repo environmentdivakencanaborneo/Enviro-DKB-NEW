@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import ModalPortal from './ModalPortal';
 import { RegulatoryWatchData } from '../types';
 import { regulatoryService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
@@ -13,6 +14,7 @@ interface RegulatoryWatchViewProps {
   data: RegulatoryWatchData[];
   isLoading: boolean;
   canEdit?: boolean;
+  canDelete?: boolean;
   onUnauthorizedAction: (action: string) => void;
 }
 
@@ -20,8 +22,10 @@ export default function RegulatoryWatchView({
   data, 
   isLoading, 
   canEdit = false, 
+  canDelete,
   onUnauthorizedAction 
 }: RegulatoryWatchViewProps) {
+  const allowedDelete = canDelete ?? false;
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   
@@ -66,6 +70,7 @@ export default function RegulatoryWatchView({
   };
 
   const handleDelete = async (id: string) => {
+    if (!allowedDelete) return onUnauthorizedAction("Hapus Data Regulasi");
     try {
       await regulatoryService.delete(id);
       setDeleteConfirm(null);
@@ -215,7 +220,7 @@ export default function RegulatoryWatchView({
                     </button>
                     <button 
                       onClick={() => {
-                        if (!canEdit) return onUnauthorizedAction("Hapus Regulasi");
+                        if (!allowedDelete) return onUnauthorizedAction("Hapus Regulasi");
                         setDeleteConfirm({
                           id: item.id,
                           message: `Hapus data pantauan regulasi permanen?`
@@ -234,87 +239,91 @@ export default function RegulatoryWatchView({
 
         {/* Add/Edit Form */}
         {formOpen && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col">
-              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                  <BookOpen className="text-purple-600" />
-                  {editingId ? 'Edit Regulasi' : 'Tambah Pantauan Regulasi'}
-                </h3>
-                <button onClick={() => setFormOpen(false)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 cursor-pointer">
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto text-left space-y-4">
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1">SUMBER INSTITUSI</label>
-                    <input type="text" value={formData.source} onChange={e => setFormData({...formData, source: e.target.value})} className="w-full p-2 text-sm border rounded-lg" placeholder="KLHK / ESDM / Pemda" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1">TANGGAL TERBIT / DRAFT</label>
-                    <input type="date" value={formData.issueDate} onChange={e => setFormData({...formData, issueDate: e.target.value})} className="w-full p-2 text-sm border rounded-lg" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1">NOMOR PERATURAN</label>
-                    <input type="text" value={formData.regulationNo} onChange={e => setFormData({...formData, regulationNo: e.target.value})} className="w-full p-2 text-sm border rounded-lg" placeholder="Permen LHK No 5 Tahun 2021" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1">STATUS</label>
-                    <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2 text-sm border rounded-lg">
-                      <option value="Draft">Draft</option>
-                      <option value="Berlaku">Berlaku</option>
-                      <option value="Dicabut">Dicabut</option>
-                    </select>
-                  </div>
+          <ModalPortal>
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col">
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <BookOpen className="text-purple-600" />
+                    {editingId ? 'Edit Regulasi' : 'Tambah Pantauan Regulasi'}
+                  </h3>
+                  <button onClick={() => setFormOpen(false)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 cursor-pointer">
+                    <X size={16} />
+                  </button>
                 </div>
+                <div className="p-6 overflow-y-auto text-left space-y-4">
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">SUMBER INSTITUSI</label>
+                      <input type="text" value={formData.source} onChange={e => setFormData({...formData, source: e.target.value})} className="w-full p-2 text-sm border rounded-lg" placeholder="KLHK / ESDM / Pemda" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">TANGGAL TERBIT / DRAFT</label>
+                      <input type="date" value={formData.issueDate} onChange={e => setFormData({...formData, issueDate: e.target.value})} className="w-full p-2 text-sm border rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">NOMOR PERATURAN</label>
+                      <input type="text" value={formData.regulationNo} onChange={e => setFormData({...formData, regulationNo: e.target.value})} className="w-full p-2 text-sm border rounded-lg" placeholder="Permen LHK No 5 Tahun 2021" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">STATUS</label>
+                      <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2 text-sm border rounded-lg">
+                        <option value="Draft">Draft</option>
+                        <option value="Berlaku">Berlaku</option>
+                        <option value="Dicabut">Dicabut</option>
+                      </select>
+                    </div>
+                  </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-1">TENTANG (JUDUL REGULASI)</label>
-                  <textarea value={formData.about} onChange={e => setFormData({...formData, about: e.target.value})} rows={2} className="w-full p-2 text-sm border rounded-lg resize-none" placeholder="Tata Cara Penerbitan Persetujuan Teknis..." />
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">TENTANG (JUDUL REGULASI)</label>
+                    <textarea value={formData.about} onChange={e => setFormData({...formData, about: e.target.value})} rows={2} className="w-full p-2 text-sm border rounded-lg resize-none" placeholder="Tata Cara Penerbitan Persetujuan Teknis..." />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">IMPLIKASI / DAMPAK KE OPERASIONAL</label>
+                    <textarea value={formData.implication} onChange={e => setFormData({...formData, implication: e.target.value})} rows={4} className="w-full p-2 text-sm border rounded-lg resize-none" placeholder="Perusahaan wajib mengurus penambahan lingkup baku mutu..." />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">TAUTAN DOKUMEN RESMI</label>
+                    <input type="url" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} className="w-full p-2 text-sm border rounded-lg" placeholder="https://..." />
+                  </div>
+
                 </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-1">IMPLIKASI / DAMPAK KE OPERASIONAL</label>
-                  <textarea value={formData.implication} onChange={e => setFormData({...formData, implication: e.target.value})} rows={4} className="w-full p-2 text-sm border rounded-lg resize-none" placeholder="Perusahaan wajib mengurus penambahan lingkup baku mutu..." />
+                <div className="p-4 border-t border-slate-100 flex justify-end gap-2 shrink-0 bg-white rounded-b-2xl">
+                  <button onClick={() => setFormOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">Batal</button>
+                  <button 
+                    onClick={handleSave}
+                    disabled={!formData.regulationNo || !formData.about || !formData.implication}
+                    className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Simpan Regulasi
+                  </button>
                 </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-1">TAUTAN DOKUMEN RESMI</label>
-                  <input type="url" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} className="w-full p-2 text-sm border rounded-lg" placeholder="https://..." />
-                </div>
-
-              </div>
-              <div className="p-4 border-t border-slate-100 flex justify-end gap-2 shrink-0 bg-white rounded-b-2xl">
-                <button onClick={() => setFormOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">Batal</button>
-                <button 
-                  onClick={handleSave}
-                  disabled={!formData.regulationNo || !formData.about || !formData.implication}
-                  className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl transition-colors cursor-pointer"
-                >
-                  Simpan Regulasi
-                </button>
               </div>
             </div>
-          </div>
+          </ModalPortal>
         )}
 
         {/* Delete Confirm */}
         {deleteConfirm && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm p-6 text-left">
-              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-red-50 text-red-500"><Trash2 size={16}/></span>
-                Konfirmasi Hapus
-              </h3>
-              <p className="text-xs text-slate-500 mt-3">{deleteConfirm.message}</p>
-              <div className="flex gap-2 justify-end mt-5">
-                <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
-                <button onClick={() => handleDelete(deleteConfirm.id)} className="px-4 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl">Hapus Permanen</button>
+          <ModalPortal>
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm p-6 text-left">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <span className="p-1 rounded-lg bg-red-50 text-red-500"><Trash2 size={16}/></span>
+                  Konfirmasi Hapus
+                </h3>
+                <p className="text-xs text-slate-500 mt-3">{deleteConfirm.message}</p>
+                <div className="flex gap-2 justify-end mt-5">
+                  <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
+                  <button onClick={() => handleDelete(deleteConfirm.id)} className="px-4 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl">Hapus Permanen</button>
+                </div>
               </div>
             </div>
-          </div>
+          </ModalPortal>
         )}
 
       </div>

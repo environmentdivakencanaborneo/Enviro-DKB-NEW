@@ -26,14 +26,22 @@ interface EnvironmentalCostsViewProps {
   onAddCost: (item: Omit<EnvironmentalCost, 'id'>) => void;
   onUpdateCost?: (id: string, item: Omit<EnvironmentalCost, 'id'>) => void;
   onDeleteCost: (id: string) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  onUnauthorizedAction: (actionName: string) => void;
 }
 
 export default function EnvironmentalCostsView({
   costs,
   onAddCost,
   onUpdateCost,
-  onDeleteCost
+  onDeleteCost,
+  canEdit,
+  canDelete,
+  onUnauthorizedAction
 }: EnvironmentalCostsViewProps) {
+  const allowed = canEdit ?? false;
+  const allowedDelete = canDelete ?? false;
   const [showCostForm, setShowCostForm] = useState(false);
   const [formTab, setFormTab] = useState<'rencana' | 'realisasi'>('rencana');
   const [searchFilter, setSearchFilter] = useState('');
@@ -107,6 +115,7 @@ export default function EnvironmentalCostsView({
 
   const handleCostSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!allowed) return onUnauthorizedAction("Simpan Biaya Lingkungan");
     if (!cOfficer.trim()) {
       alert("Masukkan nama petugas / PIC pengisi anggaran.");
       return;
@@ -601,7 +610,10 @@ export default function EnvironmentalCostsView({
 
             {/* List items representation table */}
             <div className="overflow-x-auto min-h-64">
-              <table className="w-full text-left border-collapse">
+              <p className="text-[10px] text-slate-400 mb-1 md:hidden">
+                Geser tabel ke kanan untuk melihat kolom Aksi.
+              </p>
+              <table className="w-full text-left border-separate border-spacing-0">
                 <thead>
                   <tr className="border-b border-black/5 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">
                     <th className="py-2 px-3">Periode</th>
@@ -609,7 +621,7 @@ export default function EnvironmentalCostsView({
                     <th className="py-2 px-3 text-right">Rencana (Opex/Capex)</th>
                     <th className="py-2 px-3 text-right">Realisasi (Opex/Capex)</th>
                     <th className="py-2 px-3">Keterangan</th>
-                    <th className="py-2 px-3 text-right">Aksi</th>
+                    <th className="py-2 px-3 text-right sticky right-0 bg-white z-10">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5 text-[11px] text-slate-600">
@@ -619,7 +631,7 @@ export default function EnvironmentalCostsView({
                     </tr>
                   ) : (
                     filteredCosts.map((c) => (
-                      <tr key={c.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
+                      <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
                         <td className="py-2.5 px-3 whitespace-nowrap font-mono">
                           <span className="font-bold text-slate-700">{c.period}</span>
                           <span className="text-slate-500 ml-1">({c.year})</span>
@@ -639,16 +651,22 @@ export default function EnvironmentalCostsView({
                         <td className="py-2.5 px-3 text-slate-500 italic max-w-xs truncate" title={c.notes}>
                           {c.notes || '-'}
                         </td>
-                        <td className="py-2.5 px-3 text-right flex items-center justify-end gap-1.5">
+                        <td className="py-2.5 px-3 text-right flex items-center justify-end gap-1.5 sticky right-0 bg-white z-10 border-l border-slate-100">
                           <button
-                            onClick={() => startEditCost(c)}
+                            onClick={() => {
+                              if (!allowed) return onUnauthorizedAction("Edit Biaya Lingkungan");
+                              startEditCost(c);
+                            }}
                             className="p-1 px-1.5 hover:bg-blue-500/10 text-slate-500 hover:text-blue-600 rounded-lg transition-colors cursor-pointer"
                             title="Edit baris biaya ini"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => onDeleteCost(c.id)}
+                            onClick={() => {
+                              if (!allowedDelete) return onUnauthorizedAction("Hapus Biaya Lingkungan");
+                              onDeleteCost(c.id);
+                            }}
                             className="p-1 px-1.5 hover:bg-red-500/10 text-slate-500 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
                             title="Hapus baris biaya ini"
                           >

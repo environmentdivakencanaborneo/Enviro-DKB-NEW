@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import ModalPortal from './ModalPortal';
 import { 
   ResponsiveContainer, 
   LineChart, 
@@ -681,7 +682,8 @@ export default function SolidWasteView({
 
       {/* Record Input Modal Form Overlay */}
       {showForm && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white w-full max-w-lg rounded-3xl p-6 sm:p-8 space-y-5 text-left border border-black/10 shadow-2xl animate-fade-in relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-black/5 pb-4">
               <div className="flex items-center gap-2">
@@ -952,44 +954,47 @@ export default function SolidWasteView({
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {deleteConfirm && (
-        <div id="delete-confirm-modal-sw" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-fade-in text-slate-700">
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-red-500/10 text-red-500">
-                <Trash2 size={16} />
-              </span>
-              Konfirmasi Hapus
-            </h3>
-            <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-              {deleteConfirm.message}
-            </p>
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-3.5 py-2 rounded-xl text-xs bg-white hover:bg-slate-100 text-slate-600 font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={async () => {
-                  const targetId = deleteConfirm.id;
-                  setDeleteConfirm(null);
-                  try {
-                    await onDelete(targetId);
-                  } catch (err: any) {
-                    alert('Gagal menghapus data: ' + err.message);
-                  }
-                }}
-                className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-slate-900 font-bold transition-colors cursor-pointer"
-              >
-                Hapus
-              </button>
+        <ModalPortal>
+          <div id="delete-confirm-modal-sw" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-fade-in text-slate-700">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <span className="p-1 rounded-lg bg-red-500/10 text-red-500">
+                  <Trash2 size={16} />
+                </span>
+                Konfirmasi Hapus
+              </h3>
+              <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+                {deleteConfirm.message}
+              </p>
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="px-3.5 py-2 rounded-xl text-xs bg-white hover:bg-slate-100 text-slate-600 font-bold transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={async () => {
+                    const targetId = deleteConfirm.id;
+                    setDeleteConfirm(null);
+                    try {
+                      await onDelete(targetId);
+                    } catch (err: any) {
+                      alert('Gagal menghapus data: ' + err.message);
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-slate-900 font-bold transition-colors cursor-pointer"
+                >
+                  Hapus
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

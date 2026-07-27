@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ModalPortal from './ModalPortal';
 import { EnvironmentalDocument, ComplianceCalendarEvent } from '../types';
 import { computeDocumentStatus } from '../utils/documentStatus';
 import { 
@@ -23,6 +24,7 @@ interface DocumentsViewProps {
   onUpdateEventStatus: (id: string, data: any) => void;
   onDeleteEvent: (id: string) => void;
   canEdit?: boolean;
+  canDelete?: boolean;
   onUnauthorizedAction: (action: string) => void;
 }
 
@@ -36,8 +38,10 @@ export default function DocumentsView({
   onUpdateEventStatus,
   onDeleteEvent,
   canEdit = false,
+  canDelete,
   onUnauthorizedAction
 }: DocumentsViewProps) {
+  const allowedDelete = canDelete ?? false;
   const [activeTab, setActiveTab] = useState<'documents' | 'calendar'>('documents');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -74,7 +78,7 @@ export default function DocumentsView({
     ev.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleSaveDoc = () => {
+  const handleSaveDoc = async () => {
     if (!canEdit) {
       onUnauthorizedAction(editingId ? "Ubah Dokumen AMDAL/RKL-RPL" : "Unggah Dokumen AMDAL/RKL-RPL");
       return;
@@ -86,27 +90,37 @@ export default function DocumentsView({
       status: computeDocumentStatus(expiryDate || 'N/A')
     };
     
-    if (editingId && onUpdateDocument) {
-      onUpdateDocument(editingId, item);
-    } else {
-      onAddDocument(item);
+    try {
+      if (editingId && onUpdateDocument) {
+        await onUpdateDocument(editingId, item);
+      } else {
+        await onAddDocument(item);
+      }
+      setFormOpen(false);
+      setEditingId(null);
+    } catch {
+      // Formulir dibiarkan terbuka agar isian pengguna tidak hilang.
+      // Pesan galat sudah ditampilkan oleh handleGlobalError di App.tsx.
     }
-    setFormOpen(false);
-    setEditingId(null);
   };
 
-  const handleSaveEvent = () => {
+  const handleSaveEvent = async () => {
     if (!canEdit) return onUnauthorizedAction("Tambah Kegiatan Agenda Kepatuhan");
-    onAddEvent({
-      date: eventDate,
-      title: eventTitle,
-      type: eventType,
-      description: eventDesc,
-      status: 'Pending',
-      progress: 0
-    });
-    setEventFormOpen(false);
-    setEventTitle(''); setEventDate(''); setEventDesc('');
+    try {
+      await onAddEvent({
+        date: eventDate,
+        title: eventTitle,
+        type: eventType,
+        description: eventDesc,
+        status: 'Pending',
+        progress: 0
+      });
+      setEventFormOpen(false);
+      setEventTitle(''); setEventDate(''); setEventDesc('');
+    } catch {
+      // Formulir dibiarkan terbuka agar isian pengguna tidak hilang.
+      // Pesan galat sudah ditampilkan oleh handleGlobalError di App.tsx.
+    }
   };
 
   const calculateCountdown = (expiryDate: string) => {
@@ -279,7 +293,7 @@ export default function DocumentsView({
                       </button>
                       <button 
                         onClick={() => {
-                          if (!canEdit) return onUnauthorizedAction("Hapus Dokumen");
+                          if (!allowedDelete) return onUnauthorizedAction("Hapus Dokumen");
                           setDeleteConfirm({
                             id: doc.id,
                             type: 'document',
@@ -328,7 +342,7 @@ export default function DocumentsView({
                      <button onClick={() => onUpdateEventStatus(ev.id, {status: 'Completed'})} className="p-2.5 text-[#2F5A46] hover:bg-forest-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-border-custom" title="Tandai Selesai"><CheckSquare size={16}/></button>
                    )}
                    <button onClick={() => {
-                     if (!canEdit) return onUnauthorizedAction("Hapus Agenda");
+                     if (!allowedDelete) return onUnauthorizedAction("Hapus Agenda");
                      setDeleteConfirm({id: ev.id, type: 'event', message: `Apakah Anda yakin ingin menghapus agenda "${ev.title}"?`});
                    }} className="p-2.5 text-[#A33E3E] hover:bg-[#D95C5C]/5 rounded-xl transition-all cursor-pointer border border-transparent hover:border-[#D95C5C]/20" title="Hapus Agenda"><Trash2 size={16}/></button>
                  </div>
@@ -340,126 +354,133 @@ export default function DocumentsView({
 
       {/* Register Document Form Modal */}
       {formOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-3xl max-h-[90vh] flex flex-col animate-fade-in">
-            <div className="px-6 py-4 border-b border-[#E6ECE6] flex justify-between items-center shrink-0 z-10">
-              <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
-                <FileLock className="text-[#4D7C5A] h-5 w-5" />
-                {editingId ? 'Edit Register Izin' : 'Registrasi Izin & Persetujuan Baru'}
-              </h3>
-              <button onClick={() => setFormOpen(false)} className="p-2 bg-forest-50 hover:bg-[#DCE5DA] rounded-full text-[#2F5A46] cursor-pointer transition-colors"><X size={16}/></button>
-            </div>
-            <div className="p-6 overflow-y-auto space-y-5 text-left">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">NAMA IZIN / PERSETUJUAN</label>
-                  <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="ex: AMDAL Operasi Produksi" />
+        <ModalPortal>
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-3xl max-h-[90vh] flex flex-col animate-fade-in">
+              <div className="px-6 py-4 border-b border-[#E6ECE6] flex justify-between items-center shrink-0 z-10">
+                <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                  <FileLock className="text-[#4D7C5A] h-5 w-5" />
+                  {editingId ? 'Edit Register Izin' : 'Registrasi Izin & Persetujuan Baru'}
+                </h3>
+                <button onClick={() => setFormOpen(false)} className="p-2 bg-forest-50 hover:bg-[#DCE5DA] rounded-full text-[#2F5A46] cursor-pointer transition-colors"><X size={16}/></button>
+              </div>
+              <div className="p-6 overflow-y-auto space-y-5 text-left">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">NAMA IZIN / PERSETUJUAN <span className="text-red-500">*</span></label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="ex: AMDAL Operasi Produksi" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KATEGORI</label>
+                    <select value={type} onChange={e => setType(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] cursor-pointer font-medium">
+                      <option value="AMDAL">AMDAL</option>
+                      <option value="UKL-UPL">UKL-UPL</option>
+                      <option value="Persetujuan Lingkungan">Persetujuan Lingkungan (PP 22/2021)</option>
+                      <option value="Pertek Air Limbah">Pertek Air Limbah</option>
+                      <option value="Pertek Emisi">Pertek Emisi</option>
+                      <option value="Izin TPS B3">Persetujuan Teknis TPS B3</option>
+                      <option value="Izin Pemanfaatan">Persetujuan Teknis Pemanfaatan Limbah</option>
+                      <option value="Persetujuan Rencana Reklamasi">Rencana Reklamasi</option>
+                      <option value="Lainnya">Lainnya</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">NOMOR SK <span className="text-red-500">*</span></label>
+                    <input type="text" value={docNo} onChange={e => setDocNo(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="SK.123/MENLHK/..." />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">INSTANSI PENERBIT</label>
+                    <input type="text" value={issuer} onChange={e => setIssuer(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="Kementerian LHK / DLH Provinsi" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TANGGAL TERBIT</label>
+                    <input type="date" value={issuedDate} onChange={e => setIssuedDate(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">MASA BERLAKU S/D (KOSONGKAN JIKA SELAMANYA)</label>
+                    <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KATEGORI</label>
-                  <select value={type} onChange={e => setType(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] cursor-pointer font-medium">
-                    <option value="AMDAL">AMDAL</option>
-                    <option value="UKL-UPL">UKL-UPL</option>
-                    <option value="Persetujuan Lingkungan">Persetujuan Lingkungan (PP 22/2021)</option>
-                    <option value="Pertek Air Limbah">Pertek Air Limbah</option>
-                    <option value="Pertek Emisi">Pertek Emisi</option>
-                    <option value="Izin TPS B3">Persetujuan Teknis TPS B3</option>
-                    <option value="Persetujuan Rencana Reklamasi">Rencana Reklamasi</option>
-                    <option value="Lainnya">Lainnya</option>
-                  </select>
+                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">PIC PEMENUHAN / DEPARTEMEN <span className="text-red-500">*</span></label>
+                  <input type="text" value={pic} onChange={e => setPic(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="HSE Dept" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">NOMOR SK</label>
-                  <input type="text" value={docNo} onChange={e => setDocNo(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="SK.123/MENLHK/..." />
+                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">RINGKASAN KEWAJIBAN</label>
+                  <textarea value={obligations} onChange={e => setObligations(e.target.value)} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] resize-none" placeholder="1. Lapor RKL-RPL per semester. 2. Uji baku mutu air..." />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">INSTANSI PENERBIT</label>
-                  <input type="text" value={issuer} onChange={e => setIssuer(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="Kementerian LHK / DLH Provinsi" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TANGGAL TERBIT</label>
-                  <input type="date" value={issuedDate} onChange={e => setIssuedDate(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">MASA BERLAKU S/D (KOSONGKAN JIKA SELAMANYA)</label>
-                  <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" />
+                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TAUTAN DOKUMEN DIGITAL (G-DRIVE/SHAREPOINT)</label>
+                  <input type="url" value={documentUrl} onChange={e => setDocumentUrl(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="https://drive.google.com/..." />
                 </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">PIC PEMENUHAN / DEPARTEMEN</label>
-                <input type="text" value={pic} onChange={e => setPic(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="HSE Dept" />
+              <div className="px-6 py-4 border-t border-[#E6ECE6] flex justify-end gap-2.5 shrink-0 bg-white rounded-b-[20px]">
+                <button onClick={() => setFormOpen(false)} className="px-5 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all cursor-pointer">Batal</button>
+                <button onClick={handleSaveDoc} disabled={name.trim().length < 3 || !docNo.trim() || pic.trim().length < 2} className="px-5 py-2.5 text-xs font-bold text-white bg-[#4D7C5A] hover:bg-[#2F5A46] disabled:opacity-40 rounded-xl transition-all cursor-pointer shadow-sm">Simpan Register</button>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">RINGKASAN KEWAJIBAN</label>
-                <textarea value={obligations} onChange={e => setObligations(e.target.value)} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] resize-none" placeholder="1. Lapor RKL-RPL per semester. 2. Uji baku mutu air..." />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TAUTAN DOKUMEN DIGITAL (G-DRIVE/SHAREPOINT)</label>
-                <input type="url" value={documentUrl} onChange={e => setDocumentUrl(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="https://drive.google.com/..." />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-[#E6ECE6] flex justify-end gap-2.5 shrink-0 bg-white rounded-b-[20px]">
-              <button onClick={() => setFormOpen(false)} className="px-5 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all cursor-pointer">Batal</button>
-              <button onClick={handleSaveDoc} disabled={!name || !docNo} className="px-5 py-2.5 text-xs font-bold text-white bg-[#4D7C5A] hover:bg-[#2F5A46] disabled:opacity-40 rounded-xl transition-all cursor-pointer shadow-sm">Simpan Register</button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Delete confirm */}
       {deleteConfirm && (
-        <div id="delete-confirm-modal" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-sm p-6 text-left animate-fade-in">
-            <h3 className="text-sm font-bold text-text-primary flex items-center gap-2.5">
-              <span className="p-2 rounded-xl bg-[#A33E3E]/10 text-[#A33E3E]"><Trash2 size={16}/></span>
-              Konfirmasi Hapus
-            </h3>
-            <p className="text-xs text-text-secondary mt-4 leading-relaxed">{deleteConfirm.message}</p>
-            <div className="flex gap-2.5 justify-end mt-6">
-              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all">Batal</button>
-              <button onClick={() => {
-                if(deleteConfirm.type === 'document') onDeleteDocument(deleteConfirm.id);
-                else onDeleteEvent(deleteConfirm.id);
-                setDeleteConfirm(null);
-              }} className="px-4 py-2.5 text-xs font-bold text-white bg-[#A33E3E] hover:bg-[#853030] rounded-xl transition-all shadow-sm">Hapus Permanen</button>
+        <ModalPortal>
+          <div id="delete-confirm-modal" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-sm p-6 text-left animate-fade-in">
+              <h3 className="text-sm font-bold text-text-primary flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-[#A33E3E]/10 text-[#A33E3E]"><Trash2 size={16}/></span>
+                Konfirmasi Hapus
+              </h3>
+              <p className="text-xs text-text-secondary mt-4 leading-relaxed">{deleteConfirm.message}</p>
+              <div className="flex gap-2.5 justify-end mt-6">
+                <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all">Batal</button>
+                <button onClick={() => {
+                  if(deleteConfirm.type === 'document') onDeleteDocument(deleteConfirm.id);
+                  else onDeleteEvent(deleteConfirm.id);
+                  setDeleteConfirm(null);
+                }} className="px-4 py-2.5 text-xs font-bold text-white bg-[#A33E3E] hover:bg-[#853030] rounded-xl transition-all shadow-sm">Hapus Permanen</button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
       
       {/* Event form simplified */}
       {eventFormOpen && (
-        <div id="event-form-modal" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-           <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-sm p-6 text-left space-y-4 animate-fade-in">
-             <h3 className="text-sm font-bold text-text-primary">Tambah Agenda Kepatuhan</h3>
-             <div>
-                <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TANGGAL AGENDA</label>
-                <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" />
+        <ModalPortal>
+          <div id="event-form-modal" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+             <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-sm p-6 text-left space-y-4 animate-fade-in">
+               <h3 className="text-sm font-bold text-text-primary">Tambah Agenda Kepatuhan</h3>
+               <div>
+                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TANGGAL AGENDA <span className="text-red-500">*</span></label>
+                  <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" />
+               </div>
+               <div>
+                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">JUDUL KEGIATAN <span className="text-red-500">*</span></label>
+                  <input type="text" value={eventTitle} onChange={e => setEventTitle(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="Laporan RKL-RPL Semester I" />
+               </div>
+               <div>
+                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KATEGORI AGENDA</label>
+                  <select value={eventType} onChange={e => setEventType(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] cursor-pointer">
+                    <option value="Pelaporan">Pelaporan</option>
+                    <option value="Kalibrasi">Kalibrasi</option>
+                    <option value="Pembayaran">Pembayaran</option>
+                    <option value="Perpanjangan Izin">Perpanjangan Izin</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">DESKRIPSI RINGKAS <span className="text-red-500">*</span></label>
+                  <textarea value={eventDesc} onChange={e => setEventDesc(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] resize-none" rows={2} placeholder="Penjelasan singkat tugas agenda..." />
+               </div>
+               <div className="flex gap-2.5 justify-end mt-5 pt-3 border-t border-[#E6ECE6]">
+                 <button onClick={() => setEventFormOpen(false)} className="px-4 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all cursor-pointer">Batal</button>
+                 <button onClick={handleSaveEvent} disabled={eventTitle.trim().length < 3 || !eventDate || eventDesc.trim().length < 3} className="px-5 py-2.5 text-xs font-bold text-white bg-[#4D7C5A] hover:bg-[#2F5A46] disabled:opacity-40 rounded-xl transition-all cursor-pointer shadow-sm">Simpan Agenda</button>
+               </div>
              </div>
-             <div>
-                <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">JUDUL KEGIATAN</label>
-                <input type="text" value={eventTitle} onChange={e => setEventTitle(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="Laporan RKL-RPL Semester I" />
-             </div>
-             <div>
-                <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KATEGORI AGENDA</label>
-                <select value={eventType} onChange={e => setEventType(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] cursor-pointer">
-                  <option value="Pelaporan">Pelaporan</option>
-                  <option value="Kalibrasi">Kalibrasi</option>
-                  <option value="Pembayaran">Pembayaran</option>
-                  <option value="Perpanjangan Izin">Perpanjangan Izin</option>
-                  <option value="Lainnya">Lainnya</option>
-                </select>
-             </div>
-             <div>
-                <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">DESKRIPSI RINGKAS</label>
-                <textarea value={eventDesc} onChange={e => setEventDesc(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] resize-none" rows={2} placeholder="Penjelasan singkat tugas agenda..." />
-             </div>
-             <div className="flex gap-2.5 justify-end mt-5 pt-3 border-t border-[#E6ECE6]">
-               <button onClick={() => setEventFormOpen(false)} className="px-4 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all cursor-pointer">Batal</button>
-               <button onClick={handleSaveEvent} disabled={!eventTitle || !eventDate} className="px-5 py-2.5 text-xs font-bold text-white bg-[#4D7C5A] hover:bg-[#2F5A46] disabled:opacity-40 rounded-xl transition-all cursor-pointer shadow-sm">Simpan Agenda</button>
-             </div>
-           </div>
-        </div>
+          </div>
+        </ModalPortal>
       )}
 
     </div>

@@ -47,7 +47,7 @@ import RegulatoryWatchView from './components/RegulatoryWatchView';
 import AdminManagementView from './components/AdminManagementView';
 
 import { useAuth } from './services/authService';
-import { canAccessModule, isAdmin } from './services/permissionService';
+import { canAccessModule, isAdmin, isSuperintendent } from './services/permissionService';
 import { useFirestoreData } from './hooks/useFirestoreData';
 import { handleGlobalError } from './utils/errorHandler';
 import { 
@@ -79,8 +79,6 @@ export default function App() {
     hasWriteAuthority, 
     logout 
   } = useAuth();
-
-  const seedAttempted = useRef<boolean>(false);
 
   // Tabs layout navigation
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -281,15 +279,6 @@ export default function App() {
     }
   }, [toast]);
 
-  // Seed database hanya sekali saat user pertama kali login, dengan guard useRef menghindari race condition
-  useEffect(() => {
-    if (!import.meta.env.DEV || !user || !profile || !isAdmin(profile) || seedAttempted.current) return;
-    seedAttempted.current = true;
-    import('./services/seedService').then(({ seedFirestoreDatabaseIfEmpty }) => {
-      seedFirestoreDatabaseIfEmpty();
-    });
-  }, [user, profile]);
-
   // Firestore reactive subscriptions are now consolidated inside useFirestoreData hook!
 
   // Routing and Navigation mapping
@@ -354,7 +343,7 @@ export default function App() {
     }
   };
   const handleDeleteWastewater = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Data Air Limbah");
       return;
     }
@@ -388,7 +377,7 @@ export default function App() {
     }
   };
   const handleDeleteSurfaceWater = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Data Air Permukaan");
       return;
     }
@@ -422,7 +411,7 @@ export default function App() {
     }
   };
   const handleDeleteRainfall = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Catatan Curah Hujan");
       return;
     }
@@ -456,7 +445,7 @@ export default function App() {
     }
   };
   const handleDeleteNursery = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Catatan Nursery");
       return;
     }
@@ -490,7 +479,7 @@ export default function App() {
     }
   };
   const handleDeletePlan = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Rencana Reklamasi");
       return;
     }
@@ -524,7 +513,7 @@ export default function App() {
     }
   };
   const handleDeleteGuarantee = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Jaminan Reklamasi");
       return;
     }
@@ -558,7 +547,7 @@ export default function App() {
     }
   };
   const handleDeleteWasteIn = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Log Masuk Limbah B3");
       return;
     }
@@ -592,7 +581,7 @@ export default function App() {
     }
   };
   const handleDeleteWasteOut = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Log Keluar Limbah B3");
       return;
     }
@@ -612,6 +601,7 @@ export default function App() {
       await documentService.addDoc(item);
     } catch (e: any) {
       handleGlobalError(e, "Tambah Dokumen Lingkungan");
+      throw e;
     }
   };
   const handleUpdateDocument = async (id: string, item: any) => {
@@ -623,10 +613,11 @@ export default function App() {
       await documentService.updateDoc(id, item);
     } catch (e: any) {
       handleGlobalError(e, "Ubah Dokumen Lingkungan");
+      throw e;
     }
   };
   const handleDeleteDocument = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Dokumen AMDAL/RKL-RPL");
       return;
     }
@@ -646,10 +637,11 @@ export default function App() {
       await documentService.addEvent(item);
     } catch (e: any) {
       handleGlobalError(e, "Tambah Kegiatan Agenda");
+      throw e;
     }
   };
   const handleDeleteCalendarEvent = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Kegiatan Agenda Kepatuhan");
       return;
     }
@@ -672,7 +664,7 @@ export default function App() {
   };
 
   const handleAddCost = async (item: any) => {
-    if (!hasWriteAuthority) {
+    if (!isSuperintendent(profile)) {
       showAuthorityWarning("Tambah Catatan Biaya Lingkungan");
       return;
     }
@@ -683,7 +675,7 @@ export default function App() {
     }
   };
   const handleUpdateCost = async (id: string, item: any) => {
-    if (!hasWriteAuthority) {
+    if (!isSuperintendent(profile)) {
       showAuthorityWarning("Ubah Catatan Biaya Lingkungan");
       return;
     }
@@ -694,7 +686,7 @@ export default function App() {
     }
   };
   const handleDeleteCost = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Catatan Biaya Lingkungan");
       return;
     }
@@ -728,7 +720,7 @@ export default function App() {
     }
   };
   const handleDeleteSolidWaste = async (id: string) => {
-    if (!hasWriteAuthority) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Data Pengolahan Sampah");
       return;
     }
@@ -890,6 +882,7 @@ export default function App() {
             isLoading={isLoadingCapa}
             userEmail={user?.email || undefined}
             canEdit={hasWriteAuthority}
+            canDelete={isAdmin(profile)}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -900,6 +893,7 @@ export default function App() {
             data={complianceMatrix}
             isLoading={isLoadingCompliance}
             canEdit={hasWriteAuthority}
+            canDelete={isAdmin(profile)}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -910,6 +904,7 @@ export default function App() {
             incidents={incidents}
             isLoading={isLoadingIncidents}
             canEdit={hasWriteAuthority}
+            canDelete={isAdmin(profile)}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -932,6 +927,7 @@ export default function App() {
             data={regulatory}
             isLoading={isLoadingRegulatory}
             canEdit={hasWriteAuthority}
+            canDelete={isAdmin(profile)}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -1025,6 +1021,7 @@ export default function App() {
               onDeleteEvent={handleDeleteCalendarEvent}
               onUpdateEventStatus={handleUpdateCalendarStatus}
               canEdit={hasWriteAuthority}
+              canDelete={isAdmin(profile)}
               onUnauthorizedAction={showAuthorityWarning}
             />
           </ModuleErrorBoundary>
@@ -1045,6 +1042,9 @@ export default function App() {
               onAddCost={handleAddCost}
               onUpdateCost={handleUpdateCost}
               onDeleteCost={handleDeleteCost}
+              canEdit={isSuperintendent(profile)}
+              canDelete={isAdmin(profile)}
+              onUnauthorizedAction={showAuthorityWarning}
             />
           </ModuleErrorBoundary>
         );
@@ -1163,7 +1163,7 @@ export default function App() {
         />
 
         {/* Scrollable Content Views */}
-        <main className="flex-1 p-5 md:p-8 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full animate-fade-in pb-20 relative z-10">
+        <main className="flex-1 p-5 md:p-8 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full pb-20 relative z-10">
           {renderCurrentView()}
         </main>
       </div>

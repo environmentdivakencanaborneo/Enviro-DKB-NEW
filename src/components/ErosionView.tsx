@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import ModalPortal from './ModalPortal';
 import { 
   TrendingUp, 
   Droplet, 
@@ -806,139 +807,141 @@ export default function ErosionView({ rainfall, plans }: ErosionViewProps) {
 
       {/* Add New Sector Modal Dialogue overlay */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-250">
-            
-            <div className="border-b border-slate-200 pb-3 flex justify-between items-center">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                <Compass className="h-4 w-4 text-teal-600" />
-                Tambah Sektor Pengamatan USLE
-              </h3>
-              <button 
-                onClick={() => setShowAddModal(false)}
-                className="text-slate-500 hover:text-slate-700 text-sm font-bold p-1 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleAddSector} className="space-y-4">
+        <ModalPortal>
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-250">
               
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Nama Sektor / Block Tambang</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Disposal Blok C Utara"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:border-teal-500/50"
-                />
+              <div className="border-b border-slate-200 pb-3 flex justify-between items-center">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <Compass className="h-4 w-4 text-teal-600" />
+                  Tambah Sektor Pengamatan USLE
+                </h3>
+                <button 
+                  onClick={() => setShowAddModal(false)}
+                  className="text-slate-500 hover:text-slate-700 text-sm font-bold p-1 cursor-pointer"
+                >
+                  ✕
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleAddSector} className="space-y-4">
+                
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Luas Area (Hektar)</label>
+                  <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Nama Sektor / Block Tambang</label>
                   <input
-                    type="number"
-                    min="0.1"
-                    step="0.1"
+                    type="text"
                     required
-                    value={newArea}
-                    onChange={(e) => setNewArea(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none font-mono focus:border-teal-500/50"
+                    placeholder="Contoh: Disposal Blok C Utara"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:border-teal-500/50"
                   />
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Luas Area (Hektar)</label>
+                    <input
+                      type="number"
+                      min="0.1"
+                      step="0.1"
+                      required
+                      value={newArea}
+                      onChange={(e) => setNewArea(Number(e.target.value))}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none font-mono focus:border-teal-500/50"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Tipe Tanah (K)</label>
+                    <select
+                      value={newSoil}
+                      onChange={(e) => setNewSoil(e.target.value as SectorUSLE['soilType'])}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:border-teal-500/50"
+                    >
+                      {Object.keys(SOIL_LABELS).map((k) => (
+                        <option key={k} value={k}>{k.toUpperCase()} (K={SOIL_K_FACTORS[k as SectorUSLE['soilType']]})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Panjang Lereng (L - meter)</label>
+                    <input
+                      type="number"
+                      min="5"
+                      max="500"
+                      required
+                      value={newLength}
+                      onChange={(e) => setNewLength(Number(e.target.value))}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none font-mono focus:border-teal-500/50"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Kemiringan Lereng (S - %)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="90"
+                      required
+                      value={newGradient}
+                      onChange={(e) => setNewGradient(Number(e.target.value))}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none font-mono focus:border-teal-500/50"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Tipe Tanah (K)</label>
+                  <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Status Tutupan Lahan (C)</label>
                   <select
-                    value={newSoil}
-                    onChange={(e) => setNewSoil(e.target.value as SectorUSLE['soilType'])}
+                    value={newCover}
+                    onChange={(e) => setNewCover(e.target.value as SectorUSLE['coverType'])}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:border-teal-500/50"
                   >
-                    {Object.keys(SOIL_LABELS).map((k) => (
-                      <option key={k} value={k}>{k.toUpperCase()} (K={SOIL_K_FACTORS[k as SectorUSLE['soilType']]})</option>
+                    {Object.keys(COVER_LABELS).map((c) => (
+                      <option key={c} value={c}>{c.toUpperCase()} ({COVER_LABELS[c as SectorUSLE['coverType']].split('(')[0]})</option>
                     ))}
                   </select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Panjang Lereng (L - meter)</label>
-                  <input
-                    type="number"
-                    min="5"
-                    max="500"
-                    required
-                    value={newLength}
-                    onChange={(e) => setNewLength(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none font-mono focus:border-teal-500/50"
-                  />
-                </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Kemiringan Lereng (S - %)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="90"
-                    required
-                    value={newGradient}
-                    onChange={(e) => setNewGradient(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none font-mono focus:border-teal-500/50"
-                  />
+                  <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Tindakan Konservasi (P)</label>
+                  <select
+                    value={newPractice}
+                    onChange={(e) => setNewPractice(e.target.value as SectorUSLE['practiceType'])}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:border-teal-500/50"
+                  >
+                    {Object.keys(PRACTICE_LABELS).map((p) => (
+                      <option key={p} value={p}>{p.toUpperCase()} ({PRACTICE_LABELS[p as SectorUSLE['practiceType']].split('(')[0]})</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Status Tutupan Lahan (C)</label>
-                <select
-                  value={newCover}
-                  onChange={(e) => setNewCover(e.target.value as SectorUSLE['coverType'])}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:border-teal-500/50"
-                >
-                  {Object.keys(COVER_LABELS).map((c) => (
-                    <option key={c} value={c}>{c.toUpperCase()} ({COVER_LABELS[c as SectorUSLE['coverType']].split('(')[0]})</option>
-                  ))}
-                </select>
-              </div>
+                <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2 text-xs">
+                  <button
+                    id="cancel-add-sector-btn"
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="px-4 py-2 border border-slate-200 hover:border-slate-300 hover:bg-white text-slate-500 rounded-xl cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    id="submit-add-sector-btn"
+                    type="submit"
+                    className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold rounded-xl cursor-pointer"
+                  >
+                    Simpan Sektor
+                  </button>
+                </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Tindakan Konservasi (P)</label>
-                <select
-                  value={newPractice}
-                  onChange={(e) => setNewPractice(e.target.value as SectorUSLE['practiceType'])}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none focus:border-teal-500/50"
-                >
-                  {Object.keys(PRACTICE_LABELS).map((p) => (
-                    <option key={p} value={p}>{p.toUpperCase()} ({PRACTICE_LABELS[p as SectorUSLE['practiceType']].split('(')[0]})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2 text-xs">
-                <button
-                  id="cancel-add-sector-btn"
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-slate-200 hover:border-slate-300 hover:bg-white text-slate-500 rounded-xl cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  id="submit-add-sector-btn"
-                  type="submit"
-                  className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold rounded-xl cursor-pointer"
-                >
-                  Simpan Sektor
-                </button>
-              </div>
-
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
     </div>

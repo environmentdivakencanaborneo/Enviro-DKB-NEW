@@ -13,10 +13,10 @@ import {
   signOut 
 } from 'firebase/auth';
 import { 
-  getFirestore, 
-  doc, 
-  getDocFromServer 
+  getFirestore 
 } from 'firebase/firestore';
+import { logger } from './logger';
+import { triggerToast } from './errorHandler';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
@@ -24,18 +24,6 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 const dbId = (firebaseConfig as any).firestoreDatabaseId;
 export const db = (dbId && dbId !== '(default)') ? getFirestore(app, dbId) : getFirestore(app);
-
-// Validate Connection to Firestore (MANDATORY REQUIREMENT)
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
-    }
-  }
-}
-testConnection();
 
 // --- Firestore Hardened Error Handlers ---
 export enum OperationType {
@@ -64,7 +52,7 @@ export interface FirestoreErrorInfo {
   };
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): void {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -81,6 +69,19 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+
+  logger.error('Firestore Error:', errInfo);
+
+  const errString = error instanceof Error ? error.message : String(error);
+  const moduleName = path || 'data';
+  const isPermissionDenied = 
+    errString.includes('permission-denied') || 
+    errString.includes('permission_denied') || 
+    errString.includes('Missing or insufficient permissions');
+
+  const userMessage = isPermissionDenied
+    ? `Akses ditolak pada modul [${moduleName}]. Peran akun Anda belum berwenang atau akun belum disetujui administrator.`
+    : `Terjadi gangguan koneksi data pada modul [${moduleName}].`;
+
+  triggerToast(userMessage, 'error');
 }

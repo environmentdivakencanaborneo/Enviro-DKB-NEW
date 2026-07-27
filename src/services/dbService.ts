@@ -14,7 +14,8 @@ import {
   orderBy, 
   onSnapshot,
   updateDoc,
-  where
+  where,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../utils/firebaseAuth';
 import { 
@@ -55,6 +56,7 @@ import {
 import { auditService } from './auditService';
 import { evaluateWastewaterStatus, evaluateSurfaceWaterStatus } from '../data/regulations';
 import { getOfflineCache, setOfflineCache } from '../utils/googleSync';
+import { getTimeMs } from '../utils/dateUtils';
 
 // Helper to sanitize error messaging
 function handleValidationError(error: any): never {
@@ -64,6 +66,18 @@ function handleValidationError(error: any): never {
     .join('; ');
   throw new Error(`Validasi gagal - ${errorMsg}`);
 }
+
+const trailCreate = () => ({
+  createdBy: auth.currentUser?.email ?? '',
+  createdAt: serverTimestamp(),
+  updatedBy: auth.currentUser?.email ?? '',
+  updatedAt: serverTimestamp(),
+});
+
+const trailUpdate = () => ({
+  updatedBy: auth.currentUser?.email ?? '',
+  updatedAt: serverTimestamp(),
+});
 
 // 1. Wastewater (Water Quality) Operations
 export const waterQualityService = {
@@ -99,7 +113,7 @@ export const waterQualityService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'wastewater', id), newItem);
+    await setDoc(doc(db, 'wastewater', id), { ...newItem, ...trailCreate() });
 
     // Audit Log
     await auditService.createLog({
@@ -164,7 +178,7 @@ export const waterQualityService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<WastewaterData[]>('wastewater', []);
@@ -212,7 +226,7 @@ export const surfaceWaterService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'surfacewater', id), newItem);
+    await setDoc(doc(db, 'surfacewater', id), { ...newItem, ...trailCreate() });
 
     // Audit Log
     await auditService.createLog({
@@ -277,7 +291,7 @@ export const surfaceWaterService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<SurfaceWaterData[]>('surfacewater', []);
@@ -322,7 +336,7 @@ export const rainfallService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'rainfall', id), newItem);
+    await setDoc(doc(db, 'rainfall', id), { ...newItem, ...trailCreate() });
 
     // Audit Log
     await auditService.createLog({
@@ -373,7 +387,7 @@ export const rainfallService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<RainfallData[]>('rainfall', []);
@@ -418,7 +432,7 @@ export const nurseryService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'nursery', id), newItem);
+    await setDoc(doc(db, 'nursery', id), { ...newItem, ...trailCreate() });
 
     // Audit Log
     await auditService.createLog({
@@ -459,7 +473,7 @@ export const nurseryService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<NurseryData[]>('nursery', []);
@@ -516,7 +530,7 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'reclamation', id), newItem);
+    await setDoc(doc(db, 'reclamation', id), { ...newItem, ...trailCreate() });
 
     await auditService.createLog({
       collection: 'reclamation',
@@ -542,7 +556,7 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, merged as any);
+    await updateDoc(docRef, { ...merged, ...trailUpdate() } as any);
 
     await auditService.createLog({
       collection: 'reclamation',
@@ -590,7 +604,7 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'reclamation', id), newItem);
+    await setDoc(doc(db, 'reclamation', id), { ...newItem, ...trailCreate() });
 
     await auditService.createLog({
       collection: 'reclamation',
@@ -630,7 +644,7 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
@@ -686,7 +700,7 @@ export const wasteB3Service = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'waste_b3', id), newItem);
+    await setDoc(doc(db, 'waste_b3', id), { ...newItem, ...trailCreate() });
 
     await auditService.createLog({
       collection: 'waste_b3',
@@ -726,7 +740,7 @@ export const wasteB3Service = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<WasteIn[]>('waste_in', []);
@@ -753,7 +767,7 @@ export const wasteB3Service = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'waste_b3', id), newItem);
+    await setDoc(doc(db, 'waste_b3', id), { ...newItem, ...trailCreate() });
 
     await auditService.createLog({
       collection: 'waste_b3',
@@ -793,7 +807,7 @@ export const wasteB3Service = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<WasteOut[]>('waste_out', []);
@@ -849,7 +863,7 @@ export const documentService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'documents', id), newItem);
+    await setDoc(doc(db, 'documents', id), { ...newItem, ...trailCreate() });
 
     await auditService.createLog({
       collection: 'documents',
@@ -889,7 +903,7 @@ export const documentService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<EnvironmentalDocument[]>('documents', []);
@@ -916,7 +930,7 @@ export const documentService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'documents', id), newItem);
+    await setDoc(doc(db, 'documents', id), { ...newItem, ...trailCreate() });
 
     await auditService.createLog({
       collection: 'documents',
@@ -942,7 +956,7 @@ export const documentService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, merged as any);
+    await updateDoc(docRef, { ...merged, ...trailUpdate() } as any);
 
     await auditService.createLog({
       collection: 'documents',
@@ -998,7 +1012,7 @@ export const environmentalCostService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'costs', id), newItem);
+    await setDoc(doc(db, 'costs', id), { ...newItem, ...trailCreate() });
 
     await auditService.createLog({
       collection: 'costs',
@@ -1038,7 +1052,7 @@ export const environmentalCostService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<EnvironmentalCost[]>('costs', []);
@@ -1080,7 +1094,7 @@ export const notificationService = {
     return onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs
         .map(doc => doc.data() as AlertNotification)
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        .sort((a, b) => getTimeMs(b.timestamp) - getTimeMs(a.timestamp));
       setOfflineCache('notifications', docs);
       callback(docs);
     }, (error) => {
@@ -1187,7 +1201,7 @@ export const solidWasteService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'solid_waste', id), newItem);
+    await setDoc(doc(db, 'solid_waste', id), { ...newItem, ...trailCreate() });
 
     // Audit Log
     await auditService.createLog({
@@ -1246,7 +1260,7 @@ export const solidWasteService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<SolidWasteData[]>('solid_waste', []);
@@ -1288,7 +1302,7 @@ export const capaService = {
       id,
       createdAt: new Date().toISOString()
     };
-    await setDoc(doc(db, 'capa', id), newItem);
+    await setDoc(doc(db, 'capa', id), { ...newItem, ...trailCreate() });
     
     const docs = getOfflineCache<CapaData[]>('capa', []);
     setOfflineCache('capa', [newItem, ...docs]);
@@ -1318,7 +1332,7 @@ export const capaService = {
       history: updatedHistory
     };
 
-    await updateDoc(docRef, merged as any);
+    await updateDoc(docRef, { ...merged, ...trailUpdate() } as any);
 
     const docs = getOfflineCache<CapaData[]>('capa', []);
     const updatedDocs = docs.map(x => x.id === id ? merged : x);
@@ -1374,7 +1388,7 @@ export const complianceMatrixService = {
     }
 
     const docRef = doc(db, 'compliance_matrix', id);
-    await setDoc(docRef, newItem);
+    await setDoc(docRef, { ...newItem, ...trailCreate() });
 
     const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
     setOfflineCache('compliance_matrix', [newItem, ...docs]);
@@ -1402,7 +1416,7 @@ export const complianceMatrixService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem as any);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() } as any);
 
     const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
     const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
@@ -1462,7 +1476,7 @@ export const incidentService = {
     }
 
     const docRef = doc(db, 'incidents', id);
-    await setDoc(docRef, newItem);
+    await setDoc(docRef, { ...newItem, ...trailCreate() });
 
     const docs = getOfflineCache<IncidentData[]>('incidents', []);
     setOfflineCache('incidents', [newItem, ...docs]);
@@ -1490,7 +1504,7 @@ export const incidentService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem as any);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() } as any);
 
     const docs = getOfflineCache<IncidentData[]>('incidents', []);
     const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
@@ -1550,7 +1564,7 @@ export const regulatoryService = {
     }
 
     const docRef = doc(db, 'regulatory', id);
-    await setDoc(docRef, newItem);
+    await setDoc(docRef, { ...newItem, ...trailCreate() });
 
     const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
     setOfflineCache('regulatory', [newItem, ...docs]);
@@ -1578,7 +1592,7 @@ export const regulatoryService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, updatedItem as any);
+    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() } as any);
 
     const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
     const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);

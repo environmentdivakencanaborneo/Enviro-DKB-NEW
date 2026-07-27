@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import ModalPortal from './ModalPortal';
 import { WastewaterData, SurfaceWaterData, RainfallData, ReclamationPlan } from '../types';
 import { 
   Plus, 
@@ -1776,47 +1777,49 @@ export default function MonitoringView({
       )}
 
       {deleteConfirm && (
-        <div id="delete-confirm-modal-mon" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-700 text-left">
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-red-500/10 text-red-500">
-                <Trash2 size={16} />
-              </span>
-              Konfirmasi Hapus
-            </h3>
-            <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-              {deleteConfirm.message}
-            </p>
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-3.5 py-2 rounded-xl text-xs bg-white hover:bg-slate-100 text-slate-600 font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={async () => {
-                  const { id, type } = deleteConfirm;
-                  setDeleteConfirm(null);
-                  try {
-                    if (type === 'water') {
-                      await onDeleteWastewater(id);
-                    } else if (type === 'surfacewater') {
-                      await onDeleteSurfaceWater(id);
-                    } else {
-                      await onDeleteRainfall(id);
+        <ModalPortal>
+          <div id="delete-confirm-modal-mon" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-700 text-left">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <span className="p-1 rounded-lg bg-red-500/10 text-red-500">
+                  <Trash2 size={16} />
+                </span>
+                Konfirmasi Hapus
+              </h3>
+              <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+                {deleteConfirm.message}
+              </p>
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="px-3.5 py-2 rounded-xl text-xs bg-white hover:bg-slate-100 text-slate-600 font-bold transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={async () => {
+                    const { id, type } = deleteConfirm;
+                    setDeleteConfirm(null);
+                    try {
+                      if (type === 'water') {
+                        await onDeleteWastewater(id);
+                      } else if (type === 'surfacewater') {
+                        await onDeleteSurfaceWater(id);
+                      } else {
+                        await onDeleteRainfall(id);
+                      }
+                    } catch (err: any) {
+                      alert('Gagal menghapus data: ' + err.message);
                     }
-                  } catch (err: any) {
-                    alert('Gagal menghapus data: ' + err.message);
-                  }
-                }}
-                className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-slate-900 font-bold transition-colors cursor-pointer"
-              >
-                Hapus
-              </button>
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-slate-900 font-bold transition-colors cursor-pointer"
+                >
+                  Hapus
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

@@ -71,8 +71,8 @@ export default class ModuleErrorBoundary extends React.Component<Props, State> {
 
           {this.state.error && (
             <div className="bg-white rounded-lg p-4 font-mono text-xs text-red-500/90 border border-red-950/20 overflow-x-auto max-h-40 mb-6 select-all">
-              <span className="font-bold text-red-600">Pesan Kesalahan:</span> {this.state.error.message}
-              {this.state.error.stack && (
+              <span className="font-bold text-red-600">Pesan Kesalahan:</span> {this.state.error.name || 'RuntimeError'} pada modul [{this.props.moduleName}]
+              {import.meta.env.DEV && this.state.error.stack && (
                 <div className="text-red-700/60 mt-1 whitespace-pre">{this.state.error.stack.split('\n').slice(0, 3).join('\n')}</div>
               )}
             </div>
