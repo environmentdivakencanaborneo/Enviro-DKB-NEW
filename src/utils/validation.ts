@@ -60,14 +60,41 @@ export const RainfallSchema = z.object({
 
 export const NurserySchema = z.object({
   id: z.string().min(1, "ID wajib diisi"),
+  batchCode: z.string().optional().nullable(),
   plantType: z.string().trim().min(2, "Jenis bibit tanaman wajib diisi"),
   quantity: z.number().int("Jumlah harus berupa bilangan bulat").min(0, "Jumlah tidak boleh negatif"),
   source: z.string().trim().min(2, "Sumber bibit wajib diisi"),
   ageWeeks: z.number().min(0, "Usia tidak boleh negatif"),
   heightCm: z.number().min(0, "Tinggi tidak boleh negatif"),
-  status: z.enum(["Healthy", "Need Care", "Critical"]),
+  status: z.enum(["Healthy", "Need Care", "Critical", "Sehat", "Perlu Perawatan", "Rusak"]),
   location: z.string().trim().min(2, "Lokasi wajib diisi"),
   dateIn: z.string().regex(dateRegex, "Format tanggal masuk harus YYYY-MM-DD"),
+  seedDate: z.string().regex(dateRegex, "Format tanggal pembibitan harus YYYY-MM-DD").optional().nullable(),
+  minimumStock: z.number().min(0).optional().nullable(),
+});
+
+export const NurseryStockOutSchema = z.object({
+  id: z.string().min(1, "ID wajib diisi"),
+  nomorTransaksi: z.string().optional().nullable(),
+  tanggal: z.string().regex(dateRegex, "Format tanggal harus YYYY-MM-DD"),
+  jenisBibitId: z.string().min(1, "Jenis bibit wajib dipilih"),
+  namaBibit: z.string().min(1, "Nama bibit wajib diisi"),
+  species: z.string(),
+  batchCode: z.string().optional().nullable(),
+  jumlahKeluar: z.number().int("Jumlah harus bilangan bulat").min(1, "Minimal jumlah keluar adalah 1"),
+  satuan: z.string().min(1, "Satuan wajib diisi"),
+  jenisTransaksi: z.enum(["Penanaman", "Penggantian Tanaman Mati", "Distribusi", "Mutasi", "Rusak", "Lainnya"]).optional().nullable(),
+  tujuan: z.string().min(1, "Tujuan penanaman wajib diisi"),
+  kapling: z.string().min(1, "Kapling wajib diisi"),
+  blok: z.string().min(1, "Blok wajib diisi"),
+  pit: z.string().min(1, "Pit wajib diisi"),
+  luasReklamasi: z.number().min(0, "Luas area tidak boleh negatif"),
+  penanggungJawab: z.string().min(1, "Penanggung jawab wajib diisi"),
+  keterangan: z.string().optional(),
+  createdBy: z.string().min(1, "CreatedBy wajib diisi"),
+  createdAt: z.string(),
+  updatedBy: z.string().optional(),
+  updatedAt: z.string().optional(),
 });
 
 export const ReclamationPlanSchema = z.object({

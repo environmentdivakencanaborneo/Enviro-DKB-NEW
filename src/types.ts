@@ -49,15 +49,43 @@ export interface RainfallData {
 
 export interface NurseryData {
   id: string;
+  batchCode?: string;
   plantType: string;
   quantity: number;
   source: string;
   ageWeeks: number;
   heightCm: number;
-  status: 'Healthy' | 'Need Care' | 'Critical';
+  status: 'Sehat' | 'Perlu Perawatan' | 'Rusak' | 'Healthy' | 'Need Care' | 'Critical';
   location: string;
   dateIn: string;
+  seedDate?: string;
+  minimumStock?: number;
 }
+
+export interface NurseryStockOut {
+  id: string;
+  nomorTransaksi?: string;
+  tanggal: string;
+  jenisBibitId: string;
+  namaBibit: string;
+  species: string;
+  batchCode?: string;
+  jumlahKeluar: number;
+  satuan: string;
+  jenisTransaksi?: 'Penanaman' | 'Penggantian Tanaman Mati' | 'Distribusi' | 'Mutasi' | 'Rusak' | 'Lainnya';
+  tujuan: string;
+  kapling: string;
+  blok: string;
+  pit: string;
+  luasReklamasi: number;
+  penanggungJawab: string;
+  keterangan: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
 
 export interface ReclamationPlan {
   id: string;

@@ -8,6 +8,7 @@ import {
   WastewaterData,
   RainfallData,
   NurseryData,
+  NurseryStockOut,
   ReclamationPlan,
   ReclamationGuarantee,
   WasteIn,
@@ -238,6 +239,7 @@ export interface ExportPayload {
   surfaceWater?: SurfaceWaterData[];
   rainfall: RainfallData[];
   nursery: NurseryData[];
+  nurseryStockOut?: NurseryStockOut[];
   reclamationPlans: ReclamationPlan[];
   reclamationGuarantees: ReclamationGuarantee[];
   wasteIn: WasteIn[];

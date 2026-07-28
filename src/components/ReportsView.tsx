@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { 
   WastewaterData, 
   RainfallData, 
-  NurseryData, 
+  NurseryData, NurseryStockOut, 
   ReclamationPlan, 
   WasteIn, 
   WasteOut,
@@ -46,6 +46,7 @@ interface ReportsViewProps {
   wastewater: WastewaterData[];
   rainfall: RainfallData[];
   nursery: NurseryData[];
+  nurseryStockOut: NurseryStockOut[];
   plans: ReclamationPlan[];
   wasteIn: WasteIn[];
   wasteOut: WasteOut[];
@@ -62,6 +63,7 @@ export default function ReportsView({
   wastewater,
   rainfall,
   nursery,
+  nurseryStockOut,
   plans,
   wasteIn,
   wasteOut,
@@ -259,6 +261,7 @@ export default function ReportsView({
               <button
                 onClick={() => exportAllDataToXLSX({
                   wastewater, surfaceWater, rainfall, nursery,
+  nurseryStockOut,
                   reclamationPlans: plans,
                   reclamationGuarantees: guarantees,
                   wasteIn, wasteOut,

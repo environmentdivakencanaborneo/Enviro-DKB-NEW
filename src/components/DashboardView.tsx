@@ -24,7 +24,7 @@ import {
 import { 
   WastewaterData, 
   RainfallData, 
-  NurseryData, 
+  NurseryData, NurseryStockOut, 
   ReclamationGuarantee, 
   WasteStock, 
   ComplianceCalendarEvent,
@@ -170,6 +170,7 @@ interface DashboardViewProps {
   alerts?: AlertNotification[];
   rainfall: RainfallData[];
   nursery: NurseryData[];
+  nurseryStockOut: NurseryStockOut[];
   guarantees: ReclamationGuarantee[];
   wasteStocks: WasteStock[];
   calendar: ComplianceCalendarEvent[];
@@ -185,6 +186,7 @@ export default function DashboardView({
   alerts = [],
   rainfall,
   nursery,
+  nurseryStockOut,
   guarantees,
   wasteStocks,
   calendar,
@@ -194,7 +196,9 @@ export default function DashboardView({
   const [chartMetric, setChartMetric] = useState<'ph' | 'tss' | 'combined' | 'rainfall'>('combined');
 
   // Calculations
-  const totalSeeds = nursery.reduce((sum, x) => sum + x.quantity, 0);
+  const totalSeedsIn = nursery.reduce((sum, x) => sum + x.quantity, 0);
+  const totalSeedsOut = nurseryStockOut.reduce((sum, x) => sum + x.jumlahKeluar, 0);
+  const totalSeeds = totalSeedsIn - totalSeedsOut;
   const totalGuaranteesValue = guarantees.reduce((sum, x) => sum + x.value, 0);
   const activeGuaranteesCount = guarantees.filter(x => x.status === 'Active').length;
 
@@ -461,7 +465,7 @@ export default function DashboardView({
               <Trees className="h-6 w-6 stroke-[1.5]" />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Persediaan Bibit Nursery</span>
+              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Total Stok Tersedia</span>
               <span className="text-[48px] font-bold font-manrope text-text-primary mt-1 tracking-tight leading-none block">
                 {totalSeeds.toLocaleString('id-ID')}
               </span>

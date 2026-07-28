@@ -9,6 +9,7 @@ import {
   surfaceWaterService,
   rainfallService,
   nurseryService,
+  nurseryStockOutService,
   reclamationService,
   wasteB3Service,
   documentService,
@@ -21,7 +22,8 @@ import {
   regulatoryService
 } from '../services/dbService';
 import { 
-  WastewaterData, 
+  WastewaterData,
+  NurseryStockOut, 
   SurfaceWaterData,
   RainfallData, 
   NurseryData, 
@@ -48,6 +50,7 @@ export function useFirestoreData(activeTab: string) {
   const [rainfall, setRainfall] = useState<RainfallData[]>([]);
   
   const [nursery, setNursery] = useState<NurseryData[]>([]);
+  const [nurseryStockOut, setNurseryStockOut] = useState<NurseryStockOut[]>([]);
   const [reclamationPlans, setReclamationPlans] = useState<ReclamationPlan[]>([]);
   const [reclamationGuarantees, setReclamationGuarantees] = useState<ReclamationGuarantee[]>([]);
   
@@ -125,6 +128,9 @@ export function useFirestoreData(activeTab: string) {
 
       if (needsReclamation) {
         setIsLoadingNursery(true);
+        cleanups.push(nurseryStockOutService.subscribe((data) => {
+          setNurseryStockOut(data);
+        }));
         cleanups.push(nurseryService.subscribe((data) => {
           setNursery(data); setIsLoadingNursery(false);
         }));
@@ -234,7 +240,7 @@ export function useFirestoreData(activeTab: string) {
   }, [user, profile]);
 
   return {
-    wastewater, surfaceWater, rainfall, nursery,
+    wastewater, surfaceWater, rainfall, nursery, nurseryStockOut,
     reclamationPlans, reclamationGuarantees,
     wasteIn, wasteOut, documents, calendarEvents,
     environmentalCosts, alerts, solidWaste, capaFindings, complianceMatrix, incidents, regulatory,

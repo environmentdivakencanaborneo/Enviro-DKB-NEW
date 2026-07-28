@@ -64,8 +64,6 @@ export const APP_MENU_GROUPS: NavGroup[] = [
     group: 'PELAPORAN',
     items: [
       { id: 'reports', name: 'Laporan Tambang', icon: FileText },
-      { id: 'esg', name: 'ESG & GRI', icon: Globe2 },
-      { id: 'proper', name: 'Simulasi PROPER', icon: Award },
       { id: 'costs', name: 'Biaya Lingkungan', icon: Coins },
       { id: 'notifications', name: 'Notifikasi', icon: Bell, hasBadge: true },
     ]

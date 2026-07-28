@@ -239,6 +239,13 @@ service cloud.firestore {
       allow delete: if isAdmin() || isSuperintendent();
     }
     
+    
+    match /nursery_stock_out/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isOperator() || isVerifiedUser();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
     match /nursery/{docId} {
       allow read: if isVerifiedUser();
       allow create, update: if isOperator() || isVerifiedUser();

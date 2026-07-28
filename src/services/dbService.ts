@@ -19,7 +19,8 @@ import {
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../utils/firebaseAuth';
 import { 
-  WastewaterData, 
+  WastewaterData,
+  NurseryStockOut, 
   SurfaceWaterData,
   RainfallData, 
   NurseryData, 
@@ -37,7 +38,8 @@ import {
   RegulatoryWatchData
 } from '../types';
 import { 
-  WastewaterSchema, 
+  WastewaterSchema,
+  NurseryStockOutSchema, 
   SurfaceWaterSchema,
   RainfallSchema, 
   NurserySchema, 
@@ -1618,6 +1620,80 @@ export const regulatoryService = {
       action: 'delete',
       recordId: id,
       details: `Deleted Regulatory Watch`
+    });
+  }
+};
+
+
+export const nurseryStockOutService = {
+  subscribe: (callback: (data: NurseryStockOut[]) => void) => {
+    const cached = getOfflineCache<NurseryStockOut[]>('nursery_stock_out', []);
+    if (cached.length > 0) {
+      callback(cached);
+    }
+    const q = query(collection(db, 'nursery_stock_out'), orderBy('tanggal', 'desc'));
+    return onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => doc.data() as NurseryStockOut);
+      setOfflineCache('nursery_stock_out', docs);
+      callback(docs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'nursery_stock_out');
+    });
+  },
+
+  add: async (item: Omit<NurseryStockOut, 'id' | 'createdAt' | 'createdBy'>): Promise<NurseryStockOut> => {
+    const id = `NSO-${crypto.randomUUID()}`;
+    const user = auth.currentUser;
+    const newItem: NurseryStockOut = {
+      ...item,
+      id,
+      createdBy: user?.uid || 'system',
+      createdAt: new Date().toISOString()
+    };
+
+    const parseResult = NurseryStockOutSchema.safeParse(newItem);
+    if (!parseResult.success) {
+      handleValidationError(parseResult.error);
+    }
+
+    await setDoc(doc(db, 'nursery_stock_out', id), { ...newItem, ...trailCreate() });
+
+    await auditService.createLog({
+      collection: 'nursery_stock_out',
+      recordId: id,
+      action: 'insert',
+      details: `Mengeluarkan stok nursery ${item.namaBibit} sebanyak ${item.jumlahKeluar} bibit`
+    });
+
+    return newItem;
+  },
+
+  update: async (id: string, updates: Partial<Omit<NurseryStockOut, 'id' | 'createdBy' | 'createdAt'>>): Promise<void> => {
+    const user = auth.currentUser;
+    const updatedData = {
+      ...updates,
+      updatedBy: user?.uid || 'system',
+      updatedAt: new Date().toISOString()
+    };
+
+    await updateDoc(doc(db, 'nursery_stock_out', id), { ...updatedData, ...trailUpdate() });
+
+    await auditService.createLog({
+      collection: 'nursery_stock_out',
+      recordId: id,
+      action: 'update',
+      details: `Mengubah data nursery stock out`
+    });
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await deleteDoc(doc(db, 'nursery_stock_out', id));
+
+    await auditService.createLog({
+      collection: 'nursery_stock_out',
+      recordId: id,
+      action: 'delete',
+      details: `Menghapus data nursery stock out`
     });
   }
 };

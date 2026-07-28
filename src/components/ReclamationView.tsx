@@ -5,7 +5,8 @@
 
 import React, { useState } from 'react';
 import ModalPortal from './ModalPortal';
-import { NurseryData, ReclamationPlan, ReclamationGuarantee } from '../types';
+import NurseryStockOutForm from './NurseryStockOutForm';
+import { NurseryData, NurseryStockOut, ReclamationPlan, ReclamationGuarantee } from '../types';
 import { 
   Plus, 
   Search, 
@@ -27,7 +28,14 @@ import {
 } from 'lucide-react';
 
 interface ReclamationViewProps {
+  canEdit?: boolean;
+  canDelete?: boolean;
+  onUnauthorizedAction?: (msg: string) => void;
   nursery: NurseryData[];
+  nurseryStockOut: NurseryStockOut[];
+  onAddNurseryStockOut: (item: any) => void;
+  onUpdateNurseryStockOut?: (id: string, item: any) => void;
+  onDeleteNurseryStockOut: (id: string) => void;
   plans: ReclamationPlan[];
   guarantees: ReclamationGuarantee[];
   onAddNursery: (item: any) => void;
@@ -42,7 +50,15 @@ interface ReclamationViewProps {
 }
 
 export default function ReclamationView({
+  canEdit = false,
+  canDelete = false,
+  onUnauthorizedAction = () => {},
+
   nursery,
+  nurseryStockOut,
+  onAddNurseryStockOut,
+  onUpdateNurseryStockOut,
+  onDeleteNurseryStockOut,
   plans,
   guarantees,
   onAddNursery,
@@ -58,7 +74,7 @@ export default function ReclamationView({
   const [activeTab, setActiveTab] = useState<'nursery' | 'plans' | 'guarantees'>('nursery');
   const [deleteConfirm, setDeleteConfirm] = useState<{
     id: string;
-    type: 'nursery' | 'plan' | 'reset-plan' | 'guarantee';
+    type: 'nursery' | 'nurseryStockOut' | 'plan' | 'reset-plan' | 'guarantee';
     message: string;
   } | null>(null);
 
@@ -69,6 +85,12 @@ export default function ReclamationView({
 
   // NURSERY STATE
   const [showNurseryForm, setShowNurseryForm] = useState(false);
+  const [showNurseryOutForm, setShowNurseryOutForm] = useState(false);
+  const [editingNurseryOutId, setEditingNurseryOutId] = useState<string | null>(null);
+  const [initialNurseryOutData, setInitialNurseryOutData] = useState<NurseryStockOut | null>(null);
+  const [nurseryHistoryId, setNurseryHistoryId] = useState<string | null>(null);
+  const [nurseryOutFilter, setNurseryOutFilter] = useState<'all' | 'in' | 'out'>('all');
+
   const [nurserySearch, setNurserySearch] = useState('');
   // Forms
   const [nPlantType, setNPlantType] = useState('Sengon Laut (Falcataria moluccana)');
@@ -77,7 +99,7 @@ export default function ReclamationView({
   const [nSource, setNSource] = useState('Pembibitan Lokal Mandiri');
   const [nAge, setNAge] = useState(12);
   const [nHeight, setNHeight] = useState(40);
-  const [nStatus, setNStatus] = useState<'Healthy' | 'Need Care' | 'Critical'>('Healthy');
+  const [nStatus, setNStatus] = useState<any>('Healthy');
   const [nLoc, setNLoc] = useState('Nursery Blok A Barat');
   const [nDate, setNDate] = useState(new Date().toISOString().slice(0, 10));
 
@@ -189,6 +211,9 @@ export default function ReclamationView({
 
     setShowNurseryForm(false);
     setNCustomPlantType('');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('coal_monitor_toast', { detail: { message: 'Data berhasil disimpan.', type: 'success' } }));
+    }
   };
 
   // Handle plan selection to sync form fields for Realisasi
@@ -322,14 +347,85 @@ export default function ReclamationView({
 
   // Filters
   const filteredNursery = nursery.filter(item => {
-    return item.plantType.toLowerCase().includes(nurserySearch.toLowerCase()) || 
-           item.location.toLowerCase().includes(nurserySearch.toLowerCase());
+    const matchesSearch = item.plantType.toLowerCase().includes(nurserySearch.toLowerCase()) || 
+                          item.location.toLowerCase().includes(nurserySearch.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    
+    const qtyOut = nurseryStockOut?.filter(out => out.jenisBibitId === item.id).reduce((sum, out) => sum + out.jumlahKeluar, 0) || 0;
+    
+    if (nurseryOutFilter === 'out') {
+      return qtyOut > 0;
+    } else if (nurseryOutFilter === 'in') {
+      return qtyOut === 0;
+    }
+    return true;
   });
 
   const filteredPlans = plans.filter(item => {
     return item.areaName.toLowerCase().includes(planSearch.toLowerCase()) || 
            item.pic.toLowerCase().includes(planSearch.toLowerCase());
   });
+
+    const handleExportNursery = async () => {
+    const XLSX = await import('xlsx');
+    // Generate unified ledger
+    let rows: any[] = [];
+    nursery.forEach(item => {
+      rows.push({
+        'Tanggal': item.dateIn,
+        'Jenis Bibit': item.plantType,
+        'Species': item.plantType,
+        'Masuk': item.quantity,
+        'Keluar': 0,
+        'Sisa Stok': 0,
+        'Jenis Transaksi': 'Penerimaan',
+        'Kapling': '-',
+        'Blok': '-',
+        'Pit': '-',
+        'PIC': item.source
+      });
+    });
+    nurseryStockOut?.forEach(out => {
+      const parent = nursery.find(n => n.id === out.jenisBibitId);
+      rows.push({
+        'Tanggal': out.tanggal,
+        'Jenis Bibit': out.namaBibit,
+        'Species': out.species || parent?.plantType || out.namaBibit,
+        'Masuk': 0,
+        'Keluar': out.jumlahKeluar,
+        'Sisa Stok': 0, 
+        'Jenis Transaksi': out.jenisTransaksi || 'Keluar',
+        'Kapling': plans.find(p => p.id === out.kapling)?.areaName || out.kapling || '-',
+        'Blok': out.blok || '-',
+        'Pit': out.pit || '-',
+        'PIC': out.penanggungJawab || '-'
+      });
+    });
+    
+    // Sort by date
+    rows.sort((a, b) => new Date(a.Tanggal).getTime() - new Date(b.Tanggal).getTime());
+    
+    // Calculate running stock per species
+    const stockMap: Record<string, number> = {};
+    rows.forEach(r => {
+      if (!stockMap[r.Species]) stockMap[r.Species] = 0;
+      stockMap[r.Species] += r.Masuk - r.Keluar;
+      r['Sisa Stok'] = stockMap[r.Species];
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    
+    // Auto width
+    const cols = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(10, k.length) }));
+    ws['!cols'] = cols;
+    // Freeze header
+    ws['!views'] = [{ state: 'frozen', xSplit: 0, ySplit: 1 }];
+    
+    XLSX.utils.book_append_sheet(wb, ws, "Nursery Stock Ledger");
+    XLSX.writeFile(wb, "Nursery_Stock_Ledger.xlsx");
+  };
 
   return (
     <div id="reclamation-view-wrapper" className="space-y-6 text-slate-700">
@@ -370,46 +466,72 @@ export default function ReclamationView({
       {activeTab === 'nursery' && (
         <div id="reclamation-nursery-panel" className="space-y-6">
           {/* Nursery stats boxes */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <div className="bg-white/60 p-4 border border-slate-200 rounded-2xl flex items-center gap-4 text-left shadow">
-              <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl">
-                <Trees className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">Stok Bibit</span>
-                <p className="text-xl font-bold text-slate-800 mt-1">
-                  {nursery.reduce((sum, x) => sum + x.quantity, 0).toLocaleString('id-ID')} Batang
-                </p>
-              </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Total Bibit Masuk</span>
+              <p className="text-2xl font-bold text-emerald-700 mt-2 font-mono">
+                {nursery.reduce((sum, x) => sum + x.quantity, 0).toLocaleString('id-ID')}
+              </p>
             </div>
-
-            <div className="bg-white/60 p-4 border border-slate-200 rounded-2xl flex items-center gap-4 text-left shadow">
-              <div className="p-3 bg-teal-500/10 text-teal-600 rounded-xl">
-                <Sprout className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">Species</span>
-                <p className="text-xl font-bold text-slate-800 mt-1">
-                  {Array.from(new Set(nursery.map(x => x.plantType))).length} Jenis Vegetasi
-                </p>
-              </div>
+            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Total Bibit Keluar</span>
+              <p className="text-2xl font-bold text-rose-600 mt-2 font-mono">
+                {(nurseryStockOut?.reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0).toLocaleString('id-ID')}
+              </p>
             </div>
-
-            <div className="bg-white/60 p-4 border border-slate-200 rounded-2xl flex items-center gap-4 text-left shadow">
-              <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl">
-                <ShieldAlert className="h-5 w-5" />
+            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm relative overflow-hidden">
+              <div className="absolute -right-2 -top-2 opacity-5">
+                <Trees className="w-20 h-20" />
               </div>
-              <div>
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">Butuh Perawatan</span>
-                <p className="text-xl font-bold text-slate-800 mt-1">
-                  {nursery.filter(x => x.status !== 'Healthy').reduce((acc, x) => acc + x.quantity, 0).toLocaleString('id-ID')} Bibit
-                </p>
-              </div>
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Total Stok Tersedia</span>
+              <p className="text-3xl font-bold text-slate-800 mt-2 font-mono relative z-10">
+                {(nursery.reduce((sum, x) => sum + x.quantity, 0) - (nurseryStockOut?.reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0)).toLocaleString('id-ID')}
+              </p>
+            </div>
+            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Availability</span>
+              <p className="text-2xl font-bold text-blue-600 mt-2 font-mono">
+                {nursery.reduce((sum, x) => sum + x.quantity, 0) > 0 ? Math.round(((nursery.reduce((sum, x) => sum + x.quantity, 0) - (nurseryStockOut?.reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0)) / nursery.reduce((sum, x) => sum + x.quantity, 0)) * 100) : 0}%
+              </p>
+            </div>
+            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Ditanam Bulan Ini</span>
+              <p className="text-xl font-bold text-emerald-600 mt-2 font-mono">
+                {(() => {
+                  const currentMonth = new Date().toISOString().slice(0, 7);
+                  return nurseryStockOut?.filter(x => x.tanggal.startsWith(currentMonth) && x.jenisTransaksi === 'Penanaman').reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0;
+                })().toLocaleString('id-ID')}
+              </p>
+            </div>
+            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Bibit Rusak</span>
+              <p className="text-xl font-bold text-rose-600 mt-2 font-mono">
+                {(() => {
+                  return nurseryStockOut?.filter(x => x.jenisTransaksi === 'Rusak').reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0;
+                })().toLocaleString('id-ID')}
+              </p>
+            </div>
+            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Species</span>
+              <p className="text-xl font-bold text-slate-800 mt-2 font-mono">
+                {Array.from(new Set(nursery.map(x => x.plantType))).length}
+              </p>
+            </div>
+            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Butuh Perawatan</span>
+              <p className="text-xl font-bold text-amber-500 mt-2 font-mono">
+                {nursery.filter(x => ['Need Care', 'Perlu Perawatan'].includes(x.status)).length}
+              </p>
             </div>
           </div>
-
+          
           {/* Table Toolbar controls */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex gap-2">
+              <button onClick={() => setNurseryOutFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nurseryOutFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Semua</button>
+              <button onClick={() => setNurseryOutFilter('in')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nurseryOutFilter === 'in' ? 'bg-green-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Belum Keluar</button>
+              <button onClick={() => setNurseryOutFilter('out')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nurseryOutFilter === 'out' ? 'bg-rose-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Pernah Keluar</button>
+            </div>
             <div className="relative min-w-[300px] w-full md:w-auto">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
               <input
@@ -424,24 +546,87 @@ export default function ReclamationView({
 
             <button
               id="nursery-add-btn"
-              onClick={() => setShowNurseryForm(!showNurseryForm)}
+              onClick={() => { setShowNurseryForm(true); setShowNurseryOutForm(false); }}
               className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-teal-500 text-slate-950 font-bold rounded-xl text-xs shadow cursor-pointer self-start"
             >
               <Plus className="h-4 w-4" />
               Registrasi Jenis Bibit Baru
             </button>
+            <button
+              type="button"
+              onClick={() => { setShowNurseryOutForm(true); setShowNurseryForm(false); }}
+              className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-green-600 text-slate-50 font-bold rounded-xl text-xs shadow cursor-pointer self-start ml-2 hover:bg-green-700"
+            >
+              <ArrowRight className="h-4 w-4" />
+              Bibit Keluar
+            </button>
+            <button
+              type="button"
+              onClick={handleExportNursery}
+              className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-slate-800 text-white font-bold rounded-xl text-xs shadow cursor-pointer self-start ml-2 hover:bg-slate-700"
+            >
+              <FileCheck2 className="h-4 w-4" />
+              Export Excel
+            </button>
           </div>
 
-          {/* Nursery entry form */}
+          
+          {showNurseryOutForm && (
+            <ModalPortal>
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setShowNurseryOutForm(false); setEditingNurseryOutId(null); setInitialNurseryOutData(null); }}></div>
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-4xl w-full shadow-2xl text-slate-700 text-left max-h-[95vh] overflow-y-auto z-10 relative">
+                  <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                    <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                      <ArrowRight size={18} className="text-green-600" />
+                      {editingNurseryOutId ? 'Edit Transaksi Bibit Keluar' : 'Transaksi Bibit Keluar'}
+                    </h3>
+                    <button onClick={() => { setShowNurseryOutForm(false); setEditingNurseryOutId(null); setInitialNurseryOutData(null); }} className="text-slate-400 hover:text-slate-600 p-1 bg-slate-100 rounded-full">
+                      <Plus size={20} className="rotate-45" />
+                    </button>
+                  </div>
+                  <NurseryStockOutForm 
+                    nursery={nursery} 
+                    nurseryStockOut={nurseryStockOut}
+                    plans={plans}
+                    initialData={initialNurseryOutData}
+                    onClose={() => { setShowNurseryOutForm(false); setEditingNurseryOutId(null); setInitialNurseryOutData(null); }} 
+                    onSubmit={(payload) => {
+                      if (editingNurseryOutId) {
+                        if (onUpdateNurseryStockOut) onUpdateNurseryStockOut(editingNurseryOutId, payload);
+                      } else {
+                        onAddNurseryStockOut(payload);
+                      }
+                      setShowNurseryOutForm(false);
+                      setEditingNurseryOutId(null);
+                      setInitialNurseryOutData(null);
+                      if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('coal_monitor_toast', { detail: { message: 'Data berhasil disimpan.', type: 'success' } }));
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </ModalPortal>
+          )}
           {showNurseryForm && (
+            <ModalPortal>
+              <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-4xl w-full shadow-2xl text-slate-700 text-left max-h-[95vh] overflow-y-auto">
+                  <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                    <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                      <Plus size={18} className="text-teal-600" />
+                      {editingNurseryId ? 'Edit Data Penerimaan & Inventarisasi Bibit Nursery' : 'Registrasi Bibit Masuk'}
+                    </h3>
+                    <button onClick={() => { setShowNurseryForm(false); setEditingNurseryId(null); }} className="text-slate-400 hover:text-slate-600 p-1 bg-slate-100 rounded-full">
+                      <Plus size={20} className="rotate-45" />
+                    </button>
+                  </div>
             <form 
               id="nursery-form-element"
               onSubmit={handleNurserySubmit}
-              className="bg-white/80 p-5 rounded-2xl border border-slate-200 text-left animate-slide-up"
+              className="text-left"
             >
-              <h3 className="text-sm font-bold uppercase tracking-wider text-teal-600 mb-4 pb-2 border-b border-slate-200">
-                {editingNurseryId ? 'Edit Data Penerimaan & Inventarisasi Bibit Nursery' : 'Data Penerimaan & Inventarisasi Bibit Nursery'}
-              </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
@@ -565,6 +750,9 @@ export default function ReclamationView({
                 </button>
               </div>
             </form>
+                </div>
+              </div>
+            </ModalPortal>
           )}
 
           {/* Nursery table list */}
@@ -581,7 +769,10 @@ export default function ReclamationView({
                     <th className="p-3.5">Asal Penyedia</th>
                     <th className="p-3.5 text-center">Tinggi / Umur</th>
                     <th className="p-3.5 text-center">Bedeng Plot</th>
-                    <th className="p-3.5 text-center">Stok (Semat)</th>
+                    <th className="p-3.5 text-center">Bibit Masuk</th>
+                    <th className="p-3.5 text-center">Bibit Keluar</th>
+                    <th className="p-3.5 text-center">Stok Tersedia</th>
+                    <th className="p-3.5 text-center">Availability</th>
                     <th className="p-3.5 text-center">Kondisi</th>
                     <th className="p-3.5 text-center pr-5">Aksi</th>
                   </tr>
@@ -589,7 +780,7 @@ export default function ReclamationView({
                 <tbody className="divide-y divide-slate-800/60 text-xs">
                   {filteredNursery.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-10 text-center text-slate-500">Tidak ada bibit Nursery yang terdaftar.</td>
+                      <td colSpan={11} className="p-10 text-center text-slate-500">Tidak ada bibit Nursery yang terdaftar.</td>
                     </tr>
                   ) : (
                     filteredNursery.map(item => (
@@ -604,7 +795,11 @@ export default function ReclamationView({
                         <td className="p-3.5 text-slate-500">{item.source}</td>
                         <td className="p-3.5 text-center font-semibold text-slate-500">
                           <span className="block">{item.heightCm} cm</span>
-                          <span className="text-[10px] text-slate-500 font-mono">{item.ageWeeks} minggu</span>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
+                            (item.ageWeeks / 4) <= 3 ? 'bg-emerald-50 text-emerald-600' :
+                            (item.ageWeeks / 4) <= 6 ? 'bg-amber-50 text-amber-600' :
+                            'bg-rose-50 text-rose-600'
+                          }`}>{item.ageWeeks} minggu ({(item.ageWeeks / 4).toFixed(1)} bln)</span>
                         </td>
                         <td className="p-3.5 text-center">
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] border bg-white border-slate-200 font-semibold">
@@ -615,19 +810,58 @@ export default function ReclamationView({
                         <td className="p-3.5 text-center font-bold text-teal-600 font-mono text-sm">
                           {item.quantity.toLocaleString('id-ID')}
                         </td>
+                        <td className="p-3.5 text-center font-bold text-rose-600 font-mono text-sm">
+                          {(() => {
+                            const qtyOut = nurseryStockOut?.filter(out => out.jenisBibitId === item.id).reduce((sum, out) => sum + out.jumlahKeluar, 0) || 0;
+                            return qtyOut > 0 ? qtyOut.toLocaleString('id-ID') : '-';
+                          })()}
+                        </td>
+                        <td className="p-3.5 text-center font-bold text-emerald-700 font-mono text-sm">
+                          {(() => {
+                            const qtyOut = nurseryStockOut?.filter(out => out.jenisBibitId === item.id).reduce((sum, out) => sum + out.jumlahKeluar, 0) || 0;
+                            return (item.quantity - qtyOut).toLocaleString('id-ID');
+                          })()}
+                        </td>
+                        <td className="p-3.5 text-center w-32">
+                          {(() => {
+                            const qtyOut = nurseryStockOut?.filter(out => out.jenisBibitId === item.id).reduce((sum, out) => sum + out.jumlahKeluar, 0) || 0;
+                            const stokTersedia = item.quantity - qtyOut;
+                            const avail = item.quantity > 0 ? (stokTersedia / item.quantity) * 100 : 0;
+                            
+                            let color = 'bg-emerald-500';
+                            if (avail < 30) color = 'bg-rose-500';
+                            else if (avail <= 70) color = 'bg-amber-500';
+                            
+                            return (
+                              <div className="flex flex-col gap-1 items-center">
+                                <div className="w-full bg-slate-200 rounded-full h-1.5">
+                                  <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${Math.max(0, Math.min(100, avail))}%` }}></div>
+                                </div>
+                                <span className={`text-[10px] font-mono font-bold ${avail < 20 ? 'text-rose-600' : 'text-slate-500'}`}>
+                                  {avail.toFixed(0)}%
+                                </span>
+                                {avail < 20 && <span className="bg-rose-100 text-rose-700 text-[8px] font-bold px-1.5 py-0.5 rounded-sm whitespace-nowrap">STOK KRITIS</span>}
+                                {item.minimumStock !== undefined && stokTersedia < item.minimumStock && <span className="bg-amber-100 text-amber-700 text-[8px] font-bold px-1.5 py-0.5 rounded-sm whitespace-nowrap"><AlertCircle className="h-2 w-2 inline mr-0.5" />BELOW MIN</span>}
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td className="p-3.5 text-center">
                           <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
-                            item.status === 'Healthy' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
-                            item.status === 'Need Care' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
+                            ['Healthy', 'Sehat'].includes(item.status) ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
+                            ['Need Care', 'Perlu Perawatan'].includes(item.status) ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
                             'bg-rose-50 border-rose-200 text-rose-600'
                           }`}>
-                            {item.status === 'Healthy' ? 'Sehat' : item.status === 'Need Care' ? 'Rentan' : 'Kritis'}
+                            {['Healthy', 'Sehat'].includes(item.status) ? 'Sehat' : ['Need Care', 'Perlu Perawatan'].includes(item.status) ? 'Perlu Perawatan' : 'Rusak'}
                           </span>
                         </td>
                         <td className="p-3.5 text-center pr-5 flex items-center justify-center gap-1.5">
                           <button
                             id={`nursery-edit-btn-${item.id}`}
-                            onClick={() => startEditNursery(item)}
+                            onClick={() => {
+                              if (!canEdit) return onUnauthorizedAction("Ubah Data Nursery/Bibit");
+                              startEditNursery(item);
+                            }}
                             className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
                             title="Edit bibit"
                           >
@@ -636,6 +870,7 @@ export default function ReclamationView({
                           <button
                             id={`nursery-delete-btn-${item.id}`}
                             onClick={() => {
+                              if (!canDelete) return onUnauthorizedAction("Hapus Data Nursery");
                               setDeleteConfirm({
                                 id: item.id,
                                 type: 'nursery',
@@ -650,6 +885,146 @@ export default function ReclamationView({
                       </tr>
                     ))
                   )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Riwayat Transaksi */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden text-left shadow mt-6">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Riwayat Transaksi (Stock Ledger)</h4>
+            </div>
+            <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+              <table className="w-full text-left border-collapse min-w-[1000px]">
+                <thead>
+                  <tr className="border-y border-slate-200 bg-slate-50 text-[10px] text-slate-600 font-mono tracking-wider uppercase sticky top-0 shadow-sm">
+                    <th className="p-3.5 pl-5">Tanggal</th>
+                    <th className="p-3.5">No. Transaksi</th>
+                    <th className="p-3.5">Jenis Transaksi</th>
+                    <th className="p-3.5">Bibit / Spesies</th>
+                    <th className="p-3.5 text-center">Masuk</th>
+                    <th className="p-3.5 text-center">Keluar</th>
+                    <th className="p-3.5 text-center">Sisa Stok</th>
+                    <th className="p-3.5">Keterangan / Kapling</th>
+                    <th className="p-3.5">PIC</th>
+                    <th className="p-3.5">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {(() => {
+                    let rows: any[] = [];
+                    nursery.forEach(item => {
+                      rows.push({
+                        id: item.id,
+                        tanggal: item.dateIn,
+                        jenisTransaksi: 'Penerimaan',
+                        bibit: item.plantType,
+                        species: item.plantType,
+                        masuk: item.quantity,
+                        keluar: 0,
+                        keterangan: item.source,
+                        pic: item.source
+                      });
+                    });
+                    nurseryStockOut?.forEach(out => {
+                      const parent = nursery.find(n => n.id === out.jenisBibitId);
+                      rows.push({
+                        id: out.id,
+                        tanggal: out.tanggal,
+                        jenisTransaksi: out.jenisTransaksi || 'Keluar',
+                        bibit: out.namaBibit,
+                        species: out.species || parent?.plantType || out.namaBibit,
+                        masuk: 0,
+                        keluar: out.jumlahKeluar,
+                        keterangan: out.tujuan ? `${out.tujuan} - Kapling: ${plans.find(p => p.id === out.kapling)?.areaName || out.kapling || '-'}` : '-',
+                        pic: out.penanggungJawab || '-'
+                      });
+                    });
+                    
+                    rows.sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime());
+                    
+                    const stockMap: Record<string, number> = {};
+                    rows.forEach(r => {
+                      if (!stockMap[r.species]) stockMap[r.species] = 0;
+                      stockMap[r.species] += r.masuk - r.keluar;
+                      r.stok = stockMap[r.species];
+                    });
+                    
+                    rows.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
+                    
+                    if (rows.length === 0) {
+                      return <tr><td colSpan={9} className="p-10 text-center text-slate-500">Tidak ada riwayat transaksi.</td></tr>;
+                    }
+                    
+                    return rows.map((r, idx) => (
+                      <tr key={idx} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                        <td className="p-3.5 pl-5 font-mono">{r.tanggal}</td>
+                        <td className="p-3.5 font-mono text-[10px] text-slate-500">{r.id.substring(0,8)}</td>
+                        <td className="p-3.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                            r.jenisTransaksi === 'Penerimaan' ? 'bg-emerald-100 text-emerald-700' : 
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {r.jenisTransaksi}
+                          </span>
+                        </td>
+                        <td className="p-3.5">
+                          <span className="font-bold text-slate-700 block">{r.bibit}</span>
+                        </td>
+                        <td className="p-3.5 text-center font-bold text-emerald-600 font-mono text-sm">{r.masuk > 0 ? r.masuk.toLocaleString('id-ID') : '-'}</td>
+                        <td className="p-3.5 text-center font-bold text-rose-600 font-mono text-sm">{r.keluar > 0 ? r.keluar.toLocaleString('id-ID') : '-'}</td>
+                        <td className="p-3.5 text-center font-bold text-blue-700 font-mono text-sm">{r.stok.toLocaleString('id-ID')}</td>
+                        <td className="p-3.5 text-[10px] text-slate-500">{r.keterangan}</td>
+                        <td className="p-3.5 text-slate-600 font-semibold">{r.pic}</td>
+                        <td className="p-3.5 flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              if (r.jenisTransaksi === 'Penerimaan') {
+                                const originalItem = nursery.find(n => n.id === r.id);
+                                if (originalItem) {
+                                  startEditNursery(originalItem);
+                                }
+                              } else {
+                                const originalOut = nurseryStockOut?.find(o => o.id === r.id);
+                                if (originalOut) {
+                                  setInitialNurseryOutData(originalOut);
+                                  setEditingNurseryOutId(originalOut.id);
+                                  setShowNurseryOutForm(true);
+                                }
+                              }
+                            }}
+                            className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
+                            title="Edit Data"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (!canDelete) return onUnauthorizedAction("Hapus Data Nursery/Bibit");
+                              if (r.jenisTransaksi === 'Penerimaan') {
+                                setDeleteConfirm({
+                                  id: r.id,
+                                  type: 'nursery',
+                                  message: `Apakah Anda yakin ingin menghapus data ini? Perubahan ini akan mempengaruhi perhitungan stok nursery.`
+                                });
+                              } else {
+                                setDeleteConfirm({
+                                  id: r.id,
+                                  type: 'nurseryStockOut',
+                                  message: `Apakah Anda yakin ingin menghapus data ini? Perubahan ini akan mempengaruhi perhitungan stok nursery.`
+                                });
+                              }
+                            }}
+                            className="p-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg cursor-pointer transition-colors"
+                            title="Hapus Data"
+                          >
+                            <Trash2 className="h-4.5 w-4.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -1047,7 +1422,7 @@ export default function ReclamationView({
                     <th className="p-3.5">Sasaran Rencana (Rencana)</th>
                     <th className="p-3.5">Realisasi Lapangan (Realisasi)</th>
                     <th className="p-3.5 text-center">Tahun Fisik</th>
-                    <th className="p-3.5 text-center">Progres Ha (Fisik)</th>
+                    <th className="p-3.5 text-center">Progres Ha (Fisik)</th>\n                    <th className="p-3.5 text-center">Bibit Ditanam</th>
                     <th className="p-3.5 text-right">Perbandingan Anggaran</th>
                     <th className="p-3.5 text-center">Status</th>
                     <th className="p-3.5 text-center pr-5">Aksi</th>
@@ -1056,7 +1431,7 @@ export default function ReclamationView({
                 <tbody className="divide-y divide-slate-800/60 text-xs">
                   {filteredPlans.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-10 text-center text-slate-600 italic">Tidak ada agenda rencana/realisasi reklamasi yang diajukan.</td>
+                      <td colSpan={9} className="p-10 text-center text-slate-600 italic">Tidak ada agenda rencana/realisasi reklamasi yang diajukan.</td>
                     </tr>
                   ) : (
                     filteredPlans.map(item => {
@@ -1067,8 +1442,9 @@ export default function ReclamationView({
                       const selisihBiaya = item.realizedCost !== undefined
                         ? item.estimatedCost - item.realizedCost
                         : null;
+                      const bibitDitanam = nurseryStockOut?.filter(out => out.kapling === item.id && out.jenisTransaksi === 'Penanaman').reduce((sum, out) => sum + out.jumlahKeluar, 0) || 0;
 
-                      return (
+  return (
                         <tr key={item.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
                           <td className="p-3.5 pl-5 font-sans">
                             <span className="text-[10px] font-mono text-slate-500 block mb-0.5">{item.id}</span>
@@ -1143,6 +1519,11 @@ export default function ReclamationView({
                               )}
                             </div>
                           </td>
+                          <td className="p-3.5 text-center font-bold font-mono align-top py-4">
+                            <span className="text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200 shadow-sm text-[11px]">
+                               {bibitDitanam.toLocaleString('id-ID')}
+                            </span>
+                          </td>
                           <td className="p-3.5 text-right font-bold font-mono align-top py-4 min-w-[140px]">
                             <div className="flex flex-col items-end space-y-1.5">
                               <div className="text-[11px] text-slate-500"><span className="text-[9px] uppercase font-mono text-slate-500">Rcn:</span> {formatIDR(item.estimatedCost)}</div>
@@ -1187,6 +1568,7 @@ export default function ReclamationView({
                                   id={`plans-reset-btn-${item.id}`}
                                   title="Reset data Realisasi lapangan"
                                   onClick={() => {
+                                    if (!canEdit) return onUnauthorizedAction("Reset Realisasi Reklamasi");
                                     setDeleteConfirm({
                                       id: item.id,
                                       type: 'reset-plan',
@@ -1201,7 +1583,10 @@ export default function ReclamationView({
                               <button
                                 id={`plans-edit-btn-${item.id}`}
                                 title="Edit rencana program kerja"
-                                onClick={() => startEditPlan(item)}
+                                onClick={() => {
+                                  if (!canEdit) return onUnauthorizedAction("Ubah Rencana Reklamasi");
+                                  startEditPlan(item);
+                                }}
                                 className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -1209,6 +1594,7 @@ export default function ReclamationView({
                               <button
                                 id={`plans-delete-btn-${item.id}`}
                                 onClick={() => {
+                                  if (!canDelete) return onUnauthorizedAction("Hapus Rencana Reklamasi");
                                   setDeleteConfirm({
                                     id: item.id,
                                     type: 'plan',
@@ -1409,7 +1795,7 @@ export default function ReclamationView({
                     guarantees.map(item => {
                       const isWarn = item.status === 'Renewal Needed' || 
                         (new Date(item.dueDate).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000);
-                      return (
+  return (
                         <tr key={item.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
                           <td className="p-3.5 pl-5 font-mono font-bold text-slate-700">
                             <span className="text-slate-500 text-[9px] block mb-0.5">{item.id}</span>
@@ -1443,7 +1829,10 @@ export default function ReclamationView({
                           <td className="p-3.5 text-center pr-5 flex items-center justify-center gap-1.5">
                             <button
                               id={`guarantees-edit-btn-${item.id}`}
-                              onClick={() => startEditGuarantee(item)}
+                              onClick={() => {
+                                if (!canEdit) return onUnauthorizedAction("Ubah Jaminan Reklamasi");
+                                startEditGuarantee(item);
+                              }}
                               className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
                               title="Edit jaminan"
                             >
@@ -1452,6 +1841,7 @@ export default function ReclamationView({
                             <button
                               id={`guarantees-delete-btn-${item.id}`}
                               onClick={() => {
+                                if (!canDelete) return onUnauthorizedAction("Hapus Jaminan Reklamasi");
                                 setDeleteConfirm({
                                   id: item.id,
                                   type: 'guarantee',
@@ -1472,6 +1862,102 @@ export default function ReclamationView({
             </div>
           </div>
         </div>
+      )}
+
+      
+      {nurseryHistoryId && (
+        <ModalPortal>
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-5xl w-full shadow-2xl text-slate-700 text-left max-h-[85vh] flex flex-col">
+              <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <Activity size={18} className="text-blue-500" />
+                  Riwayat Transaksi: {nursery.find(n => n.id === nurseryHistoryId)?.plantType}
+                </h3>
+                <button onClick={() => setNurseryHistoryId(null)} className="text-slate-400 hover:text-slate-600 p-1 bg-slate-100 rounded-full">
+                  <Plus size={20} className="rotate-45" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-x-auto overflow-y-auto">
+                <table className="w-full text-left border-collapse min-w-[800px]">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-500 text-[10px] uppercase tracking-wider sticky top-0">
+                      <th className="p-3 font-bold">No. Transaksi</th>
+                      <th className="p-3 font-bold">Tanggal</th>
+                      <th className="p-3 font-bold">Jenis Transaksi</th>
+                      <th className="p-3 text-center font-bold">Masuk</th>
+                      <th className="p-3 text-center font-bold">Keluar</th>
+                      <th className="p-3 font-bold">Batch</th>
+                      <th className="p-3 font-bold">Lokasi / Kapling</th>
+                      <th className="p-3 font-bold">PIC</th>
+                      <th className="p-3 font-bold">Keterangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-xs divide-y divide-slate-100">
+                    {(() => {
+                      const itemIn = nursery.find(n => n.id === nurseryHistoryId);
+                      const outs = nurseryStockOut.filter(o => o.jenisBibitId === nurseryHistoryId);
+                      const history = [];
+                      if (itemIn) {
+                        history.push({
+                          no: '-',
+                          date: itemIn.dateIn,
+                          type: 'Penerimaan Awal',
+                          masuk: itemIn.quantity,
+                          keluar: 0,
+                          batch: itemIn.batchCode || '-',
+                          lokasi: itemIn.location,
+                          pic: itemIn.source,
+                          notes: 'Penerimaan bibit dari ' + itemIn.source
+                        });
+                      }
+                      outs.forEach(o => {
+                        history.push({
+                          no: o.nomorTransaksi || '-',
+                          date: o.tanggal,
+                          type: o.jenisTransaksi || 'Penanaman',
+                          masuk: 0,
+                          keluar: o.jumlahKeluar,
+                          batch: o.batchCode || (itemIn?.batchCode || '-'),
+                          lokasi: (o.kapling && o.kapling !== 'lainnya' ? `${plans.find(p => p.id === o.kapling)?.areaName || o.kapling} / ` : '') + `${o.blok} / ${o.pit}`,
+                          pic: o.penanggungJawab,
+                          notes: o.keterangan || o.tujuan || '-'
+                        });
+                      });
+                      history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                      if (history.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={9} className="p-6 text-center text-slate-500 bg-slate-50/50">Belum ada histori transaksi.</td>
+                          </tr>
+                        );
+                      }
+
+                      return history.map((h, i) => (
+                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3 font-mono text-[10px] text-slate-500">{h.no}</td>
+                          <td className="p-3 font-mono text-slate-600">{h.date}</td>
+                          <td className="p-3 font-bold text-slate-700">{h.type}</td>
+                          <td className="p-3 text-center font-bold text-emerald-600 font-mono">
+                            {h.masuk > 0 ? `+${h.masuk.toLocaleString('id-ID')}` : '-'}
+                          </td>
+                          <td className="p-3 text-center font-bold text-rose-600 font-mono">
+                            {h.keluar > 0 ? `-${h.keluar.toLocaleString('id-ID')}` : '-'}
+                          </td>
+                          <td className="p-3 font-mono text-[10px]">{h.batch}</td>
+                          <td className="p-3 text-[11px]">{h.lokasi}</td>
+                          <td className="p-3">{h.pic}</td>
+                          <td className="p-3 text-[11px] text-slate-500 max-w-[150px] truncate" title={h.notes}>{h.notes}</td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
 
       {deleteConfirm && (
@@ -1501,6 +1987,8 @@ export default function ReclamationView({
                     try {
                       if (type === 'nursery') {
                         await onDeleteNursery(id);
+                      } else if (type === 'nurseryStockOut') {
+                        await onDeleteNurseryStockOut(id);
                       } else if (type === 'plan') {
                         await onDeletePlan(id);
                       } else if (type === 'reset-plan') {

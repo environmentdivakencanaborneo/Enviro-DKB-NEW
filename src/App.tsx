@@ -30,8 +30,6 @@ import ReclamationView from './components/ReclamationView';
 import WasteB3View from './components/WasteB3View';
 import EnvironmentalCostsView from './components/EnvironmentalCostsView';
 import ReportsView from './components/ReportsView';
-import ESGMonitoringView from './components/ESGMonitoringView';
-import PropernasReport from './components/PropernasReport';
 import DocumentsView from './components/DocumentsView';
 import NotificationsView from './components/NotificationsView';
 import SettingsModals from './components/SettingsModals';
@@ -47,7 +45,7 @@ import RegulatoryWatchView from './components/RegulatoryWatchView';
 import AdminManagementView from './components/AdminManagementView';
 
 import { useAuth } from './services/authService';
-import { canAccessModule, isAdmin, isSuperintendent } from './services/permissionService';
+import { canAccessModule, isAdmin, isSuperintendent, canDelete } from './services/permissionService';
 import { useFirestoreData } from './hooks/useFirestoreData';
 import { handleGlobalError } from './utils/errorHandler';
 import { 
@@ -55,6 +53,7 @@ import {
   surfaceWaterService,
   rainfallService,
   nurseryService,
+  nurseryStockOutService,
   reclamationService,
   wasteB3Service,
   documentService,
@@ -93,6 +92,7 @@ export default function App() {
     surfaceWater,
     rainfall,
     nursery,
+    nurseryStockOut,
     reclamationPlans,
     reclamationGuarantees,
     wasteIn,
@@ -343,7 +343,7 @@ export default function App() {
     }
   };
   const handleDeleteWastewater = async (id: string) => {
-    if (!isAdmin(profile)) {
+    if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Data Air Limbah");
       return;
     }
@@ -377,8 +377,8 @@ export default function App() {
     }
   };
   const handleDeleteSurfaceWater = async (id: string) => {
-    if (!isAdmin(profile)) {
-      showAuthorityWarning("Hapus Data Air Permukaan");
+    if (!canDelete(profile)) {
+      showAuthorityWarning("Hapus Data Kualitas Air Permukaan");
       return;
     }
     try {
@@ -411,7 +411,7 @@ export default function App() {
     }
   };
   const handleDeleteRainfall = async (id: string) => {
-    if (!isAdmin(profile)) {
+    if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Catatan Curah Hujan");
       return;
     }
@@ -419,6 +419,41 @@ export default function App() {
       await rainfallService.delete(id);
     } catch (e: any) {
       handleGlobalError(e, "Hapus Catatan Curah Hujan");
+    }
+  };
+
+  const handleAddNurseryStockOut = async (item: any) => {
+    if (!hasWriteAuthority) {
+      showAuthorityWarning("Tambah Transaksi Bibit Keluar");
+      return;
+    }
+    try {
+      await nurseryStockOutService.add(item);
+    } catch (e: any) {
+      handleGlobalError(e, "Tambah Transaksi Bibit Keluar");
+    }
+  };
+  const handleUpdateNurseryStockOut = async (id: string, item: any) => {
+    if (!hasWriteAuthority) {
+      showAuthorityWarning("Ubah Transaksi Bibit Keluar");
+      return;
+    }
+    try {
+      await nurseryStockOutService.update(id, item);
+    } catch (e: any) {
+      handleGlobalError(e, "Ubah Transaksi Bibit Keluar");
+    }
+  };
+
+  const handleDeleteNurseryStockOut = async (id: string) => {
+    if (!canDelete(profile)) {
+      showAuthorityWarning("Hapus Transaksi Bibit Keluar");
+      return;
+    }
+    try {
+      await nurseryStockOutService.delete(id);
+    } catch (e: any) {
+      handleGlobalError(e, "Hapus Transaksi Bibit Keluar");
     }
   };
 
@@ -445,7 +480,7 @@ export default function App() {
     }
   };
   const handleDeleteNursery = async (id: string) => {
-    if (!isAdmin(profile)) {
+    if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Catatan Nursery");
       return;
     }
@@ -479,8 +514,8 @@ export default function App() {
     }
   };
   const handleDeletePlan = async (id: string) => {
-    if (!isAdmin(profile)) {
-      showAuthorityWarning("Hapus Rencana Reklamasi");
+    if (!canDelete(profile)) {
+      showAuthorityWarning("Hapus Rencana/Realisasi Reklamasi");
       return;
     }
     try {
@@ -513,7 +548,7 @@ export default function App() {
     }
   };
   const handleDeleteGuarantee = async (id: string) => {
-    if (!isAdmin(profile)) {
+    if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Jaminan Reklamasi");
       return;
     }
@@ -547,7 +582,7 @@ export default function App() {
     }
   };
   const handleDeleteWasteIn = async (id: string) => {
-    if (!isAdmin(profile)) {
+    if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Log Masuk Limbah B3");
       return;
     }
@@ -581,7 +616,7 @@ export default function App() {
     }
   };
   const handleDeleteWasteOut = async (id: string) => {
-    if (!isAdmin(profile)) {
+    if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Log Keluar Limbah B3");
       return;
     }
@@ -617,8 +652,8 @@ export default function App() {
     }
   };
   const handleDeleteDocument = async (id: string) => {
-    if (!isAdmin(profile)) {
-      showAuthorityWarning("Hapus Dokumen AMDAL/RKL-RPL");
+    if (!canDelete(profile)) {
+      showAuthorityWarning("Hapus Dokumen AMDAL");
       return;
     }
     try {
@@ -641,7 +676,7 @@ export default function App() {
     }
   };
   const handleDeleteCalendarEvent = async (id: string) => {
-    if (!isAdmin(profile)) {
+    if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Kegiatan Agenda Kepatuhan");
       return;
     }
@@ -686,7 +721,7 @@ export default function App() {
     }
   };
   const handleDeleteCost = async (id: string) => {
-    if (!isAdmin(profile)) {
+    if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Catatan Biaya Lingkungan");
       return;
     }
@@ -720,7 +755,7 @@ export default function App() {
     }
   };
   const handleDeleteSolidWaste = async (id: string) => {
-    if (!isAdmin(profile)) {
+    if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Data Pengolahan Sampah");
       return;
     }
@@ -764,6 +799,7 @@ export default function App() {
               surfaceWater={surfaceWater}
               rainfall={rainfall}
               nursery={nursery}
+              nurseryStockOut={nurseryStockOut}
               guarantees={reclamationGuarantees}
               wasteStocks={wasteStocks}
               solidWaste={solidWaste}
@@ -817,6 +853,10 @@ export default function App() {
           <ModuleErrorBoundary moduleName="Reklamasi Area Tambang & Nursery">
             <ReclamationView 
               nursery={nursery}
+              nurseryStockOut={nurseryStockOut}
+              onAddNurseryStockOut={handleAddNurseryStockOut}
+              onUpdateNurseryStockOut={handleUpdateNurseryStockOut}
+              onDeleteNurseryStockOut={handleDeleteNurseryStockOut}
               plans={reclamationPlans}
               guarantees={reclamationGuarantees}
               onAddNursery={handleAddNursery}
@@ -828,6 +868,9 @@ export default function App() {
               onAddGuarantee={handleAddGuarantee}
               onUpdateGuarantee={handleUpdateGuarantee}
               onDeleteGuarantee={handleDeleteGuarantee}
+              canEdit={hasWriteAuthority}
+              canDelete={canDelete(profile)}
+              onUnauthorizedAction={showAuthorityWarning}
             />
           </ModuleErrorBoundary>
         );
@@ -882,7 +925,7 @@ export default function App() {
             isLoading={isLoadingCapa}
             userEmail={user?.email || undefined}
             canEdit={hasWriteAuthority}
-            canDelete={isAdmin(profile)}
+            canDelete={canDelete(profile)}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -893,7 +936,7 @@ export default function App() {
             data={complianceMatrix}
             isLoading={isLoadingCompliance}
             canEdit={hasWriteAuthority}
-            canDelete={isAdmin(profile)}
+            canDelete={canDelete(profile)}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -904,7 +947,7 @@ export default function App() {
             incidents={incidents}
             isLoading={isLoadingIncidents}
             canEdit={hasWriteAuthority}
-            canDelete={isAdmin(profile)}
+            canDelete={canDelete(profile)}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -927,57 +970,9 @@ export default function App() {
             data={regulatory}
             isLoading={isLoadingRegulatory}
             canEdit={hasWriteAuthority}
-            canDelete={isAdmin(profile)}
+            canDelete={canDelete(profile)}
             onUnauthorizedAction={showAuthorityWarning}
           />
-        );
-      case 'esg':
-        if (isLoadingWastewater || isLoadingNursery || isLoadingReclamation || isLoadingWaste || isLoadingSolidWaste || isLoadingCosts || isLoadingAlerts) {
-          return (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 animate-pulse">
-              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT MODUL ESG & GRI...</h3>
-              <TableSkeleton columns={4} rows={5} />
-            </div>
-          );
-        }
-        return (
-          <ModuleErrorBoundary moduleName="ESG & GRI Disclosure">
-            <ESGMonitoringView 
-              wastewater={wastewater}
-              nursery={nursery}
-              plans={reclamationPlans}
-              guarantees={reclamationGuarantees}
-              wasteIn={wasteIn}
-              wasteOut={wasteOut}
-              solidWaste={solidWaste}
-              documents={documents}
-              calendarEvents={calendarEvents}
-              environmentalCosts={environmentalCosts}
-              alerts={alerts}
-            />
-          </ModuleErrorBoundary>
-        );
-      case 'proper':
-        if (isLoadingWastewater || isLoadingSolidWaste || isLoadingReclamation || isLoadingWaste) {
-          return (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 animate-pulse">
-              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT SIMULASI PROPERNAS...</h3>
-              <TableSkeleton columns={4} rows={5} />
-            </div>
-          );
-        }
-        return (
-          <ModuleErrorBoundary moduleName="Simulasi PROPER">
-            <PropernasReport 
-              activeWater={wastewater}
-              solidWaste={solidWaste}
-              plans={reclamationPlans}
-              activeWasteIn={wasteIn}
-              activeWasteOut={wasteOut}
-              nurseryHealthIndex={85} // fallback or calculate if we have it
-              user={profile}
-            />
-          </ModuleErrorBoundary>
         );
       case 'reports':
         return (
@@ -987,6 +982,7 @@ export default function App() {
               surfaceWater={surfaceWater}
               rainfall={rainfall}
               nursery={nursery}
+              nurseryStockOut={nurseryStockOut}
               plans={reclamationPlans}
               wasteIn={wasteIn}
               wasteOut={wasteOut}
@@ -1021,7 +1017,7 @@ export default function App() {
               onDeleteEvent={handleDeleteCalendarEvent}
               onUpdateEventStatus={handleUpdateCalendarStatus}
               canEdit={hasWriteAuthority}
-              canDelete={isAdmin(profile)}
+              canDelete={canDelete(profile)}
               onUnauthorizedAction={showAuthorityWarning}
             />
           </ModuleErrorBoundary>
@@ -1043,7 +1039,7 @@ export default function App() {
               onUpdateCost={handleUpdateCost}
               onDeleteCost={handleDeleteCost}
               canEdit={isSuperintendent(profile)}
-              canDelete={isAdmin(profile)}
+              canDelete={canDelete(profile)}
               onUnauthorizedAction={showAuthorityWarning}
             />
           </ModuleErrorBoundary>
