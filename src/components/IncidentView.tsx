@@ -3,6 +3,7 @@ import ModalPortal from './ModalPortal';
 import { IncidentData } from '../types';
 import { incidentService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
+import { todayLocalISO } from '../utils/dateUtils';
 import { 
   Flame, Plus, Search, Download, 
   Trash2, Edit, AlertTriangle, X,

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
   WastewaterData,
   RainfallData,
@@ -20,6 +20,7 @@ import {
   SurfaceWaterData
 } from '../types';
 import { formatWasteSource } from '../constants/wasteSources';
+import { todayLocalISO } from '../utils/dateUtils';
 
 // Helper format angka rupiah
 function formatIDR(num: number): string {
@@ -100,16 +101,16 @@ function mapReclamationPlans(data: ReclamationPlan[]) {
   return data.map(d => ({
     'ID': d.id,
     'Nama Area': d.areaName,
-    'Luas Target (Ha)': d.sizeHa,
-    'Luas Realisasi (Ha)': d.realizedSizeHa ?? '',
+    'Target Luas (Ha)': d.sizeHa,
+    'Realisasi Luas (Ha)': d.realizedSizeHa ?? '-',
     'Tahun Target': d.targetYear,
-    'Tahun Realisasi': d.realizedYear ?? '',
+    'Tahun Realisasi': d.realizedYear ?? '-',
     'Jenis Tanaman Target': d.plantType,
-    'Jenis Tanaman Realisasi': d.realizedPlantType ?? '',
-    'Metode Target': d.method,
-    'Metode Realisasi': d.realizedMethod ?? '',
-    'Estimasi Biaya (IDR)': formatIDR(d.estimatedCost),
-    'Biaya Realisasi (IDR)': d.realizedCost ? formatIDR(d.realizedCost) : '',
+    'Jenis Tanaman Realisasi': d.realizedPlantType ?? '-',
+    'Metode': d.method,
+    'Metode Realisasi': d.realizedMethod ?? '-',
+    'Estimasi Biaya': formatIDR(d.estimatedCost),
+    'Realisasi Biaya': d.realizedCost != null ? formatIDR(d.realizedCost) : '-',
     'Status': d.status,
     'PIC': d.pic,
   }));
@@ -118,14 +119,14 @@ function mapReclamationPlans(data: ReclamationPlan[]) {
 function mapReclamationGuarantees(data: ReclamationGuarantee[]) {
   return data.map(d => ({
     'ID': d.id,
-    'No. Jaminan': d.guaranteeNo,
-    'Tipe Jaminan': d.guaranteeType,
-    'Nilai (IDR)': formatIDR(d.value),
+    'Nomor Jaminan': d.guaranteeNo,
+    'Bentuk Jaminan': d.guaranteeType,
+    'Nilai Jaminan': formatIDR(d.value),
     'Lembaga Penerbit': d.issuingInstitution,
     'Tanggal Terbit': d.issuedDate,
-    'Tanggal Jatuh Tempo': d.dueDate,
+    'Jatuh Tempo': d.dueDate,
     'Status': d.status,
-    'URL Dokumen': d.docUrl ?? '',
+    'Link Dokumen': d.docUrl || '-',
   }));
 }
 
@@ -134,13 +135,12 @@ function mapWasteIn(data: WasteIn[]) {
     'ID': d.id,
     'Tanggal Masuk': d.dateIn,
     'Jenis Limbah': d.wasteType,
-    'Sumber': d.source,
-    'Berat (kg)': d.weightKg,
+    'Sumber Asal': d.source,
+    'Berat (Kg)': d.weightKg,
     'Karakteristik': d.characteristic,
     'Kode Limbah': d.code,
     'Lokasi TPS': d.tpsLocation,
     'Petugas': d.officer,
-    'URL Dokumentasi': d.documentationUrl ?? '',
   }));
 }
 
@@ -149,14 +149,13 @@ function mapWasteOut(data: WasteOut[]) {
     'ID': d.id,
     'Tanggal Keluar': d.dateOut,
     'Jenis Limbah': d.wasteType,
-    'Berat (kg)': d.weightKg,
-    'Tujuan': d.destination,
+    'Berat (Kg)': d.weightKg,
+    'Tujuan Akhir': d.destination,
     'Transporter': d.transporter,
-    'No. Manifest': d.manifestNo,
-    'No. Kendaraan': d.vehicleNo,
-    'Nama Pengemudi': d.driverName,
+    'Nomor Manifest': d.manifestNo,
+    'Nomor Armada': d.vehicleNo,
+    'Driver': d.driverName,
     'Penerima': d.recipient,
-    'URL Dokumentasi': d.documentationUrl ?? '',
   }));
 }
 
@@ -164,24 +163,28 @@ function mapDocuments(data: EnvironmentalDocument[]) {
   return data.map(d => ({
     'ID': d.id,
     'Nama Dokumen': d.name,
-    'Tipe': d.type,
-    'No. Dokumen': d.docNo,
+    'Jenis': d.type,
+    'Nomor Izin': d.docNo,
+    'Instansi Penerbit': d.issuer || '-',
     'Tanggal Terbit': d.issuedDate,
     'Tanggal Kadaluarsa': d.expiryDate,
     'Status': d.status,
+    'Kewajiban Pokok': d.obligations || '-',
     'PIC': d.pic,
-    'Ukuran File': d.fileSize ?? '',
+    'Link File': d.documentUrl || '-',
   }));
 }
 
 function mapCalendarEvents(data: ComplianceCalendarEvent[]) {
   return data.map(d => ({
     'ID': d.id,
-    'Tanggal': d.date,
+    'Tanggal Agenda': d.date,
     'Judul Kegiatan': d.title,
-    'Tipe': d.type,
+    'Kategori': d.type,
     'Deskripsi': d.description,
     'Status': d.status,
+    'Penanggung Jawab': d.assignedTo || '-',
+    'Kemajuan (%)': d.progress != null ? `${d.progress}%` : '-',
   }));
 }
 
@@ -190,13 +193,16 @@ function mapEnvironmentalCosts(data: EnvironmentalCost[]) {
     'ID': d.id,
     'Tahun': d.year,
     'Periode': d.period,
-    'Kategori': d.category,
-    'Rencana OPEX (IDR)': formatIDR(d.plannedOpex),
-    'Rencana CAPEX (IDR)': formatIDR(d.plannedCapex),
-    'Realisasi OPEX (IDR)': formatIDR(d.realizedOpex),
-    'Realisasi CAPEX (IDR)': formatIDR(d.realizedCapex),
-    'Catatan': d.notes ?? '',
+    'Kategori Program': d.category,
+    'Rencana OPEX': formatIDR(d.plannedOpex),
+    'Rencana CAPEX': formatIDR(d.plannedCapex),
+    'Total Rencana': formatIDR(d.plannedOpex + d.plannedCapex),
+    'Realisasi OPEX': formatIDR(d.realizedOpex),
+    'Realisasi CAPEX': formatIDR(d.realizedCapex),
+    'Total Realisasi': formatIDR(d.realizedOpex + d.realizedCapex),
+    'Variansi': formatIDR((d.plannedOpex + d.plannedCapex) - (d.realizedOpex + d.realizedCapex)),
     'Petugas': d.officer,
+    'Catatan': d.notes || '-',
   }));
 }
 
@@ -218,18 +224,20 @@ function mapSolidWaste(data: SolidWasteData[]) {
   }));
 }
 
-// ─── Style header kolom (bold + background kuning) ──────────────────────────
-
-function styleHeaderRow(ws: XLSX.WorkSheet, headers: string[]) {
-  headers.forEach((_, colIndex) => {
-    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: colIndex });
-    if (!ws[cellAddress]) return;
-    ws[cellAddress].s = {
-      font: { bold: true, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: '1E4D2B' } },
-      alignment: { horizontal: 'center' },
-    };
+function triggerDownload(buffer: ArrayBuffer | Uint8Array, fileName: string): void {
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   });
+  if (typeof window !== 'undefined') {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
 }
 
 // ─── Fungsi utama export ─────────────────────────────────────────────────────
@@ -251,11 +259,14 @@ export interface ExportPayload {
 }
 
 export function exportAllDataToXLSX(payload: ExportPayload, companyName?: string): void {
-  const wb = XLSX.utils.book_new();
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'PT Diva Kencana Borneo';
+  wb.lastModifiedBy = 'DEM System';
+  wb.created = new Date();
   const exportDate = new Date().toLocaleString('id-ID');
 
   // Definisi semua sheet
-  const sheets: Array<{ name: string; rows: object[] }> = [
+  const sheets: Array<{ name: string; rows: Record<string, any>[] }> = [
     { name: 'Kualitas Air Limbah',      rows: mapWastewater(payload.wastewater) },
     { name: 'Kualitas Air Permukaan',   rows: mapSurfaceWater(payload.surfaceWater || []) },
     { name: 'Curah Hujan',              rows: mapRainfall(payload.rainfall) },
@@ -271,55 +282,85 @@ export function exportAllDataToXLSX(payload: ExportPayload, companyName?: string
   ];
 
   // Sheet 1: Ringkasan / Cover
-  const summaryData = [
-    ['DEM System — Ekspor Data Mentah'],
-    [`Perusahaan: ${companyName || '-'}`],
-    [`Tanggal Ekspor: ${exportDate}`],
-    [],
-    ['Sheet', 'Jumlah Record'],
-    ...sheets.map(s => [s.name, s.rows.length]),
-    [],
-    ['Total record', sheets.reduce((acc, s) => acc + s.rows.length, 0)],
+  const summaryWs = wb.addWorksheet('Ringkasan');
+  summaryWs.columns = [
+    { header: 'Parameter', key: 'col1', width: 35 },
+    { header: 'Nilai', key: 'col2', width: 25 }
   ];
-  const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
-  summaryWs['!cols'] = [{ wch: 30 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(wb, summaryWs, 'Ringkasan');
+  summaryWs.addRow(['DEM System — Ekspor Data Mentah']);
+  summaryWs.addRow([`Perusahaan: ${companyName || '-'}`]);
+  summaryWs.addRow([`Tanggal Ekspor: ${exportDate}`]);
+  summaryWs.addRow([]);
+  summaryWs.addRow(['Nama Sheet', 'Jumlah Record']);
+  sheets.forEach(s => {
+    summaryWs.addRow([s.name, s.rows.length]);
+  });
+  summaryWs.addRow([]);
+  summaryWs.addRow(['Total record', sheets.reduce((acc, s) => acc + s.rows.length, 0)]);
 
   // Tambahkan semua sheet data
   sheets.forEach(({ name, rows }) => {
+    const ws = wb.addWorksheet(name);
     if (rows.length === 0) {
-      // Sheet kosong tetap dibuat dengan header
-      const ws = XLSX.utils.aoa_to_sheet([['Tidak ada data untuk sheet ini.']]);
-      XLSX.utils.book_append_sheet(wb, ws, name);
+      ws.addRow(['Tidak ada data untuk sheet ini.']);
       return;
     }
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-
-    // Auto-width kolom berdasarkan panjang konten
     const headers = Object.keys(rows[0]);
-    ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 2, 15) }));
+    ws.columns = headers.map(h => ({
+      header: h,
+      key: h,
+      width: Math.max(h.length + 3, 16)
+    }));
 
-    styleHeaderRow(ws, headers);
-    XLSX.utils.book_append_sheet(wb, ws, name);
+    const headerRow = ws.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E4D2B' }
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    headerRow.height = 24;
+
+    rows.forEach(r => ws.addRow(r));
   });
 
   // Generate nama file
-  const dateStr = new Date().toISOString().slice(0, 10);
+  const dateStr = todayLocalISO();
   const safeCompany = (companyName || 'DEM_System').replace(/[^a-zA-Z0-9]/g, '_');
   const fileName = `${safeCompany}_DataMentah_${dateStr}.xlsx`;
 
-  // Trigger download
-  XLSX.writeFile(wb, fileName);
+  wb.xlsx.writeBuffer().then(buffer => {
+    triggerDownload(buffer, fileName);
+  });
 }
 
 export function exportToExcel(data: any[], fileName: string): void {
-  if (data.length === 0) return;
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(data);
+  if (!data || data.length === 0) return;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Data');
   const headers = Object.keys(data[0]);
-  ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 2, 15) }));
-  styleHeaderRow(ws, headers);
-  XLSX.utils.book_append_sheet(wb, ws, 'Data');
-  XLSX.writeFile(wb, `${fileName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  ws.columns = headers.map(h => ({
+    header: h,
+    key: h,
+    width: Math.max(h.length + 3, 16)
+  }));
+
+  const headerRow = ws.getRow(1);
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF1E4D2B' }
+  };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+  headerRow.height = 24;
+
+  data.forEach(r => ws.addRow(r));
+
+  const outFileName = `${fileName}_${todayLocalISO()}.xlsx`;
+  wb.xlsx.writeBuffer().then(buffer => {
+    triggerDownload(buffer, outFileName);
+  });
 }

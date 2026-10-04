@@ -131,19 +131,23 @@ export const WasteInSchema = z.object({
   dateIn: z.string().regex(dateRegex, "Format tanggal masuk harus YYYY-MM-DD"),
   wasteType: z.string().trim().min(2, "Jenis limbah wajib diisi"),
   source: z.string().trim().min(2, "Sumber asal wajib diisi"),
-  weightKg: z.number().min(0, "Berat tidak boleh negatif"),
+  weightKg: z.number().positive("Berat harus lebih dari 0"),
   characteristic: z.enum(["Flammable", "Toxic", "Corrosive", "Reactive", "Infectious"]),
   code: z.string().trim().min(1, "Kode limbah wajib diisi"),
   tpsLocation: z.string().trim().min(2, "Lokasi TPS wajib diisi"),
   officer: z.string().trim().min(2, "Nama petugas wajib diisi"),
   documentationUrl: z.string().trim().optional().nullable(),
+  createdAt: z.any().optional(),
+  createdBy: z.string().optional(),
+  updatedAt: z.any().optional(),
+  updatedBy: z.string().optional(),
 });
 
 export const WasteOutSchema = z.object({
   id: z.string().min(1, "ID wajib diisi"),
   dateOut: z.string().regex(dateRegex, "Format tanggal keluar harus YYYY-MM-DD"),
   wasteType: z.string().trim().min(2, "Jenis limbah wajib diisi"),
-  weightKg: z.number().min(0, "Berat tidak boleh negatif"),
+  weightKg: z.number().positive("Berat harus lebih dari 0"),
   destination: z.string().trim().min(2, "Tujuan pembuangan wajib diisi"),
   transporter: z.string().trim().min(2, "Pihak transporter wajib diisi"),
   manifestNo: z.string().trim().min(1, "Nomor manifest wajib diisi"),
@@ -151,6 +155,10 @@ export const WasteOutSchema = z.object({
   driverName: z.string().trim().min(2, "Nama pengemudi wajib diisi"),
   recipient: z.string().trim().min(2, "Nama penerima wajib diisi"),
   documentationUrl: z.string().trim().optional().nullable(),
+  createdAt: z.any().optional(),
+  createdBy: z.string().optional(),
+  updatedAt: z.any().optional(),
+  updatedBy: z.string().optional(),
 });
 
 export const EnvironmentalDocumentSchema = z.object({

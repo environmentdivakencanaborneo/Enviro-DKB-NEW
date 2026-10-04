@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import ModalPortal from './ModalPortal';
 import NurseryStockOutForm from './NurseryStockOutForm';
 import { NurseryData, NurseryStockOut, ReclamationPlan, ReclamationGuarantee } from '../types';
+import { exportToExcel } from '../services/exportService';
 import { 
   Plus, 
   Search, 
@@ -367,8 +368,7 @@ export default function ReclamationView({
            item.pic.toLowerCase().includes(planSearch.toLowerCase());
   });
 
-    const handleExportNursery = async () => {
-    const XLSX = await import('xlsx');
+    const handleExportNursery = () => {
     // Generate unified ledger
     let rows: any[] = [];
     nursery.forEach(item => {
@@ -380,9 +380,7 @@ export default function ReclamationView({
         'Keluar': 0,
         'Sisa Stok': 0,
         'Jenis Transaksi': 'Penerimaan',
-        'Kapling': '-',
-        'Blok': '-',
-        'Pit': '-',
+        'Lokasi Penanaman': item.location || '-',
         'PIC': item.source
       });
     });
@@ -396,9 +394,7 @@ export default function ReclamationView({
         'Keluar': out.jumlahKeluar,
         'Sisa Stok': 0, 
         'Jenis Transaksi': out.jenisTransaksi || 'Keluar',
-        'Kapling': plans.find(p => p.id === out.kapling)?.areaName || out.kapling || '-',
-        'Blok': out.blok || '-',
-        'Pit': out.pit || '-',
+        'Lokasi Penanaman': out.lokasiPenanaman || '-',
         'PIC': out.penanggungJawab || '-'
       });
     });
@@ -414,17 +410,7 @@ export default function ReclamationView({
       r['Sisa Stok'] = stockMap[r.Species];
     });
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    
-    // Auto width
-    const cols = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(10, k.length) }));
-    ws['!cols'] = cols;
-    // Freeze header
-    ws['!views'] = [{ state: 'frozen', xSplit: 0, ySplit: 1 }];
-    
-    XLSX.utils.book_append_sheet(wb, ws, "Nursery Stock Ledger");
-    XLSX.writeFile(wb, "Nursery_Stock_Ledger.xlsx");
+    exportToExcel(rows, 'Nursery_Stock_Ledger');
   };
 
   return (

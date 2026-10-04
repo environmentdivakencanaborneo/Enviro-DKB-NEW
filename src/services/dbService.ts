@@ -58,7 +58,8 @@ import {
 import { auditService } from './auditService';
 import { evaluateWastewaterStatus, evaluateSurfaceWaterStatus } from '../data/regulations';
 import { getOfflineCache, setOfflineCache } from '../utils/googleSync';
-import { getTimeMs } from '../utils/dateUtils';
+import { getTimeMs, compareLatestFirst } from '../utils/dateUtils';
+import { buildWasteLedger } from '../utils/wasteLedger';
 
 // Helper to sanitize error messaging
 function handleValidationError(error: any): never {
@@ -670,17 +671,19 @@ export const wasteB3Service = {
   ) => {
     const cachedIn = getOfflineCache<WasteIn[]>('waste_in', []);
     const cachedOut = getOfflineCache<WasteOut[]>('waste_out', []);
-    if (cachedIn.length > 0) onWasteIn(cachedIn);
-    if (cachedOut.length > 0) onWasteOut(cachedOut);
+    if (cachedIn.length > 0) onWasteIn([...cachedIn].sort(compareLatestFirst));
+    if (cachedOut.length > 0) onWasteOut([...cachedOut].sort(compareLatestFirst));
 
     const q = collection(db, 'waste_b3');
     return onSnapshot(q, (snapshot) => {
       const listIn = snapshot.docs
         .filter(doc => doc.id.startsWith('WI-'))
-        .map(doc => doc.data() as WasteIn);
+        .map(doc => doc.data({ serverTimestamps: 'estimate' }) as WasteIn)
+        .sort(compareLatestFirst);
       const listOut = snapshot.docs
         .filter(doc => doc.id.startsWith('WO-'))
-        .map(doc => doc.data() as WasteOut);
+        .map(doc => doc.data({ serverTimestamps: 'estimate' }) as WasteOut)
+        .sort(compareLatestFirst);
       setOfflineCache('waste_in', listIn);
       setOfflineCache('waste_out', listOut);
       onWasteIn(listIn);
@@ -704,17 +707,46 @@ export const wasteB3Service = {
 
     await setDoc(doc(db, 'waste_b3', id), { ...newItem, ...trailCreate() });
 
+    // Update offline cache
+    const docs = getOfflineCache<WasteIn[]>('waste_in', []);
+    const updated = [newItem, ...docs.filter(x => x.id !== id)].sort(compareLatestFirst);
+    setOfflineCache('waste_in', updated);
+
     await auditService.createLog({
       collection: 'waste_b3',
       recordId: id,
       action: 'insert',
-      details: `Mencatat masuk limbah B3 ${item.wasteType} sebesar ${item.weightKg} kg`
+      details: `Mencatat masuk limbah B3 ${item.wasteType} sebesar ${item.weightKg.toLocaleString('id-ID')} kg`
     });
 
     return newItem;
   },
 
   deleteIn: async (id: string): Promise<void> => {
+    // Ambil data terkini dari Firestore untuk pengecekan konsistensi ledger
+    const snap = await getDocs(collection(db, 'waste_b3'));
+    const currentIn = snap.docs
+      .filter(d => d.id.startsWith('WI-'))
+      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteIn);
+    const currentOut = snap.docs
+      .filter(d => d.id.startsWith('WO-'))
+      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteOut);
+
+    const targetIn = currentIn.find(x => x.id === id);
+    const candidateIn = currentIn.filter(x => x.id !== id);
+    const simLedger = buildWasteLedger(candidateIn, currentOut);
+
+    // Tolak bila menyebabkan shortfall pada manifest manapun
+    const hasShortfall = currentOut.some(o => (simLedger.outById[o.id]?.shortfallKg || 0) > 0);
+    if (hasShortfall) {
+      const currentLedger = buildWasteLedger(currentIn, currentOut);
+      const affected = currentOut.filter(o => 
+        currentLedger.outById[o.id]?.allocations.some(a => a.inId === id)
+      );
+      const manifestList = affected.map(m => m.manifestNo || m.id).join(', ');
+      throw new Error(`Tidak dapat menghapus: limbah pada batch ${id} sudah dikeluarkan lewat manifest ${manifestList || 'pengeluaran B3'}.`);
+    }
+
     await deleteDoc(doc(db, 'waste_b3', id));
 
     // Update offline cache
@@ -726,15 +758,21 @@ export const wasteB3Service = {
       collection: 'waste_b3',
       recordId: id,
       action: 'delete',
-      details: `Menghapus manifest masuk limbah B3 ${id}`
+      details: `Menghapus catatan masuk limbah B3 ${id} (${targetIn?.wasteType || ''})`
     });
   },
 
   updateIn: async (id: string, item: Partial<WasteIn>): Promise<void> => {
-    const docRef = doc(db, 'waste_b3', id);
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) throw new Error("Manifest masuk tidak ditemukan");
-    const oldData = snap.data() as WasteIn;
+    const snapAll = await getDocs(collection(db, 'waste_b3'));
+    const currentIn = snapAll.docs
+      .filter(d => d.id.startsWith('WI-'))
+      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteIn);
+    const currentOut = snapAll.docs
+      .filter(d => d.id.startsWith('WO-'))
+      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteOut);
+
+    const oldData = currentIn.find(x => x.id === id);
+    if (!oldData) throw new Error("Manifest masuk tidak ditemukan");
     const updatedItem = { ...oldData, ...item };
 
     const parseResult = WasteInSchema.safeParse(updatedItem);
@@ -742,18 +780,28 @@ export const wasteB3Service = {
       handleValidationError(parseResult.error);
     }
 
+    // Simulasi seluruh ledger bila berat diperkecil / tanggal atau jenis diubah
+    const candidateIn = currentIn.map(x => x.id === id ? updatedItem : x);
+    const simLedger = buildWasteLedger(candidateIn, currentOut);
+    const starved = currentOut.find(o => (simLedger.outById[o.id]?.shortfallKg || 0) > 0);
+    if (starved) {
+      const shortfallKg = simLedger.outById[starved.id]?.shortfallKg || 0;
+      throw new Error(`Tidak dapat memperbarui batch masuk ${id}: perubahan menyebabkan kekurangan stok pada manifest ${starved.manifestNo || starved.id} sebesar ${shortfallKg.toLocaleString('id-ID')} Kg.`);
+    }
+
+    const docRef = doc(db, 'waste_b3', id);
     await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<WasteIn[]>('waste_in', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x).sort(compareLatestFirst);
     setOfflineCache('waste_in', updatedDocs);
 
     await auditService.createLog({
       collection: 'waste_b3',
       recordId: id,
       action: 'update',
-      details: `Mengubah manifest masuk limbah B3 ${updatedItem.wasteType}`
+      details: `Mengubah manifest masuk limbah B3 ${updatedItem.wasteType} (${updatedItem.weightKg.toLocaleString('id-ID')} kg)`
     });
   },
 
@@ -769,19 +817,66 @@ export const wasteB3Service = {
       handleValidationError(parseResult.error);
     }
 
+    // Ambil data terkini untuk simulasi ledger penjagaan service
+    const snapAll = await getDocs(collection(db, 'waste_b3'));
+    const currentIn = snapAll.docs
+      .filter(d => d.id.startsWith('WI-'))
+      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteIn);
+    const currentOut = snapAll.docs
+      .filter(d => d.id.startsWith('WO-'))
+      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteOut);
+
+    const candidateOut = [...currentOut, newItem];
+    const ledger = buildWasteLedger(currentIn, candidateOut);
+    const outInfo = ledger.outById[id];
+
+    if (outInfo && outInfo.shortfallKg > 0) {
+      throw new Error(`Stok tidak mencukupi untuk jenis limbah "${item.wasteType}" pada tanggal ${item.dateOut}. Kekurangan: ${outInfo.shortfallKg.toLocaleString('id-ID')} Kg.`);
+    }
+
+    const otherShortfall = candidateOut.find(o => o.id !== id && (ledger.outById[o.id]?.shortfallKg || 0) > 0);
+    if (otherShortfall) {
+      const shortage = ledger.outById[otherShortfall.id]?.shortfallKg || 0;
+      throw new Error(`Pengeluaran ini menyebabkan manifest ${otherShortfall.manifestNo || otherShortfall.id} kekurangan stok sebesar ${shortage.toLocaleString('id-ID')} Kg.`);
+    }
+
+    // Simpan ke Firestore
     await setDoc(doc(db, 'waste_b3', id), { ...newItem, ...trailCreate() });
+
+    // Update offline cache
+    const docs = getOfflineCache<WasteOut[]>('waste_out', []);
+    const updated = [newItem, ...docs.filter(x => x.id !== id)].sort(compareLatestFirst);
+    setOfflineCache('waste_out', updated);
+
+    // TODO: validasi ini belum atomik antar-user; solusi lanjutan = dokumen ringkasan stok per jenis yang diperbarui dalam runTransaction/Cloud Function.
+    const remainingStock = ledger.stocks.find(s => s.wasteType === item.wasteType)?.currentStock ?? 0;
+    const allocationsSummary = (outInfo?.allocations || [])
+      .map(a => `${a.inId} (${a.kg.toLocaleString('id-ID')} Kg)`)
+      .join(', ') || 'Tanpa alokasi';
 
     await auditService.createLog({
       collection: 'waste_b3',
       recordId: id,
       action: 'insert',
-      details: `Mencatat keluar transpor limbah B3 No Manifest: ${item.manifestNo}`
+      details: `Mencatat keluar transpor limbah B3 No Manifest: ${item.manifestNo} (${item.weightKg.toLocaleString('id-ID')} Kg, Jenis: ${item.wasteType}). Alokasi batch: ${allocationsSummary}. Sisa stok: ${remainingStock.toLocaleString('id-ID')} Kg.`
     });
 
     return newItem;
   },
 
   deleteOut: async (id: string): Promise<void> => {
+    const snapAll = await getDocs(collection(db, 'waste_b3'));
+    const currentIn = snapAll.docs
+      .filter(d => d.id.startsWith('WI-'))
+      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteIn);
+    const currentOut = snapAll.docs
+      .filter(d => d.id.startsWith('WO-'))
+      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteOut);
+
+    const oldData = currentOut.find(x => x.id === id);
+    const candidateOut = currentOut.filter(x => x.id !== id);
+    const simLedger = buildWasteLedger(currentIn, candidateOut);
+
     await deleteDoc(doc(db, 'waste_b3', id));
 
     // Update offline cache
@@ -789,19 +884,30 @@ export const wasteB3Service = {
     const updated = docs.filter(x => x.id !== id);
     setOfflineCache('waste_out', updated);
 
+    // TODO: validasi ini belum atomik antar-user; solusi lanjutan = dokumen ringkasan stok per jenis yang diperbarui dalam runTransaction/Cloud Function.
+    const remainingStock = oldData
+      ? (simLedger.stocks.find(s => s.wasteType === oldData.wasteType)?.currentStock ?? 0)
+      : 0;
+
     await auditService.createLog({
       collection: 'waste_b3',
       recordId: id,
       action: 'delete',
-      details: `Menghapus manifest keluar limbah B3 ${id}`
+      details: `Menghapus manifest keluar limbah B3 ${id} (No Manifest: ${oldData?.manifestNo || '-'}). Sisa stok sesudahnya: ${remainingStock.toLocaleString('id-ID')} Kg.`
     });
   },
 
   updateOut: async (id: string, item: Partial<WasteOut>): Promise<void> => {
-    const docRef = doc(db, 'waste_b3', id);
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) throw new Error("Manifest keluar tidak ditemukan");
-    const oldData = snap.data() as WasteOut;
+    const snapAll = await getDocs(collection(db, 'waste_b3'));
+    const currentIn = snapAll.docs
+      .filter(d => d.id.startsWith('WI-'))
+      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteIn);
+    const currentOut = snapAll.docs
+      .filter(d => d.id.startsWith('WO-'))
+      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteOut);
+
+    const oldData = currentOut.find(x => x.id === id);
+    if (!oldData) throw new Error("Manifest keluar tidak ditemukan");
     const updatedItem = { ...oldData, ...item };
 
     const parseResult = WasteOutSchema.safeParse(updatedItem);
@@ -809,18 +915,40 @@ export const wasteB3Service = {
       handleValidationError(parseResult.error);
     }
 
+    // Simulasi kandidat update
+    const candidateOut = currentOut.map(x => x.id === id ? updatedItem : x);
+    const ledger = buildWasteLedger(currentIn, candidateOut);
+    const outInfo = ledger.outById[id];
+
+    if (outInfo && outInfo.shortfallKg > 0) {
+      throw new Error(`Stok tidak mencukupi untuk jenis limbah "${updatedItem.wasteType}" pada tanggal ${updatedItem.dateOut}. Kekurangan: ${outInfo.shortfallKg.toLocaleString('id-ID')} Kg.`);
+    }
+
+    const otherShortfall = candidateOut.find(o => o.id !== id && (ledger.outById[o.id]?.shortfallKg || 0) > 0);
+    if (otherShortfall) {
+      const shortage = ledger.outById[otherShortfall.id]?.shortfallKg || 0;
+      throw new Error(`Perubahan manifest ini menyebabkan manifest ${otherShortfall.manifestNo || otherShortfall.id} kekurangan stok sebesar ${shortage.toLocaleString('id-ID')} Kg.`);
+    }
+
+    const docRef = doc(db, 'waste_b3', id);
     await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
 
     // Update offline cache
     const docs = getOfflineCache<WasteOut[]>('waste_out', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x).sort(compareLatestFirst);
     setOfflineCache('waste_out', updatedDocs);
+
+    // TODO: validasi ini belum atomik antar-user; solusi lanjutan = dokumen ringkasan stok per jenis yang diperbarui dalam runTransaction/Cloud Function.
+    const remainingStock = ledger.stocks.find(s => s.wasteType === updatedItem.wasteType)?.currentStock ?? 0;
+    const allocationsSummary = (outInfo?.allocations || [])
+      .map(a => `${a.inId} (${a.kg.toLocaleString('id-ID')} Kg)`)
+      .join(', ') || 'Tanpa alokasi';
 
     await auditService.createLog({
       collection: 'waste_b3',
       recordId: id,
       action: 'update',
-      details: `Mengubah manifest keluar limbah B3 No Manifest: ${updatedItem.manifestNo}`
+      details: `Mengubah manifest keluar limbah B3 No Manifest: ${updatedItem.manifestNo} (${updatedItem.weightKg.toLocaleString('id-ID')} Kg). Alokasi batch: ${allocationsSummary}. Sisa stok: ${remainingStock.toLocaleString('id-ID')} Kg.`
     });
   }
 };

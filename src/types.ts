@@ -74,9 +74,10 @@ export interface NurseryStockOut {
   satuan: string;
   jenisTransaksi?: 'Penanaman' | 'Penggantian Tanaman Mati' | 'Distribusi' | 'Mutasi' | 'Rusak' | 'Lainnya';
   tujuan: string;
-  kapling: string;
-  blok: string;
-  pit: string;
+  lokasiPenanaman?: string;
+  kapling?: string;
+  blok?: string;
+  pit?: string;
   luasReklamasi: number;
   penanggungJawab: string;
   keterangan: string;
@@ -127,6 +128,10 @@ export interface WasteIn {
   tpsLocation: string;
   officer: string;
   documentationUrl?: string;
+  createdAt?: any;
+  createdBy?: string;
+  updatedAt?: any;
+  updatedBy?: string;
 }
 
 export interface WasteOut {
@@ -141,6 +146,10 @@ export interface WasteOut {
   driverName: string;
   recipient: string;
   documentationUrl?: string;
+  createdAt?: any;
+  createdBy?: string;
+  updatedAt?: any;
+  updatedBy?: string;
 }
 
 export interface BatchWarning {
@@ -159,6 +168,34 @@ export interface WasteStock {
   earliestDateIn: string | null;
   daysInTps: number; // warning if near 90 days from earliest check
   batchWarnings?: BatchWarning[];
+  hasShortfall?: boolean;
+  shortfallKg?: number;
+}
+
+export interface WasteBatchAllocation {
+  inId: string;
+  dateIn: string;
+  kg: number;
+}
+
+export interface WasteInLedgerInfo {
+  weightUsed: number;
+  weightRemaining: number;
+  status: 'Tersedia' | 'Sebagian Keluar' | 'Habis';
+  daysInTps: number;
+  daysRemaining: number;
+}
+
+export interface WasteOutLedgerInfo {
+  allocations: WasteBatchAllocation[];
+  shortfallKg: number;
+}
+
+export interface WasteLedgerResult {
+  stocks: WasteStock[];
+  inById: Record<string, WasteInLedgerInfo>;
+  outById: Record<string, WasteOutLedgerInfo>;
+  hasInconsistency: boolean;
 }
 
 export interface EnvironmentalDocument {

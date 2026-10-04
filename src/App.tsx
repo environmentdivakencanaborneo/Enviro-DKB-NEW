@@ -63,6 +63,7 @@ import {
 } from './services/dbService';
 import type { BackupStatus } from './services/backupService';
 import { getScopedKey } from './utils/googleSync';
+import { buildWasteLedger } from './utils/wasteLedger';
 
 import { VALID_TABS, AppTabId } from './data/navigation';
 import { ShieldAlert } from 'lucide-react';
@@ -150,94 +151,12 @@ export default function App() {
     });
   };
 
-  // Compile Dynamic inventory waste stocks from live inputs using FIFO simulation
-  const wasteStocks = useMemo<WasteStock[]>(() => {
-    // Kelompokkan wasteIn dan wasteOut per jenis limbah
-    const wasteTypes = Array.from(new Set([
-      ...wasteIn.map(w => w.wasteType),
-      ...wasteOut.map(w => w.wasteType)
-    ]));
-
-    return wasteTypes.map(type => {
-      // Dapatkan semua input untuk jenis ini, urutkan berdasarkan tanggal masuk terawal
-      const inputs = wasteIn
-        .filter(w => w.wasteType === type)
-        .sort((a, b) => new Date(a.dateIn).getTime() - new Date(b.dateIn).getTime());
-
-      // Dapatkan semua output untuk jenis ini, urutkan berdasarkan tanggal keluar terawal
-      const outputs = wasteOut
-        .filter(w => w.wasteType === type)
-        .sort((a, b) => new Date(a.dateOut).getTime() - new Date(b.dateOut).getTime());
-
-      const code = inputs[0]?.code || 'N/A';
-      const totalIn = inputs.reduce((sum, item) => sum + item.weightKg, 0);
-      const totalOut = outputs.reduce((sum, item) => sum + item.weightKg, 0);
-      const currentStock = Math.max(0, totalIn - totalOut);
-
-      // Simulasi FIFO untuk melacak sisa berat dan hari penyimpanan per batch masuk
-      const batches = inputs.map(inp => ({
-        id: inp.id,
-        entryDate: inp.dateIn,
-        weightRemaining: inp.weightKg,
-        code: inp.code
-      }));
-
-      let outgoingPool = totalOut;
-      for (const batch of batches) {
-        if (outgoingPool <= 0) break;
-        if (outgoingPool >= batch.weightRemaining) {
-          outgoingPool -= batch.weightRemaining;
-          batch.weightRemaining = 0;
-        } else {
-          batch.weightRemaining -= outgoingPool;
-          outgoingPool = 0;
-        }
-      }
-
-      // Saring batch yang masih memiliki sisa stok limbah di TPS
-      const activeBatches = batches.filter(b => b.weightRemaining > 0);
-
-      const warnings: BatchWarning[] = activeBatches.map(b => {
-        const d = new Date(b.entryDate);
-        const timeVal = isNaN(d.getTime()) ? Date.now() : d.getTime();
-        const diffTime = Date.now() - timeVal;
-        const daysInTps = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        const daysRemaining = 90 - daysInTps; // Batas izin TPS adalah 90 hari sesuai Permen LHK 6/2021
-        return {
-          batchId: b.id,
-          weightRemaining: b.weightRemaining,
-          daysRemaining,
-          entryDate: b.entryDate
-        };
-      });
-
-      // Hitung daysInTps sebagai umur batch terlama yang masih tersisa
-      let maxDaysInTps = 0;
-      let earliestDateIn: string | null = null;
-
-      if (warnings.length > 0) {
-        // Cari batch terlama (daysRemaining paling kecil / entryDate terlama)
-        const oldestBatch = warnings.reduce((oldest, current) => 
-          current.daysRemaining < oldest.daysRemaining ? current : oldest
-        , warnings[0]);
-
-        earliestDateIn = oldestBatch.entryDate;
-        const diffTime = Date.now() - new Date(oldestBatch.entryDate).getTime();
-        maxDaysInTps = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      }
-
-      return {
-        wasteType: type,
-        code,
-        totalIn,
-        totalOut,
-        currentStock,
-        earliestDateIn,
-        daysInTps: currentStock > 0 ? maxDaysInTps : 0,
-        batchWarnings: warnings
-      };
-    });
+  // Compile Dynamic inventory waste stocks and FIFO ledger from live inputs
+  const wasteLedger = useMemo(() => {
+    return buildWasteLedger(wasteIn, wasteOut);
   }, [wasteIn, wasteOut]);
+
+  const wasteStocks = wasteLedger.stocks;
 
   // Global Event Listeners for Toast notification and Online/Offline state changes
   useEffect(() => {
@@ -568,6 +487,7 @@ export default function App() {
       await wasteB3Service.addIn(item);
     } catch (e: any) {
       handleGlobalError(e, "Log Masuk Limbah B3");
+      throw e;
     }
   };
   const handleUpdateWasteIn = async (id: string, item: any) => {
@@ -579,6 +499,7 @@ export default function App() {
       await wasteB3Service.updateIn(id, item);
     } catch (e: any) {
       handleGlobalError(e, "Ubah Log Masuk Limbah B3");
+      throw e;
     }
   };
   const handleDeleteWasteIn = async (id: string) => {
@@ -590,6 +511,7 @@ export default function App() {
       await wasteB3Service.deleteIn(id);
     } catch (e: any) {
       handleGlobalError(e, "Hapus Log Masuk Limbah B3");
+      throw e;
     }
   };
 
@@ -602,6 +524,7 @@ export default function App() {
       await wasteB3Service.addOut(item);
     } catch (e: any) {
       handleGlobalError(e, "Log Keluar Limbah B3");
+      throw e;
     }
   };
   const handleUpdateWasteOut = async (id: string, item: any) => {
@@ -613,6 +536,7 @@ export default function App() {
       await wasteB3Service.updateOut(id, item);
     } catch (e: any) {
       handleGlobalError(e, "Ubah Log Keluar Limbah B3");
+      throw e;
     }
   };
   const handleDeleteWasteOut = async (id: string) => {
@@ -624,6 +548,7 @@ export default function App() {
       await wasteB3Service.deleteOut(id);
     } catch (e: any) {
       handleGlobalError(e, "Hapus Log Keluar Limbah B3");
+      throw e;
     }
   };
 
@@ -889,12 +814,16 @@ export default function App() {
               wasteIn={wasteIn}
               wasteOut={wasteOut}
               wasteStocks={wasteStocks}
+              ledger={wasteLedger}
               onAddIn={handleAddWasteIn}
               onUpdateIn={handleUpdateWasteIn}
               onDeleteIn={handleDeleteWasteIn}
               onAddOut={handleAddWasteOut}
               onUpdateOut={handleUpdateWasteOut}
               onDeleteOut={handleDeleteWasteOut}
+              canEdit={hasWriteAuthority}
+              canDelete={canDelete(profile)}
+              onUnauthorizedAction={showAuthorityWarning}
             />
           </ModuleErrorBoundary>
         );
