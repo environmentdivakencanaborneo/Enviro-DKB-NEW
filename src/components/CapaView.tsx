@@ -3,6 +3,7 @@ import ModalPortal from './ModalPortal';
 import { CapaData, CapaHistory } from '../types';
 import { capaService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
+import { todayLocalISO } from '../utils/dateUtils';
 import { 
   AlertOctagon, Plus, Search, Filter, Download, 
   Trash2, Edit, CheckCircle, Clock, ShieldAlert,
@@ -49,8 +50,8 @@ export default function CapaView({
     title: '',
     description: '',
     severity: 'NC Minor',
-    discoveryDate: new Date().toISOString().split('T')[0],
-    targetDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0], // +30 days
+    discoveryDate: todayLocalISO(),
+    targetDate: todayLocalISO(Date.now() + 30*24*60*60*1000), // +30 days
     pic: '',
     why1: '', why2: '', why3: '', why4: '', why5: '', rootCause: '',
     correctiveAction: '',
@@ -171,8 +172,8 @@ export default function CapaView({
                   title: '',
                   description: '',
                   severity: 'NC Minor',
-                  discoveryDate: new Date().toISOString().split('T')[0],
-                  targetDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+                  discoveryDate: todayLocalISO(),
+                  targetDate: todayLocalISO(Date.now() + 30*24*60*60*1000),
                   pic: '',
                   why1: '', why2: '', why3: '', why4: '', why5: '', rootCause: '',
                   correctiveAction: '',

@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ModalPortal from './ModalPortal';
-import { WastewaterData, SurfaceWaterData, RainfallData, ReclamationPlan } from '../types';
+import { WastewaterData, SurfaceWaterData, RainfallData, ReclamationPlan, WqLocation, WastewaterPhoto } from '../types';
 import { 
   Plus, 
   Search, 
@@ -25,16 +25,28 @@ import {
   Activity,
   Award,
   ShieldAlert,
-  Check
+  Check,
+  Camera,
+  MapPin,
+  X,
+  FileText,
+  Loader2
 } from 'lucide-react';
-import { evaluateWastewaterStatus, evaluateSurfaceWaterStatus } from '../data/regulations';
+import { evaluateWastewaterStatus, evaluateSurfaceWaterStatus, WASTEWATER_BASIS_LABEL } from '../data/regulations';
+import { todayLocalISO } from '../utils/dateUtils';
+import { wqLocationService } from '../services/wqLocationService';
+import { waterQualityService } from '../services/dbService';
+import { isSuperintendent } from '../services/permissionService';
+import PhotoUploader, { CompressedPhotoData } from './PhotoUploader';
+import WqLocationModal from './WqLocationModal';
 
 interface MonitoringViewProps {
   wastewater: WastewaterData[];
   surfaceWater: SurfaceWaterData[];
   rainfall: RainfallData[];
-  onAddWastewater: (item: any) => void;
-  onUpdateWastewater?: (id: string, item: any) => void;
+  userProfile?: any;
+  onAddWastewater: (item: any, photo?: any) => void;
+  onUpdateWastewater?: (id: string, item: any, photo?: any) => void;
   onDeleteWastewater: (id: string) => void;
   onAddSurfaceWater: (item: any) => void;
   onUpdateSurfaceWater?: (id: string, item: any) => void;
@@ -49,6 +61,7 @@ export default function MonitoringView({
   wastewater,
   surfaceWater,
   rainfall,
+  userProfile,
   onAddWastewater,
   onUpdateWastewater,
   onDeleteWastewater,
@@ -63,6 +76,17 @@ export default function MonitoringView({
   const [activeTab, setActiveTab] = useState<'water' | 'surfacewater' | 'rainfall' | 'erosion'>('water');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; type: 'water' | 'surfacewater' | 'rain'; message: string } | null>(null);
 
+  // MASTER WQ LOCATIONS
+  const [locations, setLocations] = useState<WqLocation[]>([]);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+
+  useEffect(() => {
+    const unsub = wqLocationService.subscribe((data) => {
+      setLocations(data);
+    });
+    return () => unsub();
+  }, []);
+
   // EDIT STATE
   const [editingWaterId, setEditingWaterId] = useState<string | null>(null);
   const [editingRainId, setEditingRainId] = useState<string | null>(null);
@@ -73,16 +97,43 @@ export default function MonitoringView({
   const [waterFilterStatus, setWaterFilterStatus] = useState('');
   const [selectedStatsMonth, setSelectedStatsMonth] = useState<string>('');
 
-  // Water Form Fields
-  const [wDate, setWDate] = useState(new Date().toISOString().slice(0, 10));
+  const getCurrentHHmm = () => {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  const defaultOfficer = userProfile?.name || userProfile?.fullName || '';
+
+  // Water Form Fields (All numbers start EMPTY as required)
+  const [wDate, setWDate] = useState(todayLocalISO());
+  const [wSampleTime, setWSampleTime] = useState(getCurrentHHmm());
+  const [wWeather, setWWeather] = useState<'Cerah' | 'Berawan' | 'Hujan Ringan' | 'Hujan Lebat'>('Cerah');
+  const [wLocationCode, setWLocationCode] = useState('KPL-01');
   const [wLoc, setWLoc] = useState('KPL Tambang Blok Utara (KPL-01)');
-  const [wOfficer, setWOfficer] = useState('');
-  const [wPh, setWPh] = useState(7.0);
-  const [wTss, setWTss] = useState(30);
-  const [wDebit, setWDebit] = useState(0.500);
-  const [wFe, setWFe] = useState(0.5);
-  const [wMn, setWMn] = useState(0.3);
+  const [wSource, setWSource] = useState('Settling Pond Outlet');
+  const [wOfficer, setWOfficer] = useState(defaultOfficer);
+  const [wPhStr, setWPhStr] = useState('');
+  const [wTssStr, setWTssStr] = useState('');
+  const [wDebitStr, setWDebitStr] = useState('');
+  const [wFeStr, setWFeStr] = useState('');
+  const [wMnStr, setWMnStr] = useState('');
   const [wMonitoringType, setWMonitoringType] = useState<'Harian' | 'Bulanan'>('Harian');
+  const [wPhoto, setWPhoto] = useState<CompressedPhotoData | null>(null);
+  const [isPhotoLoading, setIsPhotoLoading] = useState(false);
+
+  // Lazy Photo Preview Modal State
+  const [photoPreviewItem, setPhotoPreviewItem] = useState<WastewaterData | null>(null);
+  const [photoPreviewDoc, setPhotoPreviewDoc] = useState<WastewaterPhoto | null>(null);
+  const [isLoadingLazyPhoto, setIsLoadingLazyPhoto] = useState(false);
+
+  // Populate default officer when userProfile arrives
+  useEffect(() => {
+    if (!wOfficer && defaultOfficer) {
+      setWOfficer(defaultOfficer);
+    }
+  }, [defaultOfficer, wOfficer]);
 
   // SURFACE WATER STATE
   const [editingSurfaceWaterId, setEditingSurfaceWaterId] = useState<string | null>(null);
@@ -91,7 +142,7 @@ export default function MonitoringView({
   const [surfaceFilterStatus, setSurfaceFilterStatus] = useState('');
   
   // Surface Form Fields
-  const [swDate, setSwDate] = useState(new Date().toISOString().slice(0, 10));
+  const [swDate, setSwDate] = useState(todayLocalISO());
   const [swLoc, setSwLoc] = useState('Air Sungai Sembakung (Hulu)');
   const [swOfficer, setSwOfficer] = useState('');
   const [swPh, setSwPh] = useState(7.0);
@@ -110,7 +161,7 @@ export default function MonitoringView({
   const [rainFilterStation, setRainFilterStation] = useState('');
   
   // Rain Form Fields
-  const [rDate, setRDate] = useState(new Date().toISOString().slice(0, 10));
+  const [rDate, setRDate] = useState(todayLocalISO());
   const [rStart, setRStart] = useState('14:00');
   const [rEnd, setREnd] = useState('15:30');
   const [rStation, setRStation] = useState('Stasiun Pit West / WS-01');
@@ -135,8 +186,74 @@ export default function MonitoringView({
   const feLimit = "7.0 mg/L";
   const mnLimit = "4.0 mg/L";
 
-  // Water dynamic rating calculator
-  const dynamicWaterStatus = evaluateWastewaterStatus(wPh, wTss, wDebit, wFe, wMn);
+  // Decimal parsing helper: accepts comma and dot, verifies finite number
+  const parseDecimal = (val: string): number | null => {
+    if (!val || val.trim() === '') return null;
+    const normalized = val.trim().replace(',', '.');
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const wPhNum = parseDecimal(wPhStr);
+  const wTssNum = parseDecimal(wTssStr);
+  const wDebitNum = parseDecimal(wDebitStr);
+  const wFeNum = parseDecimal(wFeStr);
+  const wMnNum = parseDecimal(wMnStr);
+
+  const areAllNumbersFilledAndFinite =
+    wPhNum !== null && wPhNum >= 0 && wPhNum <= 14 &&
+    wTssNum !== null && wTssNum >= 0 &&
+    wDebitNum !== null && wDebitNum >= 0 &&
+    wFeNum !== null && wFeNum >= 0 &&
+    wMnNum !== null && wMnNum >= 0;
+
+  // Water dynamic rating calculator (uses parsed values or default for feedback)
+  const dynamicWaterStatus = evaluateWastewaterStatus(
+    wPhNum ?? 7.0,
+    wTssNum ?? 0,
+    wDebitNum ?? 0,
+    wFeNum ?? 0,
+    wMnNum ?? 0
+  );
+
+  // Duplicate check for Daily ('Harian'): (date, locationCode) must be unique
+  const isDuplicateDaily = useMemo(() => {
+    if (wMonitoringType !== 'Harian' || !wDate || !wLocationCode) return false;
+    return wastewater.some((w) => {
+      if (editingWaterId && w.id === editingWaterId) return false;
+      const type = w.monitoringType ?? 'Harian';
+      if (type !== 'Harian') return false;
+      const match = (w.locationCode && w.locationCode === wLocationCode) ||
+                    (!w.locationCode && w.location.includes(wLocationCode));
+      return w.date === wDate && match;
+    });
+  }, [wMonitoringType, wDate, wLocationCode, wastewater, editingWaterId]);
+
+  // Set of duplicate Daily keys for legacy data badges in table
+  const duplicateDailyKeys = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const w of wastewater) {
+      if ((w.monitoringType ?? 'Harian') === 'Harian') {
+        const code = w.locationCode || w.location;
+        const key = `${w.date}_${code}`;
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    }
+    const dups = new Set<string>();
+    for (const [k, count] of Object.entries(counts)) {
+      if (count > 1) dups.add(k);
+    }
+    return dups;
+  }, [wastewater]);
+
+  // Master location check helper
+  const isMasteredLocation = (item: WastewaterData) => {
+    if (locations.length === 0) return true;
+    if (item.locationCode && locations.some((l) => l.code === item.locationCode)) {
+      return true;
+    }
+    return locations.some((l) => item.location.includes(l.code) || item.location === l.name);
+  };
 
   // Indonesian month formatting
   const formatIndoMonth = (yearMonthStr: string) => {
@@ -201,15 +318,72 @@ export default function MonitoringView({
   const startEditWater = (item: WastewaterData) => {
     setEditingWaterId(item.id);
     setWDate(item.date);
+    setWSampleTime(item.sampleTime || getCurrentHHmm());
+    setWWeather(item.weather || 'Cerah');
+
+    const matchedLoc = locations.find(
+      (l) => l.code === item.locationCode || item.location.includes(l.code)
+    );
+    const locCode = item.locationCode || matchedLoc?.code || 'KPL-01';
+    setWLocationCode(locCode);
     setWLoc(item.location);
+    setWSource(item.wastewaterSource || matchedLoc?.defaultSource || 'Settling Pond Outlet');
     setWOfficer(item.officer);
-    setWPh(item.ph);
-    setWTss(item.tss);
-    setWDebit(item.debit ?? 0.500);
-    setWFe(item.fe);
-    setWMn(item.mn);
+
+    setWPhStr(String(item.ph));
+    setWTssStr(String(item.tss));
+    setWDebitStr(item.debit !== undefined ? String(item.debit) : '');
+    setWFeStr(String(item.fe));
+    setWMnStr(String(item.mn));
     setWMonitoringType(item.monitoringType || 'Harian');
+
+    setWPhoto(null);
+    if (item.hasPhoto) {
+      setIsPhotoLoading(true);
+      waterQualityService
+        .getPhoto(item.id)
+        .then((photoDoc) => {
+          if (photoDoc) {
+            setWPhoto({
+              dataUrl: photoDoc.dataUrl,
+              mimeType: photoDoc.mimeType,
+              width: photoDoc.width,
+              height: photoDoc.height,
+              sizeBytes: photoDoc.sizeBytes,
+            });
+          }
+        })
+        .finally(() => {
+          setIsPhotoLoading(false);
+        });
+    }
+
     setShowWaterForm(true);
+  };
+
+  const resetWaterForm = () => {
+    setWDate(todayLocalISO());
+    setWSampleTime(getCurrentHHmm());
+    setWWeather('Cerah');
+    const firstLoc = locations.find((l) => l.isActive) || locations[0];
+    if (firstLoc) {
+      setWLocationCode(firstLoc.code);
+      setWLoc(`${firstLoc.name} (${firstLoc.code})`);
+      setWSource(firstLoc.defaultSource);
+    } else {
+      setWLocationCode('KPL-01');
+      setWLoc('KPL Tambang Blok Utara (KPL-01)');
+      setWSource('Settling Pond Outlet');
+    }
+    setWOfficer(defaultOfficer);
+    setWPhStr('');
+    setWTssStr('');
+    setWDebitStr('');
+    setWFeStr('');
+    setWMnStr('');
+    setWMonitoringType('Harian');
+    setWPhoto(null);
+    setEditingWaterId(null);
   };
 
   const startEditSurfaceWater = (item: SurfaceWaterData) => {
@@ -284,42 +458,59 @@ export default function MonitoringView({
   };
 
   // Submit water
-  const handleWaterSubmit = (e: React.FormEvent) => {
+  const handleWaterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wOfficer) {
+    if (!wOfficer.trim()) {
       alert("Masukkan nama petugas sampling.");
       return;
     }
-    
+
+    if (!areAllNumbersFilledAndFinite) {
+      alert("Semua parameter angka (pH, TSS, Debit, Fe, Mn) wajib diisi dengan nilai numerik valid.");
+      return;
+    }
+
+    if (isDuplicateDaily) {
+      alert(`Data harian titik ${wLocationCode} tanggal ${formatIndoDate(wDate)} sudah ada. Edit data yang ada.`);
+      return;
+    }
+
     const payload = {
       date: wDate,
       location: wLoc,
-      officer: wOfficer,
-      ph: Number(wPh),
-      tss: Number(wTss),
-      debit: Number(wDebit),
-      fe: Number(wFe),
-      mn: Number(wMn),
-      monitoringType: wMonitoringType
+      locationCode: wLocationCode,
+      wastewaterSource: wSource.trim(),
+      sampleTime: wSampleTime,
+      weather: wWeather,
+      officer: wOfficer.trim(),
+      ph: wPhNum!,
+      tss: wTssNum!,
+      debit: wDebitNum!,
+      fe: wFeNum!,
+      mn: wMnNum!,
+      monitoringType: wMonitoringType,
     };
 
-    if (editingWaterId) {
-      if (onUpdateWastewater) {
-        onUpdateWastewater(editingWaterId, payload);
-      }
-      setEditingWaterId(null);
-    } else {
-      onAddWastewater(payload);
-    }
+    const photoPayload = wPhoto
+      ? {
+          ...wPhoto,
+          takenAt: `${wDate} ${wSampleTime}`,
+        }
+      : null;
 
-    // Reset fields
-    setWPh(7.0);
-    setWTss(30);
-    setWDebit(0.500);
-    setWFe(0.5);
-    setWMn(0.3);
-    setWMonitoringType('Harian');
-    setShowWaterForm(false);
+    try {
+      if (editingWaterId) {
+        if (onUpdateWastewater) {
+          await onUpdateWastewater(editingWaterId, payload, photoPayload);
+        }
+      } else {
+        await onAddWastewater(payload, photoPayload);
+      }
+      resetWaterForm();
+      setShowWaterForm(false);
+    } catch {
+      // Handled by service
+    }
   };
 
   // Submit water formula
@@ -649,15 +840,37 @@ export default function MonitoringView({
               </select>
             </div>
 
-            {/* Float form trigger */}
-            <button
-              id="water-add-data-btn"
-              onClick={() => setShowWaterForm(!showWaterForm)}
-              className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-teal-500 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-teal-500/10 cursor-pointer self-start"
-            >
-              <Plus className="h-4 w-4" />
-              Input Hasil Sampling Air
-            </button>
+            {/* Action buttons */}
+            <div className="flex items-center gap-2 self-start flex-wrap">
+              {isSuperintendent(userProfile) && (
+                <button
+                  id="water-manage-locations-btn"
+                  type="button"
+                  onClick={() => setShowLocationModal(true)}
+                  className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs shadow-sm cursor-pointer transition-colors"
+                >
+                  <MapPin className="h-4 w-4 text-teal-600" />
+                  Kelola Titik Sampling
+                </button>
+              )}
+
+              <button
+                id="water-add-data-btn"
+                type="button"
+                onClick={() => {
+                  if (!showWaterForm) {
+                    resetWaterForm();
+                    setShowWaterForm(true);
+                  } else {
+                    setShowWaterForm(false);
+                  }
+                }}
+                className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-teal-500/10 cursor-pointer transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Input Hasil Sampling Air
+              </button>
+            </div>
           </div>
 
           {/* Collapsible water form */}
@@ -665,38 +878,133 @@ export default function MonitoringView({
             <form 
               id="water-data-form"
               onSubmit={handleWaterSubmit}
-              className="bg-white/80 p-5 rounded-2xl border border-slate-200 text-left animate-slide-up"
+              className="bg-white/90 p-5 rounded-2xl border border-slate-200 text-left animate-slide-up space-y-4"
             >
-              <h3 className="text-sm font-bold uppercase tracking-wider text-teal-600 mb-4 pb-2 border-b border-slate-200">
-                {editingWaterId ? 'Formulir Edit Pengujian Titik KPL / Settling Pond' : 'Formulir Hasil Pengujian Titik KPL / Settling Pond'}
-              </h3>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-teal-600 flex items-center gap-2">
+                  <Droplet className="h-4 w-4" />
+                  {editingWaterId ? 'Formulir Edit Pengujian Air Limbah' : 'Formulir Hasil Pengujian Titik KPL / Settling Pond'}
+                </h3>
+                <span className="text-[11px] text-slate-500 font-mono">
+                  Standard: SK Pertek PT DKB
+                </span>
+              </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              {/* Row 1: Date, Sample Time, Weather, Monitoring Type */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Tanggal Sampling</label>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">
+                    Tanggal Sampling *
+                  </label>
                   <input
                     id="water-field-date"
                     type="date"
                     required
+                    max={todayLocalISO()}
                     value={wDate}
                     onChange={(e) => setWDate(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Titik Lokasi Pengamatan</label>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">
+                    Jam Sampling (WITA) *
+                  </label>
                   <input
-                    id="water-field-loc"
+                    id="water-field-sample-time"
                     type="text"
                     required
-                    placeholder="Contoh: KPL Tambang Blok Utara (KPL-01)"
-                    value={wLoc}
-                    onChange={(e) => setWLoc(e.target.value)}
+                    placeholder="HH:mm (cth: 08:30)"
+                    pattern="^([01]\d|2[0-3]):[0-5]\d$"
+                    title="Format jam harus HH:mm (24 jam, misal 08:30)"
+                    value={wSampleTime}
+                    onChange={(e) => setWSampleTime(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">
+                    Kondisi Cuaca *
+                  </label>
+                  <select
+                    id="water-field-weather"
+                    value={wWeather}
+                    onChange={(e) => setWWeather(e.target.value as any)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 cursor-pointer"
+                  >
+                    <option value="Cerah">Cerah</option>
+                    <option value="Berawan">Berawan</option>
+                    <option value="Hujan Ringan">Hujan Ringan</option>
+                    <option value="Hujan Lebat">Hujan Lebat</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">
+                    Jenis Pemantauan *
+                  </label>
+                  <select
+                    id="water-field-monitoring-type"
+                    value={wMonitoringType}
+                    onChange={(e) => setWMonitoringType(e.target.value as 'Harian' | 'Bulanan')}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 cursor-pointer"
+                  >
+                    <option value="Harian">Harian (Daily)</option>
+                    <option value="Bulanan">Bulanan (Monthly)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2: Master Location, Wastewater Source, Officer */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">
+                    Titik Sampling (Master) *
+                  </label>
+                  <select
+                    id="water-field-location-select"
+                    required
+                    value={wLocationCode}
+                    onChange={(e) => {
+                      const selCode = e.target.value;
+                      setWLocationCode(selCode);
+                      const target = locations.find((l) => l.code === selCode);
+                      if (target) {
+                        setWLoc(`${target.name} (${target.code})`);
+                        setWSource(target.defaultSource);
+                      }
+                    }}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-semibold cursor-pointer"
+                  >
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.code}>
+                        {loc.name} ({loc.code}) {!loc.isActive ? '[Nonaktif]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">
+                    Sumber Air Limbah *
+                  </label>
+                  <input
+                    id="water-field-source"
+                    type="text"
+                    required
+                    placeholder="Contoh: Settling Pond Outlet"
+                    value={wSource}
+                    onChange={(e) => setWSource(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Nama Petugas Sampling</label>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">
+                    Nama Petugas Sampling *
+                  </label>
                   <input
                     id="water-field-officer"
                     type="text"
@@ -707,107 +1015,163 @@ export default function MonitoringView({
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Jenis Pemantauan</label>
-                  <select
-                    id="water-field-monitoring-type"
-                    value={wMonitoringType}
-                    onChange={(e) => setWMonitoringType(e.target.value as 'Harian' | 'Bulanan')}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 cursor-pointer"
-                  >
-                    <option value="Harian" className="bg-white">Harian (Daily)</option>
-                    <option value="Bulanan" className="bg-white">Bulanan (Monthly)</option>
-                  </select>
+              </div>
+
+              {/* Row 3: Parameter Numbers (Start EMPTY, accepts comma & dot, step="any", inputMode="decimal") */}
+              <div>
+                <label className="block text-[11px] text-slate-500 font-bold mb-2 uppercase">
+                  Hasil Parameter Uji Lapangan (Wajib Diisi Lengkap) *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold mb-1 uppercase">
+                      pH (0 - 14) *
+                    </label>
+                    <input
+                      id="water-field-ph"
+                      type="text"
+                      inputMode="decimal"
+                      required
+                      placeholder="cth: 7.25"
+                      value={wPhStr}
+                      onChange={(e) => setWPhStr(e.target.value)}
+                      className={`w-full bg-white border rounded-xl px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 ${
+                        wPhNum !== null && (wPhNum < 0 || wPhNum > 14) ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200'
+                      }`}
+                    />
+                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: 6.0 – 9.0</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold mb-1 uppercase">
+                      TSS (mg/L) *
+                    </label>
+                    <input
+                      id="water-field-tss"
+                      type="text"
+                      inputMode="decimal"
+                      required
+                      placeholder="cth: 45"
+                      value={wTssStr}
+                      onChange={(e) => setWTssStr(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    />
+                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: &le; 300 mg/L</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold mb-1 uppercase">
+                      Debit (m³/s) *
+                    </label>
+                    <input
+                      id="water-field-debit"
+                      type="text"
+                      inputMode="decimal"
+                      required
+                      placeholder="cth: 0.125"
+                      value={wDebitStr}
+                      onChange={(e) => setWDebitStr(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    />
+                    <span className="text-[9px] text-slate-400 mt-0.5 block">Pantau debit outlet</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold mb-1 uppercase">
+                      Besi / Fe (mg/L) *
+                    </label>
+                    <input
+                      id="water-field-fe"
+                      type="text"
+                      inputMode="decimal"
+                      required
+                      placeholder="cth: 0.50"
+                      value={wFeStr}
+                      onChange={(e) => setWFeStr(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    />
+                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: &le; 7.0 mg/L</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold mb-1 uppercase">
+                      Mangan / Mn (mg/L) *
+                    </label>
+                    <input
+                      id="water-field-mn"
+                      type="text"
+                      inputMode="decimal"
+                      required
+                      placeholder="cth: 0.30"
+                      value={wMnStr}
+                      onChange={(e) => setWMnStr(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    />
+                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: &le; 4.0 mg/L</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-5">
-                <div>
-                  <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Suhu / pH</label>
-                  <input
-                    id="water-field-ph"
-                    type="number"
-                    step="0.1"
-                    required
-                    value={wPh}
-                    onChange={(e) => setWPh(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">TSS (mg/L)</label>
-                  <input
-                    id="water-field-tss"
-                    type="number"
-                    required
-                    value={wTss}
-                    onChange={(e) => setWTss(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Debit (m³/s)</label>
-                  <input
-                    id="water-field-debit"
-                    type="number"
-                    step="0.001"
-                    required
-                    placeholder="Contoh: 0.125"
-                    value={wDebit}
-                    onChange={(e) => setWDebit(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Besi (Fe)</label>
-                  <input
-                    id="water-field-fe"
-                    type="number"
-                    step="0.01"
-                    required
-                    value={wFe}
-                    onChange={(e) => setWFe(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Mangan (Mn)</label>
-                  <input
-                    id="water-field-mn"
-                    type="number"
-                    step="0.01"
-                    required
-                    value={wMn}
-                    onChange={(e) => setWMn(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
-                  />
-                </div>
+              {/* Row 4: Photo Sampling Uploader (Separated collection, canvas compressed <= 350k chars) */}
+              <div>
+                <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">
+                  Foto Evidence Pengambilan Sampel (Opsional)
+                </label>
+                {isPhotoLoading ? (
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center gap-2 text-xs text-slate-500">
+                    <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+                    <span>Memuat foto evidence...</span>
+                  </div>
+                ) : (
+                  <PhotoUploader currentPhoto={wPhoto} onPhotoSelected={setWPhoto} />
+                )}
               </div>
+
+              {/* Duplicate Warning Alert */}
+              {isDuplicateDaily && (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center gap-2.5 font-medium animate-shake">
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+                  <div>
+                    <span className="font-bold block">Peringatan Duplikasi Data Harian:</span>
+                    <span>
+                      Data harian titik <strong className="font-mono">{wLocationCode}</strong> tanggal <strong className="font-mono">{formatIndoDate(wDate)}</strong> sudah ada. Edit data yang ada.
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Real-time Validation Feedback badge */}
-              <div className="p-3 rounded-xl border flex items-center justify-between mb-4 bg-white/60 border-slate-200">
-                <p className="text-xs text-slate-500">Verifikasi baku mutu otomatis (Permen LHK No. 113/2003) :</p>
+              <div className="p-3 rounded-xl border flex items-center justify-between bg-white/60 border-slate-200">
+                <p className="text-xs text-slate-500">Verifikasi baku mutu otomatis ({WASTEWATER_BASIS_LABEL}) :</p>
                 <div className="flex items-center gap-2">
                   <span className={`text-[10.5px] font-bold px-3 py-1 rounded-lg border uppercase tracking-wider ${
-                    dynamicWaterStatus === 'Safe' 
+                    !areAllNumbersFilledAndFinite
+                      ? 'bg-slate-100 border-slate-300 text-slate-500'
+                      : dynamicWaterStatus === 'Safe' 
                       ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' 
                       : dynamicWaterStatus === 'Warning'
                       ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
                       : 'bg-red-500/10 border-red-500/30 text-red-600'
                   }`}>
-                    {dynamicWaterStatus === 'Safe' ? '✅ MEMENUHI BAKU MUTU' :
-                     dynamicWaterStatus === 'Warning' ? '⚠️ MENDEKATI BATAS PARAMETER' : '❌ MELEBIHI BAKU MUTU (MELANGGAR)'}
+                    {!areAllNumbersFilledAndFinite
+                      ? '⏳ Menunggu Input Parameter Lengkap'
+                      : dynamicWaterStatus === 'Safe'
+                      ? '✅ Memenuhi Baku Mutu'
+                      : dynamicWaterStatus === 'Warning'
+                      ? '⚠️ Mendekati Batas Parameter'
+                      : '❌ Melebihi Baku Mutu (Melanggar)'}
                   </span>
                 </div>
               </div>
 
+              {/* Actions */}
               <div className="flex items-center justify-end gap-3.5 pt-3 border-t border-slate-200">
                 <button
                   id="water-form-cancel"
                   type="button"
                   onClick={() => {
                     setShowWaterForm(false);
-                    setEditingWaterId(null);
+                    resetWaterForm();
                   }}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
                 >
@@ -816,7 +1180,19 @@ export default function MonitoringView({
                 <button
                   id="water-form-submit"
                   type="submit"
-                  className="px-5 py-2.5 bg-teal-500 text-slate-950 font-bold text-xs rounded-xl shadow-md cursor-pointer"
+                  disabled={!areAllNumbersFilledAndFinite || !wOfficer.trim() || isDuplicateDaily || !wDate || !wLocationCode}
+                  className={`px-5 py-2.5 font-bold text-xs rounded-xl shadow-md transition-all ${
+                    !areAllNumbersFilledAndFinite || !wOfficer.trim() || isDuplicateDaily || !wDate || !wLocationCode
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-75'
+                      : 'bg-teal-500 hover:bg-teal-600 text-slate-950 cursor-pointer'
+                  }`}
+                  title={
+                    !areAllNumbersFilledAndFinite
+                      ? 'Lengkapi semua parameter angka sebelum menyimpan'
+                      : isDuplicateDaily
+                      ? 'Data harian untuk titik dan tanggal ini sudah ada'
+                      : 'Simpan catatan pengujian'
+                  }
                 >
                   {editingWaterId ? 'Update Records' : 'Simpan Records'}
                 </button>
@@ -844,7 +1220,7 @@ export default function MonitoringView({
                     <th className="p-3.5 text-center pr-5">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-xs">
+                <tbody className="divide-y divide-slate-100 text-xs">
                   {filteredWater.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="p-10 text-center text-slate-500">Tidak ada data hasil sampling yang cocok.</td>
@@ -860,7 +1236,22 @@ export default function MonitoringView({
                           <span className="font-semibold text-slate-700 block">{item.location}</span>
                           <div className="flex flex-wrap items-center gap-1.5 mt-1">
                             <span className="text-[10px] text-slate-500">Petugas: {item.officer}</span>
-                            <span className="text-[10px] text-slate-600">•</span>
+                            {item.sampleTime && (
+                              <>
+                                <span className="text-[10px] text-slate-400">•</span>
+                                <span className="text-[10px] text-slate-500 font-mono flex items-center gap-0.5">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  {item.sampleTime} WITA
+                                </span>
+                              </>
+                            )}
+                            {item.weather && (
+                              <>
+                                <span className="text-[10px] text-slate-400">•</span>
+                                <span className="text-[10px] text-slate-500">{item.weather}</span>
+                              </>
+                            )}
+                            <span className="text-[10px] text-slate-400">•</span>
                             <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
                               item.monitoringType === 'Bulanan'
                                 ? 'bg-indigo-500/15 text-indigo-600 border border-indigo-500/20'
@@ -868,6 +1259,39 @@ export default function MonitoringView({
                             }`}>
                               {item.monitoringType || 'Harian'}
                             </span>
+                            {/* Duplicate badge for legacy / duplicate records */}
+                            {(item.monitoringType ?? 'Harian') === 'Harian' && duplicateDailyKeys.has(`${item.date}_${item.locationCode || item.location}`) && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-amber-500/15 text-amber-700 border border-amber-500/30">
+                                Ganda
+                              </span>
+                            )}
+                            {/* Unregistered location badge */}
+                            {!isMasteredLocation(item) && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-rose-50 text-rose-600 border border-rose-200">
+                                lokasi belum terdaftar
+                              </span>
+                            )}
+                            {/* Photo button with lazy modal */}
+                            {item.hasPhoto && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPhotoPreviewItem(item);
+                                  setPhotoPreviewDoc(null);
+                                  setIsLoadingLazyPhoto(true);
+                                  waterQualityService.getPhoto(item.id).then(docSnap => {
+                                    setPhotoPreviewDoc(docSnap);
+                                  }).finally(() => {
+                                    setIsLoadingLazyPhoto(false);
+                                  });
+                                }}
+                                className="text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 cursor-pointer transition-colors"
+                                title="Lihat Foto Evidence Sampling"
+                              >
+                                <Camera className="w-2.5 h-2.5" />
+                                Foto
+                              </button>
+                            )}
                           </div>
                         </td>
                         <td className={`p-3.5 text-center font-bold font-mono ${item.ph < 6 || item.ph > 9 ? 'text-red-600' : 'text-slate-500'}`}>{item.ph}</td>
@@ -1155,7 +1579,7 @@ export default function MonitoringView({
                     <th className="p-3.5 text-center pr-5">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-xs">
+                <tbody className="divide-y divide-slate-100 text-xs">
                   {filteredRain.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="p-10 text-center text-slate-500">Tidak ada log pengamatan curah hujan.</td>
@@ -1231,6 +1655,103 @@ export default function MonitoringView({
         </div>
       )}
 
+
+      {/* Modal Kelola Master Titik Sampling Air Limbah */}
+      <WqLocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        locations={locations}
+        canManage={isSuperintendent(userProfile)}
+      />
+
+      {/* Modal Lazy Preview Foto Evidence Sampling */}
+      {photoPreviewItem && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden text-left animate-slide-up">
+              <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600">
+                    <Camera className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800">
+                      Evidence Foto Sampling: {photoPreviewItem.location}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-mono">
+                      {photoPreviewItem.date} {photoPreviewItem.sampleTime ? `• ${photoPreviewItem.sampleTime} WITA` : ''}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoPreviewItem(null);
+                    setPhotoPreviewDoc(null);
+                  }}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                {isLoadingLazyPhoto ? (
+                  <div className="h-64 rounded-xl bg-slate-100 flex flex-col items-center justify-center gap-2 text-slate-500">
+                    <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
+                    <span className="text-xs">Memuat foto resolusi penuh dari cloud...</span>
+                  </div>
+                ) : photoPreviewDoc?.dataUrl ? (
+                  <div className="space-y-3">
+                    <div className="w-full max-h-[380px] rounded-xl overflow-hidden bg-black flex items-center justify-center border border-slate-200">
+                      <img
+                        src={photoPreviewDoc.dataUrl}
+                        alt="Evidence Sampling"
+                        className="max-h-[380px] w-auto object-contain"
+                      />
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase font-bold">Petugas</span>
+                        <span className="font-semibold text-slate-800">{photoPreviewItem.officer}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase font-bold">Cuaca</span>
+                        <span>{photoPreviewItem.weather || 'Tidak dicatat'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase font-bold">Resolusi Asli</span>
+                        <span className="font-mono">{photoPreviewDoc.width} × {photoPreviewDoc.height} px</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase font-bold">Ukuran Data</span>
+                        <span className="font-mono">{Math.round(photoPreviewDoc.dataUrl.length / 1024)} KB</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-slate-400 text-xs">
+                    Foto evidence sampling tidak ditemukan atau telah dihapus.
+                  </div>
+                )}
+              </div>
+
+              <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoPreviewItem(null);
+                    setPhotoPreviewDoc(null);
+                  }}
+                  className="px-4 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
 
       {deleteConfirm && (
         <ModalPortal>

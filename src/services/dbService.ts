@@ -20,6 +20,7 @@ import {
 import { db, auth, handleFirestoreError, OperationType } from '../utils/firebaseAuth';
 import { 
   WastewaterData,
+  WastewaterPhoto,
   NurseryStockOut, 
   SurfaceWaterData,
   RainfallData, 
@@ -99,16 +100,48 @@ export const waterQualityService = {
     });
   },
 
+  getPhoto: async (wastewaterId: string): Promise<WastewaterPhoto | null> => {
+    try {
+      const snap = await getDoc(doc(db, 'wastewater_photos', wastewaterId));
+      if (snap.exists()) {
+        return snap.data() as WastewaterPhoto;
+      }
+      return null;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, 'wastewater_photos');
+      return null;
+    }
+  },
 
+  add: async (
+    item: Omit<WastewaterData, 'id' | 'status'>,
+    photo?: Omit<WastewaterPhoto, 'id' | 'wastewaterId' | 'createdAt'> | null
+  ): Promise<WastewaterData> => {
+    // Prevent duplicate entries for 'Harian' monitoringType with same date and locationCode
+    if ((item.monitoringType || 'Harian') === 'Harian' && item.locationCode) {
+      const dupQuery = query(
+        collection(db, 'wastewater'),
+        where('date', '==', item.date),
+        where('locationCode', '==', item.locationCode),
+        where('monitoringType', '==', 'Harian')
+      );
+      const dupSnap = await getDocs(dupQuery);
+      if (!dupSnap.empty) {
+        throw new Error(
+          `Data harian titik ${item.locationCode} tanggal ${item.date} sudah ada. Edit data yang ada.`
+        );
+      }
+    }
 
-  add: async (item: Omit<WastewaterData, 'id' | 'status'>): Promise<WastewaterData> => {
     const status = evaluateWastewaterStatus(item.ph, item.tss, item.debit, item.fe, item.mn);
     const id = `WW-${crypto.randomUUID()}`;
+    const hasPhoto = Boolean(photo && photo.dataUrl);
     
     const newItem: WastewaterData = {
       ...item,
       id,
-      status
+      status,
+      hasPhoto
     };
 
     const parseResult = WastewaterSchema.safeParse(newItem);
@@ -118,12 +151,29 @@ export const waterQualityService = {
 
     await setDoc(doc(db, 'wastewater', id), { ...newItem, ...trailCreate() });
 
+    // Store sampling photo separately in 'wastewater_photos'
+    if (photo && photo.dataUrl) {
+      const photoDoc: WastewaterPhoto = {
+        id,
+        wastewaterId: id,
+        dataUrl: photo.dataUrl,
+        mimeType: 'image/jpeg',
+        width: photo.width,
+        height: photo.height,
+        sizeBytes: photo.sizeBytes,
+        takenAt: photo.takenAt || `${item.date} ${item.sampleTime || '08:00'}`,
+        createdBy: auth.currentUser?.email || item.officer,
+        createdAt: serverTimestamp(),
+      };
+      await setDoc(doc(db, 'wastewater_photos', id), photoDoc);
+    }
+
     // Audit Log
     await auditService.createLog({
       collection: 'wastewater',
       recordId: id,
       action: 'insert',
-      details: `Menambah data kualitas air limbah di lokasi ${item.location} dengan status ${status}`
+      details: `Menambah data kualitas air limbah di lokasi ${item.location} (${item.locationCode || 'N/A'}) dengan status ${status}${hasPhoto ? ' + Foto Evidence' : ''}`
     });
 
     // Check if limits exceeded to trigger a system-wide alert
@@ -153,6 +203,13 @@ export const waterQualityService = {
 
     await deleteDoc(docRef);
 
+    // Delete photo from separate collection if exists
+    try {
+      await deleteDoc(doc(db, 'wastewater_photos', id));
+    } catch {
+      // ignore if photo document does not exist
+    }
+
     // Update offline cache
     const docs = getOfflineCache<WastewaterData[]>('wastewater', []);
     const updated = docs.filter(x => x.id !== id);
@@ -167,12 +224,65 @@ export const waterQualityService = {
     });
   },
 
-  update: async (id: string, item: Partial<WastewaterData>): Promise<void> => {
+  update: async (
+    id: string, 
+    item: Partial<WastewaterData>,
+    photo?: Omit<WastewaterPhoto, 'id' | 'wastewaterId' | 'createdAt'> | null
+  ): Promise<void> => {
     const docRef = doc(db, 'wastewater', id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Data tidak ditemukan");
     const oldData = snap.data() as WastewaterData;
-    const merged = { ...oldData, ...item };
+
+    // Check duplicate if date, locationCode, or monitoringType is updated
+    const targetDate = item.date ?? oldData.date;
+    const targetLocCode = item.locationCode ?? oldData.locationCode;
+    const targetType = item.monitoringType ?? oldData.monitoringType ?? 'Harian';
+
+    if (targetType === 'Harian' && targetLocCode) {
+      const dupQuery = query(
+        collection(db, 'wastewater'),
+        where('date', '==', targetDate),
+        where('locationCode', '==', targetLocCode),
+        where('monitoringType', '==', 'Harian')
+      );
+      const dupSnap = await getDocs(dupQuery);
+      const otherDups = dupSnap.docs.filter(d => d.id !== id);
+      if (otherDups.length > 0) {
+        throw new Error(
+          `Data harian titik ${targetLocCode} tanggal ${targetDate} sudah ada. Edit data yang ada.`
+        );
+      }
+    }
+
+    let hasPhoto = oldData.hasPhoto ?? false;
+    if (photo !== undefined) {
+      if (photo === null) {
+        try {
+          await deleteDoc(doc(db, 'wastewater_photos', id));
+        } catch {
+          // ignore
+        }
+        hasPhoto = false;
+      } else if (photo.dataUrl) {
+        const photoDoc: WastewaterPhoto = {
+          id,
+          wastewaterId: id,
+          dataUrl: photo.dataUrl,
+          mimeType: 'image/jpeg',
+          width: photo.width,
+          height: photo.height,
+          sizeBytes: photo.sizeBytes,
+          takenAt: photo.takenAt || `${targetDate} ${item.sampleTime || oldData.sampleTime || '08:00'}`,
+          createdBy: auth.currentUser?.email || item.officer || oldData.officer,
+          createdAt: serverTimestamp(),
+        };
+        await setDoc(doc(db, 'wastewater_photos', id), photoDoc);
+        hasPhoto = true;
+      }
+    }
+
+    const merged = { ...oldData, ...item, hasPhoto };
     const status = evaluateWastewaterStatus(merged.ph, merged.tss, merged.debit, merged.fe, merged.mn);
     const updatedItem = { ...merged, status };
 
@@ -1349,7 +1459,7 @@ export const solidWasteService = {
     if (recoveryPct < 30 && totalGen > 10) {
       await notificationService.add({
         type: 'Warning',
-        category: 'B3 Waste',
+        category: 'Solid Waste',
         title: 'Sinergi Pengurangan Sampah Rendah',
         message: `Rasio pemrosesan sampah untuk sumber ${item.source} sebesar ${recoveryPct.toFixed(1)}% di bawah target Permen LH No 7/2025 (min 30%). Optimalkan komposter & pemilahan anorganik!`
       });

@@ -14,18 +14,55 @@ export const UserProfileSchema = z.object({
   role: z.string().trim().min(2, "Jabatan minimal 2 karakter").max(100, "Jabatan maksimal 100 karakter"),
 });
 
+const sampleTimeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 export const WastewaterSchema = z.object({
   id: z.string().min(1, "ID wajib diisi"),
   date: z.string().regex(dateRegex, "Format tanggal harus YYYY-MM-DD"),
   location: z.string().trim().min(3, "Lokasi minimal 3 karakter").max(100, "Lokasi maksimal 100 karakter"),
   officer: z.string().trim().min(2, "Nama petugas minimal 2 karakter").max(100, "Nama petugas maksimal 100 karakter"),
-  ph: z.number().min(0, "pH minimal 0.0").max(14, "pH maksimal 14.0"),
-  tss: z.number().min(0, "TSS tidak boleh negatif"),
-  debit: z.number().min(0, "Debit tidak boleh negatif"),
-  fe: z.number().min(0, "Fe tidak boleh negatif"),
-  mn: z.number().min(0, "Mn tidak boleh negatif"),
+  ph: z.number().finite("pH harus berupa angka valid").min(0, "pH minimal 0.0").max(14, "pH maksimal 14.0"),
+  tss: z.number().finite("TSS harus berupa angka valid").min(0, "TSS tidak boleh negatif"),
+  debit: z.number().finite("Debit harus berupa angka valid").min(0, "Debit tidak boleh negatif"),
+  fe: z.number().finite("Fe harus berupa angka valid").min(0, "Fe tidak boleh negatif"),
+  mn: z.number().finite("Mn harus berupa angka valid").min(0, "Mn tidak boleh negatif"),
   status: z.enum(["Safe", "Warning", "Exceeded"]),
   monitoringType: z.enum(["Harian", "Bulanan"]).optional(),
+  sampleTime: z.string().regex(sampleTimeRegex, "Format jam sampling harus HH:mm (24 jam)").optional(),
+  weather: z.enum(['Cerah', 'Berawan', 'Hujan Ringan', 'Hujan Lebat']).optional(),
+  wastewaterSource: z.string().trim().max(100).optional(),
+  locationCode: z.string().trim().max(50).optional(),
+  hasPhoto: z.boolean().optional(),
+  createdAt: z.any().optional(),
+  createdBy: z.string().optional(),
+  updatedAt: z.any().optional(),
+  updatedBy: z.string().optional(),
+});
+
+export const WqLocationSchema = z.object({
+  id: z.string().min(1, "ID lokasi wajib diisi"),
+  code: z.string().trim().min(2, "Kode lokasi minimal 2 karakter").max(20, "Kode lokasi maksimal 20 karakter"),
+  name: z.string().trim().min(3, "Nama titik sampling minimal 3 karakter").max(100, "Nama titik sampling maksimal 100 karakter"),
+  defaultSource: z.string().trim().min(2, "Sumber air limbah minimal 2 karakter").max(100, "Sumber air limbah maksimal 100 karakter"),
+  docSuffix: z.string().trim().max(50).optional(),
+  isActive: z.boolean(),
+  createdAt: z.any().optional(),
+  createdBy: z.string().optional(),
+  updatedAt: z.any().optional(),
+  updatedBy: z.string().optional(),
+});
+
+export const WastewaterPhotoSchema = z.object({
+  id: z.string().min(1, "ID foto wajib diisi"),
+  wastewaterId: z.string().min(1, "ID catatan air limbah wajib diisi"),
+  dataUrl: z.string().min(1, "Data URL foto wajib diisi"),
+  mimeType: z.literal('image/jpeg'),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  sizeBytes: z.number().nonnegative(),
+  takenAt: z.string().min(1, "Waktu pengambilan foto wajib diisi"),
+  createdBy: z.string().min(1, "Petugas pengunggah wajib diisi"),
+  createdAt: z.any().optional(),
 });
 
 export const SurfaceWaterSchema = z.object({

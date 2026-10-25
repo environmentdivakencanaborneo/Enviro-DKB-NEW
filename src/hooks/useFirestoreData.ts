@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../services/authService';
 import { 
   waterQualityService,
@@ -84,60 +84,83 @@ export function useFirestoreData(activeTab: string) {
   const [isLoadingIncidents, setIsLoadingIncidents] = useState(false);
   const [isLoadingRegulatory, setIsLoadingRegulatory] = useState(false);
 
+  // Persistent subscriptions ref across tab navigation
+  const subscriptionsRef = useRef<Map<string, () => void>>(new Map());
+
+  // Cleanup all listeners and reset state on logout
   useEffect(() => {
     if (!user || !profile) {
+      subscriptionsRef.current.forEach((unsub) => {
+        try { unsub(); } catch {}
+      });
+      subscriptionsRef.current.clear();
+
       setWastewater([]); setSurfaceWater([]); setRainfall([]);
-      setNursery([]); setReclamationPlans([]); setReclamationGuarantees([]);
+      setNursery([]); setNurseryStockOut([]); setReclamationPlans([]); setReclamationGuarantees([]);
       setWasteIn([]); setWasteOut([]);
       setDocuments([]); setCalendarEvents([]);
-      setEnvironmentalCosts([]); setAlerts([]); setSolidWaste([]); setCapaFindings([]); setComplianceMatrix([]); setIncidents([]); setRegulatory([]);
-      return;
+      setEnvironmentalCosts([]); setAlerts([]); setSolidWaste([]);
+      setCapaFindings([]); setComplianceMatrix([]); setIncidents([]); setRegulatory([]);
     }
+  }, [user, profile]);
 
-    const cleanups: (() => void)[] = [];
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      subscriptionsRef.current.forEach((unsub) => {
+        try { unsub(); } catch {}
+      });
+      subscriptionsRef.current.clear();
+    };
+  }, []);
 
-    const needsMonitoring = ['dashboard', 'monitoring', 'reports', 'esg', 'proper'].includes(activeTab);
-    const needsReclamation = ['dashboard', 'reclamation', 'reports', 'esg'].includes(activeTab);
-    const needsWaste = ['dashboard', 'waste', 'reports', 'esg', 'proper'].includes(activeTab);
-    const needsSolidWaste = ['dashboard', 'solid_waste', 'reports', 'esg'].includes(activeTab);
+  // Incremental subscription per activeTab: subscribe ONCE and retain during session
+  useEffect(() => {
+    if (!user || !profile) return;
+
+    const needsMonitoring = ['dashboard', 'monitoring', 'reports'].includes(activeTab);
+    const needsReclamation = ['dashboard', 'reclamation', 'reports'].includes(activeTab);
+    const needsWaste = ['dashboard', 'waste', 'reports'].includes(activeTab);
+    const needsSolidWaste = ['dashboard', 'solid_waste', 'reports'].includes(activeTab);
     const needsDocuments = ['dashboard', 'documents', 'reports'].includes(activeTab);
-    const needsCosts = ['dashboard', 'costs', 'esg'].includes(activeTab);
-    const needsCapa = ['dashboard', 'findings', 'esg'].includes(activeTab);
-    const needsCompliance = ['dashboard', 'compliance_matrix', 'esg'].includes(activeTab);
-    const needsIncidents = ['dashboard', 'incidents', 'esg', 'executive'].includes(activeTab);
-    const needsRegulatory = ['regulatory_watch', 'esg'].includes(activeTab);
-    
+    const needsCosts = ['dashboard', 'costs'].includes(activeTab);
+    const needsCapa = ['dashboard', 'findings'].includes(activeTab);
+    const needsCompliance = ['dashboard', 'compliance_matrix'].includes(activeTab);
+    const needsIncidents = ['dashboard', 'incidents', 'executive'].includes(activeTab);
+    const needsRegulatory = ['regulatory_watch'].includes(activeTab);
 
     try {
-      if (needsMonitoring) {
+      if (needsMonitoring && !subscriptionsRef.current.has('monitoring')) {
         setIsLoadingWastewater(true);
-        cleanups.push(waterQualityService.subscribe((data) => {
-          setWastewater(data); setIsLoadingWastewater(false);
-        }));
-
         setIsLoadingSurfaceWater(true);
-        cleanups.push(surfaceWaterService.subscribe((data) => {
-          setSurfaceWater(data); setIsLoadingSurfaceWater(false);
-        }));
-
         setIsLoadingRainfall(true);
-        cleanups.push(rainfallService.subscribe((data) => {
+
+        const u1 = waterQualityService.subscribe((data) => {
+          setWastewater(data); setIsLoadingWastewater(false);
+        });
+        const u2 = surfaceWaterService.subscribe((data) => {
+          setSurfaceWater(data); setIsLoadingSurfaceWater(false);
+        });
+        const u3 = rainfallService.subscribe((data) => {
           setRainfall(data); setIsLoadingRainfall(false);
-        }));
+        });
+
+        subscriptionsRef.current.set('monitoring', () => { u1(); u2(); u3(); });
       }
 
-      if (needsReclamation) {
+      if (needsReclamation && !subscriptionsRef.current.has('reclamation')) {
         setIsLoadingNursery(true);
-        cleanups.push(nurseryStockOutService.subscribe((data) => {
-          setNurseryStockOut(data);
-        }));
-        cleanups.push(nurseryService.subscribe((data) => {
-          setNursery(data); setIsLoadingNursery(false);
-        }));
-
         setIsLoadingReclamation(true);
+
+        const u1 = nurseryStockOutService.subscribe((data) => {
+          setNurseryStockOut(data);
+        });
+        const u2 = nurseryService.subscribe((data) => {
+          setNursery(data); setIsLoadingNursery(false);
+        });
+
         let plansLoaded = false, guaranteesLoaded = false;
-        cleanups.push(reclamationService.subscribeAll(
+        const u3 = reclamationService.subscribeAll(
           (plans) => {
             setReclamationPlans(plans); plansLoaded = true;
             if (plansLoaded && guaranteesLoaded) setIsLoadingReclamation(false);
@@ -146,13 +169,15 @@ export function useFirestoreData(activeTab: string) {
             setReclamationGuarantees(guarantees); guaranteesLoaded = true;
             if (plansLoaded && guaranteesLoaded) setIsLoadingReclamation(false);
           }
-        ));
+        );
+
+        subscriptionsRef.current.set('reclamation', () => { u1(); u2(); u3(); });
       }
 
-      if (needsWaste) {
+      if (needsWaste && !subscriptionsRef.current.has('waste')) {
         setIsLoadingWaste(true);
         let inLoaded = false, outLoaded = false;
-        cleanups.push(wasteB3Service.subscribeAll(
+        const u = wasteB3Service.subscribeAll(
           (win) => {
             setWasteIn(win); inLoaded = true;
             if (inLoaded && outLoaded) setIsLoadingWaste(false);
@@ -161,13 +186,14 @@ export function useFirestoreData(activeTab: string) {
             setWasteOut(wout); outLoaded = true;
             if (inLoaded && outLoaded) setIsLoadingWaste(false);
           }
-        ));
+        );
+        subscriptionsRef.current.set('waste', u);
       }
 
-      if (needsDocuments) {
+      if (needsDocuments && !subscriptionsRef.current.has('documents')) {
         setIsLoadingDocuments(true);
         let docsLoaded = false, eventsLoaded = false;
-        cleanups.push(documentService.subscribeAll(
+        const u = documentService.subscribeAll(
           (docs) => {
             setDocuments(docs); docsLoaded = true;
             if (docsLoaded && eventsLoaded) setIsLoadingDocuments(false);
@@ -176,58 +202,61 @@ export function useFirestoreData(activeTab: string) {
             setCalendarEvents(events); eventsLoaded = true;
             if (docsLoaded && eventsLoaded) setIsLoadingDocuments(false);
           }
-        ));
+        );
+        subscriptionsRef.current.set('documents', u);
       }
 
-      if (needsCosts) {
+      if (needsCosts && !subscriptionsRef.current.has('costs')) {
         setIsLoadingCosts(true);
-        cleanups.push(environmentalCostService.subscribe((data) => {
+        const u = environmentalCostService.subscribe((data) => {
           setEnvironmentalCosts(data); setIsLoadingCosts(false);
-        }));
+        });
+        subscriptionsRef.current.set('costs', u);
       }
 
-
-      if (needsSolidWaste) {
+      if (needsSolidWaste && !subscriptionsRef.current.has('solid_waste')) {
         setIsLoadingSolidWaste(true);
-        cleanups.push(solidWasteService.subscribe((data) => {
+        const u = solidWasteService.subscribe((data) => {
           setSolidWaste(data); setIsLoadingSolidWaste(false);
-        }));
-      }
-      if (needsCapa) {
-        setIsLoadingCapa(true);
-        cleanups.push(capaService.subscribe((data) => {
-          setCapaFindings(data); setIsLoadingCapa(false);
-        }));
-      }
-      if (needsCompliance) {
-        setIsLoadingCompliance(true);
-        cleanups.push(complianceMatrixService.subscribe((data) => {
-          setComplianceMatrix(data); setIsLoadingCompliance(false);
-        }));
-      }
-      if (needsIncidents) {
-        setIsLoadingIncidents(true);
-        cleanups.push(incidentService.subscribe((data) => {
-          setIncidents(data); setIsLoadingIncidents(false);
-        }));
-      }
-      if (needsRegulatory) {
-        setIsLoadingRegulatory(true);
-        cleanups.push(regulatoryService.subscribe((data) => {
-          setRegulatory(data); setIsLoadingRegulatory(false);
-        }));
+        });
+        subscriptionsRef.current.set('solid_waste', u);
       }
 
+      if (needsCapa && !subscriptionsRef.current.has('capa')) {
+        setIsLoadingCapa(true);
+        const u = capaService.subscribe((data) => {
+          setCapaFindings(data); setIsLoadingCapa(false);
+        });
+        subscriptionsRef.current.set('capa', u);
+      }
+
+      if (needsCompliance && !subscriptionsRef.current.has('compliance')) {
+        setIsLoadingCompliance(true);
+        const u = complianceMatrixService.subscribe((data) => {
+          setComplianceMatrix(data); setIsLoadingCompliance(false);
+        });
+        subscriptionsRef.current.set('compliance', u);
+      }
+
+      if (needsIncidents && !subscriptionsRef.current.has('incidents')) {
+        setIsLoadingIncidents(true);
+        const u = incidentService.subscribe((data) => {
+          setIncidents(data); setIsLoadingIncidents(false);
+        });
+        subscriptionsRef.current.set('incidents', u);
+      }
+
+      if (needsRegulatory && !subscriptionsRef.current.has('regulatory')) {
+        setIsLoadingRegulatory(true);
+        const u = regulatoryService.subscribe((data) => {
+          setRegulatory(data); setIsLoadingRegulatory(false);
+        });
+        subscriptionsRef.current.set('regulatory', u);
+      }
     } catch (error) {
       console.error("Gagal mendaftarkan Firestore listeners di hook:", error);
     }
-
-    return () => {
-      cleanups.forEach((unsubscribe) => {
-        try { unsubscribe(); } catch (err) {}
-      });
-    };
-  }, [user, profile, activeTab]); // Re-subscribe when activeTab changes
+  }, [user, profile, activeTab]);
 
   useEffect(() => {
     if (!user || !profile) return;

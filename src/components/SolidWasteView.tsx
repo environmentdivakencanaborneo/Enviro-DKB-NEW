@@ -22,6 +22,7 @@ import {
 } from 'recharts';
 import { SolidWasteData } from '../types';
 import { SOLID_WASTE_SOURCES, formatWasteSource } from '../constants/wasteSources';
+import { todayLocalISO } from '../utils/dateUtils';
 import { 
   Plus, 
   Search, 
@@ -63,7 +64,7 @@ export default function SolidWasteView({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // FORM STATES
-  const [itemDate, setItemDate] = useState(new Date().toISOString().slice(0, 10));
+  const [itemDate, setItemDate] = useState(todayLocalISO());
   const [itemSource, setItemSource] = useState('Kantor Utama');
   const [itemOrganic, setItemOrganic] = useState<number>(120);
   const [itemInorganic, setItemInorganic] = useState<number>(80);

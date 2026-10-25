@@ -19,6 +19,15 @@ import {
   SurfaceWaterData
 } from '../types';
 import { exportAllDataToXLSX } from '../services/exportService';
+import EvidenceHub from './evidence/EvidenceHub';
+import { WASTEWATER_BASIS_LABEL } from '../data/regulations';
+import { 
+  todayLocalISO, 
+  getWeekRangeLocal, 
+  getMonthRangeLocal, 
+  formatDateLocalIndonesian 
+} from '../utils/dateUtils';
+import { APP_NAME, COMPANY_NAME } from '../constants/app';
 import { 
   FileText, 
   Printer, 
@@ -75,20 +84,23 @@ export default function ReportsView({
   surfaceWater = [],
   user
 }: ReportsViewProps) {
+  const [mainTab, setMainTab] = useState<'integrated' | 'evidence'>('integrated');
   const [reportType, setReportType] = useState<'weekly' | 'monthly'>('weekly');
+  const [selectedWeekDate, setSelectedWeekDate] = useState<string>(todayLocalISO());
+  const [selectedMonth, setSelectedMonth] = useState<string>(todayLocalISO().slice(0, 7));
   const [isPreview, setIsPreview] = useState(false);
 
-  // Generate date bounds depending on active report duration selections
-  const daysRange = reportType === 'weekly' ? 7 : 30;
-  const filteredDateThreshold = new Date();
-  filteredDateThreshold.setDate(filteredDateThreshold.getDate() - daysRange);
+  // Generate date bounds from local calendar
+  const { startDate, endDate } = reportType === 'weekly'
+    ? getWeekRangeLocal(selectedWeekDate)
+    : getMonthRangeLocal(selectedMonth);
 
-  // Filter datasets
-  const activeWater = wastewater.filter(x => new Date(x.date) >= filteredDateThreshold);
-  const activeSurfaceWater = surfaceWater.filter(x => new Date(x.date) >= filteredDateThreshold);
-  const activeRain = rainfall.filter(x => new Date(x.date) >= filteredDateThreshold);
-  const activeWasteIn = wasteIn.filter(x => new Date(x.dateIn) >= filteredDateThreshold);
-  const activeWasteOut = wasteOut.filter(x => new Date(x.dateOut) >= filteredDateThreshold);
+  // Filter datasets lexicographically by YYYY-MM-DD
+  const activeWater = wastewater.filter(x => x.date >= startDate && x.date <= endDate);
+  const activeSurfaceWater = surfaceWater.filter(x => x.date >= startDate && x.date <= endDate);
+  const activeRain = rainfall.filter(x => x.date >= startDate && x.date <= endDate);
+  const activeWasteIn = wasteIn.filter(x => x.dateIn >= startDate && x.dateIn <= endDate);
+  const activeWasteOut = wasteOut.filter(x => x.dateOut >= startDate && x.dateOut <= endDate);
 
   // Format currency helper
   const formatIDR = (num: number) => {
@@ -99,43 +111,82 @@ export default function ReportsView({
     }).format(num);
   };
 
-  // Calculated stats
-  const avgPh = activeWater.length > 0 
+  // Calculated stats - Air Limbah (Tanpa nilai karangan / fallback palsu)
+  const hasWaterData = activeWater.length > 0;
+  const avgPh = hasWaterData 
     ? (activeWater.reduce((sum, x) => sum + x.ph, 0) / activeWater.length).toFixed(1)
-    : '7.2';
-  const maxPh = activeWater.length > 0 
+    : '—';
+  const maxPh = hasWaterData 
     ? Math.max(...activeWater.map(x => x.ph)).toFixed(1)
-    : '7.5';
-  const minPh = activeWater.length > 0 
+    : '—';
+  const minPh = hasWaterData 
     ? Math.min(...activeWater.map(x => x.ph)).toFixed(1)
-    : '6.8';
+    : '—';
 
-  const avgTss = activeWater.length > 0 
+  const avgTss = hasWaterData 
     ? (activeWater.reduce((sum, x) => sum + x.tss, 0) / activeWater.length).toFixed(1)
-    : '95.0';
-  const avgFe = activeWater.length > 0 
+    : '—';
+  const avgFe = hasWaterData 
     ? (activeWater.reduce((sum, x) => sum + x.fe, 0) / activeWater.length).toFixed(2)
-    : '0.45';
-  const avgMn = activeWater.length > 0 
+    : '—';
+  const avgMn = hasWaterData 
     ? (activeWater.reduce((sum, x) => sum + (x.mn || 0), 0) / activeWater.length).toFixed(2)
-    : '0.12';
+    : '—';
 
-  const totalDebit = activeWater.reduce((sum, x) => sum + (x.debit || 0), 0);
+  // Rata-rata, minimum, dan maksimum debit
+  const avgDebit = hasWaterData 
+    ? (activeWater.reduce((sum, x) => sum + (x.debit || 0), 0) / activeWater.length).toFixed(3)
+    : '—';
+  const minDebit = hasWaterData 
+    ? Math.min(...activeWater.map(x => x.debit || 0)).toFixed(3)
+    : '—';
+  const maxDebit = hasWaterData 
+    ? Math.max(...activeWater.map(x => x.debit || 0)).toFixed(3)
+    : '—';
 
-  const totalRainfallVolume = activeRain.reduce((sum, x) => sum + x.rainfall, 0).toFixed(1);
-  const maxRainfallRecord = activeRain.length > 0 
+  const totalExceededWaterSamples = activeWater.filter(x => x.status === 'Exceeded').length;
+  const complianceScorePercent = hasWaterData 
+    ? Math.round(((activeWater.length - totalExceededWaterSamples) / activeWater.length) * 100)
+    : null;
+
+  // Calculated stats - Air Permukaan (Tanpa nilai karangan)
+  const hasSurfaceData = activeSurfaceWater.length > 0;
+  const totalExceededSurfaceWaterSamples = activeSurfaceWater.filter(x => x.status === 'Exceeded').length;
+  const surfaceWaterComplianceScorePercent = hasSurfaceData 
+    ? Math.round(((activeSurfaceWater.length - totalExceededSurfaceWaterSamples) / activeSurfaceWater.length) * 100)
+    : null;
+  const avgSurfacePh = hasSurfaceData
+    ? (activeSurfaceWater.reduce((sum, x) => sum + x.ph, 0) / activeSurfaceWater.length).toFixed(1)
+    : '—';
+  const avgSurfaceTss = hasSurfaceData
+    ? (activeSurfaceWater.reduce((sum, x) => sum + x.tss, 0) / activeSurfaceWater.length).toFixed(1)
+    : '—';
+  const avgSurfaceDO = hasSurfaceData
+    ? (activeSurfaceWater.reduce((sum, x) => sum + x.doVal, 0) / activeSurfaceWater.length).toFixed(1)
+    : '—';
+
+  // Calculated stats - Curah Hujan
+  const hasRainData = activeRain.length > 0;
+  const totalRainfallVolume = hasRainData 
+    ? activeRain.reduce((sum, x) => sum + x.rainfall, 0).toFixed(1)
+    : '0.0';
+  const maxRainfallRecord = hasRainData 
     ? Math.max(...activeRain.map(x => x.rainfall)).toFixed(1)
-    : '0.0';
+    : '—';
   const rainDaysCount = activeRain.filter(x => x.rainfall > 0).length;
-  const avgIntensity = activeRain.length > 0 
+  const avgIntensity = hasRainData 
     ? (activeRain.reduce((sum, x) => sum + (x.intensity || 0), 0) / activeRain.length).toFixed(1)
-    : '0.0';
+    : '—';
 
+  // Calculated stats - Nursery (Hitung 'Healthy' DAN 'Sehat')
   const totalNurseryQty = nursery.reduce((sum, x) => sum + x.quantity, 0);
-  const healthyPlantsCount = nursery.filter(x => x.status === 'Healthy').reduce((sum, x) => sum + x.quantity, 0);
+  const healthyPlantsCount = nursery
+    .filter(x => x.status === 'Healthy' || (x.status as any) === 'Sehat')
+    .reduce((sum, x) => sum + x.quantity, 0);
   const nurseryHealthIndex = totalNurseryQty > 0 ? Math.round((healthyPlantsCount / totalNurseryQty) * 100) : 100;
   const uniqueFlowerTypes = Array.from(new Set(nursery.map(x => x.plantType)));
 
+  // Calculated stats - Limbah B3
   const totalB3InWeight = activeWasteIn.reduce((sum, x) => sum + x.weightKg, 0);
   const totalB3OutWeight = activeWasteOut.reduce((sum, x) => sum + x.weightKg, 0);
   const b3NetDifference = totalB3InWeight - totalB3OutWeight;
@@ -159,35 +210,13 @@ export default function ReportsView({
 
   const inProgressReclamationsList = plans.filter(x => x.status === 'In Progress');
 
-  const totalExceededWaterSamples = activeWater.filter(x => x.status === 'Exceeded').length;
-  const complianceScorePercent = activeWater.length > 0 
-    ? Math.round(((activeWater.length - totalExceededWaterSamples) / activeWater.length) * 100)
-    : 100;
-
-  const totalExceededSurfaceWaterSamples = activeSurfaceWater.filter(x => x.status === 'Exceeded').length;
-  const surfaceWaterComplianceScorePercent = activeSurfaceWater.length > 0 
-    ? Math.round(((activeSurfaceWater.length - totalExceededSurfaceWaterSamples) / activeSurfaceWater.length) * 100)
-    : 100;
-  
-  const avgSurfacePh = activeSurfaceWater.length > 0
-    ? (activeSurfaceWater.reduce((sum, x) => sum + x.ph, 0) / activeSurfaceWater.length).toFixed(1)
-    : '7.0';
-  const avgSurfaceTss = activeSurfaceWater.length > 0
-    ? (activeSurfaceWater.reduce((sum, x) => sum + x.tss, 0) / activeSurfaceWater.length).toFixed(1)
-    : '35.0';
-  const avgSurfaceDO = activeSurfaceWater.length > 0
-    ? (activeSurfaceWater.reduce((sum, x) => sum + x.doVal, 0) / activeSurfaceWater.length).toFixed(1)
-    : '6.0';
-
   // Print function
   const handlePrint = () => {
     window.print();
   };
 
   const getPeriodLabel = () => {
-    const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    const startStr = filteredDateThreshold.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    return `${startStr} s.d. ${today}`;
+    return `${formatDateLocalIndonesian(startDate)} s.d. ${formatDateLocalIndonesian(endDate)}`;
   };
 
   return (
@@ -200,12 +229,33 @@ export default function ReportsView({
           #main-app-header, 
           #reports-toolbar-buttons,
           #reports-back-btn,
-          #print-reminder-banner {
+          #print-reminder-banner,
+          #reports-main-tab-switch,
+          .no-print {
             display: none !important;
           }
           
-          /* Force margins and layout container */
-          body {
+          /* Evidence Document Single-Page A4 Specific Print Styles */
+          body.evidence-printing {
+            background-color: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body.evidence-printing #reports-view-wrapper {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body.evidence-printing .evidence-print-root {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          /* Force margins and layout container for Integrated Report */
+          body:not(.evidence-printing) {
             background-color: #ffffff !important;
             color: #000000 !important;
             font-family: "Inter", sans-serif !important;
@@ -213,7 +263,7 @@ export default function ReportsView({
             padding: 0 !important;
           }
           
-          #print-document-container {
+          body:not(.evidence-printing) #print-document-container {
             background-color: #ffffff !important;
             color: #000000 !important;
             box-shadow: none !important;
@@ -243,7 +293,44 @@ export default function ReportsView({
         }
       `}</style>
 
-      {!isPreview ? (
+      {/* Top Segmented Switch: Laporan Terintegrasi vs Evidence Air Limbah */}
+      <div id="reports-main-tab-switch" className="flex items-center justify-between bg-white p-2 rounded-2xl border border-slate-200 shadow-xs no-print">
+        <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => setMainTab('integrated')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
+              mainTab === 'integrated'
+                ? 'bg-white text-teal-800 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            Laporan Terintegrasi
+          </button>
+          <button
+            type="button"
+            onClick={() => setMainTab('evidence')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
+              mainTab === 'evidence'
+                ? 'bg-white text-emerald-800 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Leaf className="w-4 h-4 text-emerald-600" />
+            Evidence Air Limbah
+          </button>
+        </div>
+        <div className="hidden sm:block text-xs text-slate-500 font-mono pr-2">
+          Kepatuhan AMDAL &bull; ISO 14001:2015
+        </div>
+      </div>
+
+      {mainTab === 'evidence' ? (
+        <div className="evidence-hub-container">
+          <EvidenceHub wastewater={wastewater} user={user} />
+        </div>
+      ) : !isPreview ? (
         <div id="reports-setup-tab" className="space-y-6 animate-fade-in">
           {/* Main selection card */}
           <div className="bg-white/80 p-6 border border-slate-200 rounded-2xl max-w-2xl mx-auto space-y-6">
@@ -254,14 +341,14 @@ export default function ReportsView({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">Config Laporan Lingkungan Tambang</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Analisa otomatis parameter baku mutu sesuai PP No. 22 Tahun 2021</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Analisa otomatis parameter baku mutu sesuai {WASTEWATER_BASIS_LABEL}</p>
                 </div>
               </div>
 
               <button
                 onClick={() => exportAllDataToXLSX({
                   wastewater, surfaceWater, rainfall, nursery,
-  nurseryStockOut,
+                  nurseryStockOut,
                   reclamationPlans: plans,
                   reclamationGuarantees: guarantees,
                   wasteIn, wasteOut,
@@ -269,9 +356,8 @@ export default function ReportsView({
                   solidWaste
                 }, user?.company)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-                  bg-emerald-600/20 hover:bg-emerald-600/30 active:bg-emerald-600/40
-                  border border-emerald-500/30 text-emerald-300
-                  text-xs font-semibold transition-all duration-200 cursor-pointer self-start sm:self-center"
+                  bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white
+                  text-xs font-semibold shadow-sm transition-all duration-200 cursor-pointer self-start sm:self-center"
               >
                 <FileSpreadsheet size={14} />
                 Export ke Excel (.xlsx)
@@ -283,29 +369,66 @@ export default function ReportsView({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   id="report-select-weekly"
+                  type="button"
                   onClick={() => setReportType('weekly')}
-                  className={`p-4 rounded-xl border-2 text-left transition-all flex flex-col justify-between h-32 cursor-pointer ${
+                  className={`p-4 rounded-xl border-2 text-left transition-all flex flex-col justify-between cursor-pointer ${
                     reportType === 'weekly' 
-                      ? 'border-teal-500 bg-teal-500/5 text-teal-600' 
-                      : 'border-slate-200 bg-white text-slate-500 hover:border-slate-700'
+                      ? 'border-teal-500 bg-teal-500/10 text-teal-800 font-bold' 
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'
                   }`}
                 >
                   <span className="text-xs uppercase font-bold tracking-widest font-mono">Laporan Mingguan</span>
-                  <p className="text-[10px] text-slate-500 font-sans font-medium mt-1">Kompilasi praktis ringkasan data 7 hari terakhir.</p>
+                  <p className="text-[10px] text-slate-500 font-sans font-medium mt-1">Pilih minggu kalender berjalan (Senin – Minggu).</p>
                 </button>
 
                 <button
                   id="report-select-monthly"
+                  type="button"
                   onClick={() => setReportType('monthly')}
-                  className={`p-4 rounded-xl border-2 text-left transition-all flex flex-col justify-between h-32 cursor-pointer ${
+                  className={`p-4 rounded-xl border-2 text-left transition-all flex flex-col justify-between cursor-pointer ${
                     reportType === 'monthly' 
-                      ? 'border-teal-500 bg-teal-500/5 text-teal-600' 
-                      : 'border-slate-200 bg-white text-slate-500 hover:border-slate-700'
+                      ? 'border-teal-500 bg-teal-500/10 text-teal-800 font-bold' 
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'
                   }`}
                 >
                   <span className="text-xs uppercase font-bold tracking-widest font-mono">Laporan Bulanan</span>
-                  <p className="text-[10px] text-slate-500 font-sans font-medium mt-1">Evaluasi tren operasional komparatif 30 hari terakhir.</p>
+                  <p className="text-[10px] text-slate-500 font-sans font-medium mt-1">Pilih bulan dan tahun kalender berjalan.</p>
                 </button>
+              </div>
+
+              {/* Dynamic Calendar Date Picker for Weekly / Monthly */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                {reportType === 'weekly' ? (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Pilih Tanggal Acuan Minggu (Senin – Minggu):
+                    </label>
+                    <input 
+                      type="date"
+                      value={selectedWeekDate}
+                      onChange={e => setSelectedWeekDate(e.target.value)}
+                      className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-teal-500 shadow-sm"
+                    />
+                    <p className="text-[11px] text-teal-700 font-semibold mt-2">
+                      Rentang Periode: {formatDateLocalIndonesian(startDate)} s.d. {formatDateLocalIndonesian(endDate)}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Pilih Bulan & Tahun Laporan:
+                    </label>
+                    <input 
+                      type="month"
+                      value={selectedMonth}
+                      onChange={e => setSelectedMonth(e.target.value)}
+                      className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-teal-500 shadow-sm"
+                    />
+                    <p className="text-[11px] text-teal-700 font-semibold mt-2">
+                      Rentang Periode: {formatDateLocalIndonesian(startDate)} s.d. {formatDateLocalIndonesian(endDate)}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -322,7 +445,7 @@ export default function ReportsView({
             <button
               id="report-view-preview-btn"
               onClick={() => setIsPreview(true)}
-              className="w-full py-3 bg-teal-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-teal-400 shadow transition-colors cursor-pointer"
+              className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs shadow transition-colors cursor-pointer"
             >
               Generate & Preview Draft Laporan
             </button>
@@ -403,45 +526,59 @@ export default function ReportsView({
                 <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
                   <span className="text-teal-600 font-mono">I.</span> Kepatuhan Kualitas Air Limbah (Sedimentation / KPL)
                 </h3>
-                <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 font-mono">Baku Mutu PP No. 22 Tahun 2021</span>
+                <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 font-mono" title={WASTEWATER_BASIS_LABEL}>
+                  {WASTEWATER_BASIS_LABEL}
+                </span>
               </div>
               
               <p className="text-xs text-slate-500 leading-relaxed font-sans">
-                Kompilasi pengujian laboratorium menunjukkan tingkat kelulusan Parameter Mutu Air Limpasan Tambang sebesar <strong className="text-teal-600">{complianceScorePercent}%</strong> dari total <strong className="text-slate-700">{activeWater.length} sampling pengujian</strong> selama periode berjalan.
+                {activeWater.length === 0 ? (
+                  <span className="italic">Belum ada data pada periode ini.</span>
+                ) : (
+                  <>
+                    Kompilasi pengujian laboratorium menunjukkan tingkat kelulusan Parameter Mutu Air Limpasan Tambang sebesar <strong className="text-teal-600">{complianceScorePercent !== null ? `${complianceScorePercent}%` : 'N/A'}</strong> dari total <strong className="text-slate-700">{activeWater.length} sampling pengujian</strong> selama periode berjalan.
+                  </>
+                )}
               </p>
 
               {/* Stats tables or boxes */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
-                  <span className="text-[9px] text-slate-500 uppercase font-mono block">Kemasan pH</span>
-                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{minPh} - {maxPh}</p>
+                  <span className="text-[9px] text-slate-500 uppercase font-mono block">Rentang pH</span>
+                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{minPh !== null && maxPh !== null ? `${minPh} - ${maxPh}` : '—'}</p>
                   <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: 6.0 - 9.0</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Rerata TSS</span>
-                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgTss} mg/l</p>
-                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: max 200</span>
+                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgTss !== null ? `${avgTss} mg/l` : '—'}</p>
+                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: max 300</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Logam Fe & Mn</span>
-                  <p className="text-xs font-bold text-slate-700 font-mono mt-0.5">Fe: {avgFe} | Mn: {avgMn}</p>
+                  <p className="text-xs font-bold text-slate-700 font-mono mt-0.5">{avgFe !== null && avgMn !== null ? `Fe: ${avgFe} | Mn: ${avgMn}` : '—'}</p>
                   <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: Fe&lt;7, Mn&lt;4</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Batas Melebihi</span>
                   <p className={`text-sm font-bold font-mono mt-0.5 ${totalExceededWaterSamples > 0 ? 'text-red-600' : 'text-slate-700'}`}>
-                    {totalExceededWaterSamples} Sampel
+                    {activeWater.length === 0 ? '—' : `${totalExceededWaterSamples} Sampel`}
                   </p>
                   <span className="text-[8px] text-slate-500 block leading-none mt-1">Inspeksi Lapangan</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
-                  <span className="text-[9px] text-slate-500 uppercase font-mono block">Debit Kumulatif</span>
-                  <p className="text-sm font-bold text-teal-600 font-mono mt-0.5">{totalDebit.toFixed(3)} m³/s</p>
-                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Aliran Limpasan</span>
+                  <span className="text-[9px] text-slate-500 uppercase font-mono block">Debit (Rerata / Min / Maks)</span>
+                  <p className="text-xs font-bold text-teal-600 font-mono mt-0.5">
+                    {hasWaterData ? `${avgDebit} / ${minDebit} / ${maxDebit}` : '—'}
+                  </p>
+                  <span className="text-[8px] text-slate-500 block leading-none mt-1">m³/s</span>
                 </div>
               </div>
 
-              {activeWater.length > 0 && (
+              {activeWater.length === 0 ? (
+                <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-6 text-center text-xs text-slate-400">
+                  Belum ada data pada periode ini
+                </div>
+              ) : (
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-inner">
                   <table className="w-full text-left text-[11px] border-collapse">
                     <thead>
@@ -456,7 +593,7 @@ export default function ReportsView({
                         <th className="p-2.5 text-center">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-850 text-slate-600">
+                    <tbody className="divide-y divide-slate-100 text-slate-600">
                       {activeWater.slice(0, 6).map(x => (
                         <tr key={x.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
                           <td className="p-2.5 pl-4 font-mono">{x.date}</td>
@@ -465,7 +602,7 @@ export default function ReportsView({
                           <td className="p-2.5 text-center font-mono">{x.tss}</td>
                           <td className="p-2.5 text-center font-mono">{x.debit?.toFixed(3) || '0.000'}</td>
                           <td className="p-2.5 text-center font-mono">{x.fe}</td>
-                          <td className="p-2.5 text-center font-mono">{x.mn || '0.10'}</td>
+                          <td className="p-2.5 text-center font-mono">{x.mn ?? '—'}</td>
                           <td className="p-2.5 text-center font-bold">
                             <span className={x.status === 'Safe' ? 'text-emerald-600' : 'text-red-600'}>
                               {x.status === 'Safe' ? 'Aman' : 'Over limit'}
@@ -482,7 +619,7 @@ export default function ReportsView({
               <div className="bg-white/60 border border-slate-200/80 rounded-2xl p-4.5 space-y-3 text-xs leading-relaxed">
                 <div className="flex items-center gap-2 text-teal-600 font-bold border-b border-slate-200 pb-2">
                   <Activity className="h-4 w-4" />
-                  <span className="uppercase tracking-wider font-mono text-[10px]">Analisis Teknis & Evaluasi KPL (PP No. 22 Tahun 2021)</span>
+                  <span className="uppercase tracking-wider font-mono text-[10px]">Analisis Teknis & Evaluasi KPL ({WASTEWATER_BASIS_LABEL})</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5 text-left">
@@ -491,7 +628,13 @@ export default function ReportsView({
                       Rangkuman Evaluasi Data:
                     </h5>
                     <p className="text-slate-500 text-[11px]">
-                      Berdasarkan parameter yang tercatat, kadar rata-rata pH adalah <span className="text-slate-200 font-mono font-bold">{avgPh}</span> (rentang {minPh}–{maxPh}) dengan kandungan total padatan tersuspensi (TSS) rerata sebesar <span className="text-slate-200 font-mono font-bold">{avgTss} mg/l</span>. Logam larut Fe mencatatkan nilai rata-rata <span className="text-slate-200 font-mono font-bold">{avgFe} mg/l</span> dan Mn tercatat <span className="text-slate-200 font-mono font-bold">{avgMn} mg/l</span>. Tingkat kepatuhan berada pada angka <span className="text-teal-600 font-mono font-bold">{complianceScorePercent}%</span>.
+                      {activeWater.length === 0 ? (
+                        <span>Belum ada data pada periode ini untuk dianalisis.</span>
+                      ) : (
+                        <>
+                          Berdasarkan parameter yang tercatat, kadar rata-rata pH adalah <span className="text-slate-800 font-mono font-bold">{avgPh ?? '—'}</span> (rentang {minPh ?? '—'}–{maxPh ?? '—'}) dengan kandungan total padatan tersuspensi (TSS) rerata sebesar <span className="text-slate-800 font-mono font-bold">{avgTss !== null ? `${avgTss} mg/l` : '—'}</span>. Logam larut Fe mencatatkan nilai rata-rata <span className="text-slate-800 font-mono font-bold">{avgFe !== null ? `${avgFe} mg/l` : '—'}</span> dan Mn tercatat <span className="text-slate-800 font-mono font-bold">{avgMn !== null ? `${avgMn} mg/l` : '—'}</span>. Tingkat kepatuhan berada pada angka <span className="text-teal-600 font-mono font-bold">{complianceScorePercent !== null ? `${complianceScorePercent}%` : 'N/A'}</span>.
+                        </>
+                      )}
                     </p>
                   </div>
                   <div className="space-y-1.5 text-left">
@@ -500,7 +643,7 @@ export default function ReportsView({
                       Penjelasan Ilmiah & Sumber Risiko:
                     </h5>
                     <p className="text-slate-500 text-[11px]">
-                      {Number(avgPh) < 6.5 ? (
+                      {avgPh && Number(avgPh) < 6.5 ? (
                         <span className="text-amber-600/90">
                           <strong>Risiko Air Asam Tambang (AAT):</strong> pH rata-rata rendah di beberapa kolam diakibatkan oleh oksidasi mineral sulfida (seperti pirit/FeS₂) pada batuan samping batubara yang terpapar udara bebas dan air hujan. Hal ini melarutkan logam berat Fe & Mn secara berlebih.
                         </span>
@@ -516,7 +659,7 @@ export default function ReportsView({
                 <div className="pt-2 border-t border-slate-200/60 mt-1 flex items-start gap-2 text-[11px] text-slate-500 text-left">
                   <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-700">Rekomendasi Kontrol Teknik:</strong> Mengoptimalkan dosing koagulan Polyaluminium Chloride (PAC) dengan laju 15-20 ppm pada saluran masuk inlet kolam pengendap, serta penambahan kapur hidrat (hydrated lime) konstan jika pH drop di bawah 6.0 untuk menjaga kestabilan kualitas effluent air keluar (outlet) menuju sungai umum sesuai Peraturan Pemerintah RI No. 22 Tahun 2021.
+                    <strong className="text-slate-700">Rekomendasi Kontrol Teknik:</strong> Mengoptimalkan dosing koagulan Polyaluminium Chloride (PAC) dengan laju 15-20 ppm pada saluran masuk inlet kolam pengendap, serta penambahan kapur hidrat (hydrated lime) konstan jika pH drop di bawah 6.0 untuk menjaga kestabilan kualitas effluent air keluar (outlet) menuju sungai umum sesuai {WASTEWATER_BASIS_LABEL}.
                   </div>
                 </div>
               </div>
@@ -532,35 +675,45 @@ export default function ReportsView({
               </div>
               
               <p className="text-xs text-slate-500 leading-relaxed font-sans">
-                Pengujian air permukaan (sungai/badan air penerima) menunjukkan tingkat kepatuhan <strong className="text-sky-400">{surfaceWaterComplianceScorePercent}%</strong> dari total <strong className="text-slate-700">{activeSurfaceWater.length} sampling</strong>.
+                {activeSurfaceWater.length === 0 ? (
+                  <span className="italic">Belum ada data pada periode ini.</span>
+                ) : (
+                  <>
+                    Pengujian air permukaan (sungai/badan air penerima) menunjukkan tingkat kepatuhan <strong className="text-sky-500">{surfaceWaterComplianceScorePercent !== null ? `${surfaceWaterComplianceScorePercent}%` : 'N/A'}</strong> dari total <strong className="text-slate-700">{activeSurfaceWater.length} sampling</strong>.
+                  </>
+                )}
               </p>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">pH Rerata</span>
-                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfacePh}</p>
+                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfacePh ?? '—'}</p>
                   <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: 6.0 - 9.0</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Rerata TSS</span>
-                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfaceTss} mg/l</p>
+                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfaceTss !== null ? `${avgSurfaceTss} mg/l` : '—'}</p>
                   <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: max 50</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Rerata DO</span>
-                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfaceDO} mg/l</p>
+                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfaceDO !== null ? `${avgSurfaceDO} mg/l` : '—'}</p>
                   <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: min 4</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Batas Melebihi</span>
                   <p className={`text-sm font-bold font-mono mt-0.5 ${totalExceededSurfaceWaterSamples > 0 ? 'text-red-600' : 'text-slate-700'}`}>
-                    {totalExceededSurfaceWaterSamples} Sampel
+                    {activeSurfaceWater.length === 0 ? '—' : `${totalExceededSurfaceWaterSamples} Sampel`}
                   </p>
                   <span className="text-[8px] text-slate-500 block leading-none mt-1">Status Over limit</span>
                 </div>
               </div>
 
-              {activeSurfaceWater.length > 0 && (
+              {activeSurfaceWater.length === 0 ? (
+                <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-6 text-center text-xs text-slate-400">
+                  Belum ada data pada periode ini
+                </div>
+              ) : (
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-inner">
                   <table className="w-full text-left text-[11px] border-collapse">
                     <thead>
@@ -574,7 +727,7 @@ export default function ReportsView({
                         <th className="p-2.5 text-center">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-850 text-slate-600">
+                    <tbody className="divide-y divide-slate-100 text-slate-600">
                       {activeSurfaceWater.slice(0, 5).map(x => (
                         <tr key={x.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
                           <td className="p-2.5 pl-4 font-mono">{x.date}</td>
@@ -903,7 +1056,7 @@ export default function ReportsView({
                         <th className="p-2.5 text-center">Aksi Kerja</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-850 text-slate-600">
+                    <tbody className="divide-y divide-slate-100 text-slate-600">
                       {plans.map(p => {
                         const cellPct = p.realizedSizeHa !== undefined && p.sizeHa > 0 ? (p.realizedSizeHa / p.sizeHa) * 100 : 0;
                         return (
@@ -948,7 +1101,7 @@ export default function ReportsView({
                       Analisis Capaian Kemajuan Fisik:
                     </h5>
                     <p className="text-slate-500 text-[11px]">
-                      Capaian kemajuan penataan fisik reklamasi tercatat efektif sebesar <span className="text-teal-600 font-mono font-bold">{realRealizationPct}%</span>. Luas realisasi lapangan kumulatif <span className="text-slate-200 font-mono font-bold">{realizedHa.toFixed(1)} Ha</span> terhadap rencana target <span className="text-slate-200 font-mono font-bold">{plannedHa.toFixed(1)} Ha</span> menunjukkan bahwa mobilisasi subsoil, pemetaan elevasi terasering, serta pengembalian tanah pucuk (topsoil) berjalan lancar. Beberapa blok kerja dalam status aktif dilaporkan mengalami proses pemulihan vegetasi cepat.
+                      Capaian kemajuan penataan fisik reklamasi tercatat efektif sebesar <span className="text-teal-600 font-mono font-bold">{realRealizationPct}%</span>. Luas realisasi lapangan kumulatif <span className="text-slate-800 font-mono font-bold">{realizedHa.toFixed(1)} Ha</span> terhadap rencana target <span className="text-slate-800 font-mono font-bold">{plannedHa.toFixed(1)} Ha</span> menunjukkan bahwa mobilisasi subsoil, pemetaan elevasi terasering, serta pengembalian tanah pucuk (topsoil) berjalan lancar. Beberapa blok kerja dalam status aktif dilaporkan mengalami proses pemulihan vegetasi cepat.
                     </p>
                   </div>
                   <div className="space-y-1.5 text-left">
@@ -1019,10 +1172,10 @@ export default function ReportsView({
                         <th className="p-2.5 text-center">Status Hukum</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-850 text-slate-600">
+                    <tbody className="divide-y divide-slate-100 text-slate-600">
                       {guarantees.map(g => (
                         <tr key={g.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
-                          <td className="p-2.5 pl-4 font-mono font-semibold text-slate-200">{g.guaranteeNo}</td>
+                          <td className="p-2.5 pl-4 font-mono font-semibold text-slate-800">{g.guaranteeNo}</td>
                           <td className="p-2.5 text-slate-600">{g.guaranteeType}</td>
                           <td className="p-2.5 text-right font-mono text-teal-600 font-bold">{formatIDR(g.value)}</td>
                           <td className="p-2.5 text-slate-500">{g.issuingInstitution}</td>
@@ -1085,8 +1238,9 @@ export default function ReportsView({
             {/* Footer Laporan - Signatures */}
             <div className="pt-12 mt-12 border-t border-slate-200/60 flex items-center justify-between font-sans">
               <div className="text-[11px] text-slate-500 flex flex-col justify-end h-32 text-left">
-                <p>PT DIVA KENCANA BORNEO</p>
-                <p className="font-mono">Tanggal Cetak: {new Date().toLocaleDateString('id-ID')}</p>
+                <p className="font-semibold text-slate-700">{COMPANY_NAME}</p>
+                <p className="text-[10px] text-slate-400 font-mono">{APP_NAME}</p>
+                <p className="font-mono text-slate-400 mt-1">Tanggal Cetak: {formatDateLocalIndonesian(todayLocalISO())}</p>
               </div>
 
               <div className="text-[11px] text-slate-600 text-center flex flex-col justify-between h-32 mr-6 border-slate-200 border-b pb-1">

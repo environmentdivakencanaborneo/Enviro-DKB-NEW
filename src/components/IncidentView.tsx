@@ -35,7 +35,7 @@ export default function IncidentView({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Partial<IncidentData>>({
-    date: new Date().toISOString().split('T')[0],
+    date: todayLocalISO(),
     time: '12:00',
     category: 'Tumpahan Hidrokarbon',
     location: '',
@@ -124,7 +124,7 @@ export default function IncidentView({
                 if (!canEdit) return onUnauthorizedAction("Lapor Insiden Baru");
                 setEditingId(null);
                 setFormData({
-                  date: new Date().toISOString().split('T')[0],
+                  date: todayLocalISO(),
                   time: '12:00',
                   category: 'Tumpahan Hidrokarbon',
                   location: '',

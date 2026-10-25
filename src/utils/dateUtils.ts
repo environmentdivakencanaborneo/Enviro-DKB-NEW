@@ -119,3 +119,71 @@ export function compareCreatedAtFirst<T extends { createdAt?: any; id: string }>
   }
   return (b.id || '').localeCompare(a.id || '');
 }
+
+/**
+ * Menghitung rentang tanggal mingguan (Senin - Minggu) dalam format YYYY-MM-DD.
+ * Default menggunakan minggu berjalan berdasarkan tanggal lokal WITA.
+ */
+export function getWeekRangeLocal(refDateStr: string = todayLocalISO()): { startDate: string; endDate: string } {
+  const clean = (refDateStr || todayLocalISO()).trim().slice(0, 10);
+  const [y, m, d] = clean.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const day = dt.getUTCDay(); // 0 = Minggu, 1 = Senin, ..., 6 = Sabtu
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(dt.getTime() + diffToMonday * 86400000);
+  const sunday = new Date(monday.getTime() + 6 * 86400000);
+
+  const formatUTC = (date: Date) => {
+    const yr = date.getUTCFullYear();
+    const mo = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const da = String(date.getUTCDate()).padStart(2, '0');
+    return `${yr}-${mo}-${da}`;
+  };
+
+  return {
+    startDate: formatUTC(monday),
+    endDate: formatUTC(sunday)
+  };
+}
+
+/**
+ * Menghitung rentang tanggal bulanan (hari pertama s.d. hari terakhir bulan) format YYYY-MM-DD.
+ * Default menggunakan bulan berjalan berdasarkan tanggal lokal WITA.
+ */
+export function getMonthRangeLocal(yearMonthStr: string = todayLocalISO().slice(0, 7)): { startDate: string; endDate: string } {
+  const clean = (yearMonthStr || todayLocalISO().slice(0, 7)).trim().slice(0, 7);
+  const [y, m] = clean.split('-').map(Number);
+  const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  return { startDate, endDate };
+}
+
+/**
+ * Format tanggal lokal YYYY-MM-DD ke teks bahasa Indonesia (contoh: "14 Oktober 2026").
+ */
+export function formatDateLocalIndonesian(dateStr: string): string {
+  if (!dateStr) return '—';
+  const clean = dateStr.trim().slice(0, 10);
+  const [y, m, d] = clean.split('-').map(Number);
+  if (!y || !m || !d) return dateStr;
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+  return `${d} ${months[m - 1]} ${y}`;
+}
+
+/**
+ * Mengembalikan nama hari dalam bahasa Indonesia dari tanggal YYYY-MM-DD.
+ */
+export function getDayNameIndonesian(dateStr: string): string {
+  if (!dateStr) return '';
+  const clean = dateStr.trim().slice(0, 10);
+  const [y, m, d] = clean.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  return days[dt.getUTCDay()] || '';
+}
+

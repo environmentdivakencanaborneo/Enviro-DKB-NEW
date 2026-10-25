@@ -8,6 +8,7 @@ import ModalPortal from './ModalPortal';
 import NurseryStockOutForm from './NurseryStockOutForm';
 import { NurseryData, NurseryStockOut, ReclamationPlan, ReclamationGuarantee } from '../types';
 import { exportToExcel } from '../services/exportService';
+import { todayLocalISO } from '../utils/dateUtils';
 import { 
   Plus, 
   Search, 
@@ -102,7 +103,7 @@ export default function ReclamationView({
   const [nHeight, setNHeight] = useState(40);
   const [nStatus, setNStatus] = useState<any>('Healthy');
   const [nLoc, setNLoc] = useState('Nursery Blok A Barat');
-  const [nDate, setNDate] = useState(new Date().toISOString().slice(0, 10));
+  const [nDate, setNDate] = useState(todayLocalISO());
 
   // PLANS STATE
   const [showPlanForm, setShowPlanForm] = useState(false);
@@ -142,8 +143,8 @@ export default function ReclamationView({
   const [gType, setGType] = useState<'Bank Guarantee' | 'Time Deposit' | 'Environmental Bond'>('Bank Guarantee');
   const [gValue, setGValue] = useState(500000000);
   const [gInst, setGInst] = useState('PT Bank Mandiri (Persero) Tbk');
-  const [gIssue, setGIssue] = useState(new Date().toISOString().slice(0, 10));
-  const [gDue, setGDue] = useState(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  const [gIssue, setGIssue] = useState(todayLocalISO());
+  const [gDue, setGDue] = useState(todayLocalISO(Date.now() + 365 * 24 * 60 * 60 * 1000));
   const [gStatus, setGStatus] = useState<'Active' | 'Renewal Needed' | 'Claimed' | 'Released'>('Active');
 
   const startEditNursery = (item: NurseryData) => {
@@ -484,7 +485,7 @@ export default function ReclamationView({
               <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Ditanam Bulan Ini</span>
               <p className="text-xl font-bold text-emerald-600 mt-2 font-mono">
                 {(() => {
-                  const currentMonth = new Date().toISOString().slice(0, 7);
+                  const currentMonth = todayLocalISO().slice(0, 7);
                   return nurseryStockOut?.filter(x => x.tanggal.startsWith(currentMonth) && x.jenisTransaksi === 'Penanaman').reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0;
                 })().toLocaleString('id-ID')}
               </p>
@@ -763,7 +764,7 @@ export default function ReclamationView({
                     <th className="p-3.5 text-center pr-5">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-xs">
+                <tbody className="divide-y divide-slate-100 text-xs">
                   {filteredNursery.length === 0 ? (
                     <tr>
                       <td colSpan={11} className="p-10 text-center text-slate-500">Tidak ada bibit Nursery yang terdaftar.</td>
@@ -1046,7 +1047,7 @@ export default function ReclamationView({
             <div className="bg-white/80 p-4.5 rounded-2xl border border-slate-200 text-left shadow-sm">
               <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Total Anggaran Rencana</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black text-slate-200 font-mono text-amber-500">{formatIDR(totalPlannedCost)}</span>
+                <span className="text-lg font-black font-mono text-amber-600">{formatIDR(totalPlannedCost)}</span>
               </div>
               <p className="text-[10px] text-slate-500 mt-1.5">Alokasi pagu disetujui ESDM</p>
             </div>
@@ -1414,7 +1415,7 @@ export default function ReclamationView({
                     <th className="p-3.5 text-center pr-5">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-xs">
+                <tbody className="divide-y divide-slate-100 text-xs">
                   {filteredPlans.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="p-10 text-center text-slate-600 italic">Tidak ada agenda rencana/realisasi reklamasi yang diajukan.</td>
@@ -1442,7 +1443,7 @@ export default function ReclamationView({
                               <span className="text-slate-600 font-semibold flex items-center gap-1">
                                 <span className="text-emerald-500 text-[10px]">● TARGET</span>
                               </span>
-                              <span className="text-slate-200 font-medium">{item.plantType}</span>
+                              <span className="text-slate-800 font-medium">{item.plantType}</span>
                               <span className="text-[10px] text-slate-500 font-mono">{item.method}</span>
                               <div className="text-[11px] font-bold text-slate-500 pt-1">Pagu Luas: {item.sizeHa} Ha</div>
                             </div>
@@ -1772,7 +1773,7 @@ export default function ReclamationView({
                     <th className="p-3.5 text-center pr-5">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-xs">
+                <tbody className="divide-y divide-slate-100 text-xs">
                   {guarantees.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-10 text-center text-slate-500">Belum ada jaminan finansial yang dicatatkan.</td>

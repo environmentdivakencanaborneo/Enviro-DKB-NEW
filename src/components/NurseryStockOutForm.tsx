@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NurseryData, ReclamationPlan, NurseryStockOut } from '../types';
-import { AlertCircle, FileCheck2, ArrowRight } from 'lucide-react';
+import { AlertCircle, FileCheck2 } from 'lucide-react';
+import { todayLocalISO } from '../utils/dateUtils';
 
 interface Props {
   nursery: NurseryData[];
@@ -13,15 +14,13 @@ interface Props {
 
 export default function NurseryStockOutForm({ nursery, nurseryStockOut, plans, initialData, onClose, onSubmit }: Props) {
   const [formData, setFormData] = useState({
-    tanggal: initialData?.tanggal || new Date().toISOString().split('T')[0],
+    tanggal: initialData?.tanggal || todayLocalISO(),
     jenisBibitId: initialData?.jenisBibitId || '',
     jumlahKeluar: initialData?.jumlahKeluar?.toString() || '',
     satuan: initialData?.satuan || 'Batang',
     jenisTransaksi: initialData?.jenisTransaksi || 'Penanaman',
     tujuan: initialData?.tujuan || '',
-    kapling: initialData?.kapling || '',
-    blok: initialData?.blok || '',
-    pit: initialData?.pit || '',
+    lokasiPenanaman: initialData?.lokasiPenanaman || '',
     luasReklamasi: initialData?.luasReklamasi?.toString() || '',
     penanggungJawab: initialData?.penanggungJawab || '',
     keterangan: initialData?.keterangan || ''
@@ -39,6 +38,11 @@ export default function NurseryStockOutForm({ nursery, nurseryStockOut, plans, i
     e.preventDefault();
     if (!selectedNursery) return;
     
+    if (!formData.lokasiPenanaman.trim()) {
+      setErrorMsg("Lokasi Penanaman wajib diisi.");
+      return;
+    }
+
     const qty = parseInt(formData.jumlahKeluar);
     if (isNaN(qty) || qty <= 0) {
       setErrorMsg("Jumlah keluar harus lebih dari 0.");
@@ -54,13 +58,11 @@ export default function NurseryStockOutForm({ nursery, nurseryStockOut, plans, i
       tanggal: formData.tanggal,
       jenisBibitId: selectedNursery.id,
       namaBibit: selectedNursery.plantType,
-      species: selectedNursery.plantType, // Can use plantType for species as fallback
+      species: selectedNursery.plantType,
       jumlahKeluar: qty,
       satuan: formData.satuan,
       tujuan: formData.tujuan,
-      kapling: formData.kapling,
-      blok: formData.blok,
-      pit: formData.pit,
+      lokasiPenanaman: formData.lokasiPenanaman.trim(),
       luasReklamasi: parseFloat(formData.luasReklamasi) || 0,
       penanggungJawab: formData.penanggungJawab,
       keterangan: formData.keterangan
@@ -153,45 +155,14 @@ export default function NurseryStockOutForm({ nursery, nurseryStockOut, plans, i
             className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-2 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
           />
         </div>
-        <div>
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Kapling Reklamasi</label>
-          <select
+        <div className="md:col-span-2 lg:col-span-3">
+          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Lokasi Penanaman *</label>
+          <textarea 
             required
-            value={formData.kapling}
-            onChange={e => {
-              const selectedPlan = plans.find(p => p.id === e.target.value);
-              setFormData({
-                ...formData, 
-                kapling: e.target.value,
-                luasReklamasi: selectedPlan ? selectedPlan.sizeHa.toString() : ''
-              });
-            }}
-            className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-2 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
-          >
-            <option value="">-- Pilih Kapling / Area --</option>
-            {plans.map(p => (
-              <option key={p.id} value={p.id}>{p.areaName} ({p.targetYear})</option>
-            ))}
-            <option value="lainnya">Area Lainnya / Non-Rencana</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Blok</label>
-          <input 
-            type="text" 
-            required
-            value={formData.blok}
-            onChange={e => setFormData({...formData, blok: e.target.value})}
-            className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-2 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
-          />
-        </div>
-        <div>
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Pit</label>
-          <input 
-            type="text" 
-            required
-            value={formData.pit}
-            onChange={e => setFormData({...formData, pit: e.target.value})}
+            rows={2}
+            value={formData.lokasiPenanaman}
+            onChange={e => setFormData({...formData, lokasiPenanaman: e.target.value})}
+            placeholder='Contoh: "Blok A Barat, Disposal Timur, Area Reklamasi Tahap 2" atau "Jalur Hauling KM 3" atau "Area Revegetasi Selatan Settling Pond"'
             className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-2 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
           />
         </div>

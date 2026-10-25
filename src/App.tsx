@@ -43,6 +43,7 @@ import IncidentView from './components/IncidentView';
 import ExecutiveDashboardView from './components/ExecutiveDashboardView';
 import RegulatoryWatchView from './components/RegulatoryWatchView';
 import AdminManagementView from './components/AdminManagementView';
+import PublicVerifyView from './components/evidence/PublicVerifyView';
 
 import { useAuth } from './services/authService';
 import { canAccessModule, isAdmin, isSuperintendent, canDelete } from './services/permissionService';
@@ -82,6 +83,28 @@ export default function App() {
 
   // Tabs layout navigation
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+
+  // Public Evidence Verification Token via Hash Route (#/verify/:token)
+  const [verifyToken, setVerifyToken] = useState<string | null>(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#/verify/')) {
+      return hash.replace('#/verify/', '').trim() || null;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#/verify/')) {
+        setVerifyToken(hash.replace('#/verify/', '').trim() || null);
+      } else {
+        setVerifyToken(null);
+      }
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
 
   // Modal Dialogs
   const [syncModalOpen, setSyncModalOpen] = useState(false);
@@ -239,26 +262,28 @@ export default function App() {
   };
 
   // MUTATIONAL ACTIONS WRAPPED IN SECURITY POLICY INTERCEPTORS
-  const handleAddWastewater = async (item: any) => {
+  const handleAddWastewater = async (item: any, photo?: any) => {
     if (!hasWriteAuthority) {
       showAuthorityWarning("Tambah Data Kualitas Air Limbah");
       return;
     }
     try {
-      await waterQualityService.add(item);
+      await waterQualityService.add(item, photo);
     } catch (e: any) {
       handleGlobalError(e, "Tambah Data Air Limbah");
+      throw e;
     }
   };
-  const handleUpdateWastewater = async (id: string, item: any) => {
+  const handleUpdateWastewater = async (id: string, item: any, photo?: any) => {
     if (!hasWriteAuthority) {
       showAuthorityWarning("Ubah Data Kualitas Air Limbah");
       return;
     }
     try {
-      await waterQualityService.update(id, item);
+      await waterQualityService.update(id, item, photo);
     } catch (e: any) {
       handleGlobalError(e, "Ubah Data Air Limbah");
+      throw e;
     }
   };
   const handleDeleteWastewater = async (id: string) => {
@@ -752,6 +777,7 @@ export default function App() {
               wastewater={wastewater}
               surfaceWater={surfaceWater}
               rainfall={rainfall}
+              userProfile={profile}
               onAddWastewater={handleAddWastewater}
               onUpdateWastewater={handleUpdateWastewater}
               onDeleteWastewater={handleDeleteWastewater}
@@ -1039,6 +1065,19 @@ export default function App() {
         <h2 className="text-sm font-semibold text-slate-500 font-mono uppercase tracking-widest mt-4">DIVA KENCANA BORNEO SECURE ENCLAVE</h2>
         <p className="text-xs text-slate-500 mt-2">Menyiapkan konektivitas data terenkripsi...</p>
       </div>
+    );
+  }
+
+  // Public Verification Route (Unauthenticated public verification of evidence via QR Code)
+  if (verifyToken) {
+    return (
+      <PublicVerifyView
+        token={verifyToken}
+        onBackToApp={() => {
+          window.location.hash = '';
+          setVerifyToken(null);
+        }}
+      />
     );
   }
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ModalPortal from './ModalPortal';
 import { EnvironmentalDocument, ComplianceCalendarEvent } from '../types';
 import { computeDocumentStatus } from '../utils/documentStatus';
+import { todayLocalISO } from '../utils/dateUtils';
 import { 
   Plus, 
   Trash2, 
@@ -54,7 +55,7 @@ export default function DocumentsView({
   const [type, setType] = useState('Persetujuan Lingkungan');
   const [docNo, setDocNo] = useState('');
   const [issuer, setIssuer] = useState('');
-  const [issuedDate, setIssuedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [issuedDate, setIssuedDate] = useState(todayLocalISO());
   const [expiryDate, setExpiryDate] = useState('');
   const [obligations, setObligations] = useState('');
   const [documentUrl, setDocumentUrl] = useState('');

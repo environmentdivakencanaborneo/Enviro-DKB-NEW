@@ -77,34 +77,92 @@ export const INDONESIAN_REGULATIONS: EnvironmentalRegulation[] = [
   }
 ];
 
-export function evaluateWastewaterStatus(ph: number, tss: number, debit: number, fe: number, mn: number): 'Safe' | 'Warning' | 'Exceeded' {
-  // Safe: all fully under limits
-  // Warning: any value is within 15% of the threshold margin
-  // Exceeded: any value exceeds threshold limit
-  
-  const thresholds = {
-    phMin: 6.0, phMax: 9.0,
-    tssMax: 300, // Sesuai SK Pertek PT DKB No. 503/IPAL-LH/DPM-PTSP/2021 (mengacu Perda Kaltim No. 2 Tahun 2011), bukan Kepmen LH 113/2003 nasional (200 mg/L)
-    feMax: 7.0,
-    mnMax: 4.0
-  };
+export const WASTEWATER_STANDARDS = [
+  { key: 'ph',    label: 'pH',          unit: '-',    min: 6,    max: 9,    display: '6,0 – 9,0',       decimals: { min: 1, max: 2 } },
+  { key: 'tss',   label: 'TSS',         unit: 'mg/L', min: null, max: 300,  display: '300',            decimals: { min: 0, max: 1 } },
+  { key: 'debit', label: 'Debit',       unit: 'm³/s', min: null, max: null, display: 'Bebas / Pantau', decimals: { min: 1, max: 3 } },
+  { key: 'fe',    label: 'Besi (Fe)',   unit: 'mg/L', min: null, max: 7,    display: '7,0',            decimals: { min: 1, max: 3 } },
+  { key: 'mn',    label: 'Mangan (Mn)', unit: 'mg/L', min: null, max: 4,    display: '4,0',            decimals: { min: 1, max: 3 } },
+] as const;
 
-  // Check Exceeded
-  if (ph < thresholds.phMin || ph > thresholds.phMax) return 'Exceeded';
-  if (tss > thresholds.tssMax) return 'Exceeded';
-  if (fe > thresholds.feMax) return 'Exceeded';
-  if (mn > thresholds.mnMax) return 'Exceeded';
+export const WASTEWATER_BASIS_LABEL = 'Kepmen LH No. 113 Tahun 2003 dan SK Pertek Air Limbah PT DKB No. 503/IPAL-LH/DPM-PTSP/2021';
+export const WARNING_RATIO = 0.85;
 
-  // Check Warning (within 15% of approaching limit)
-  const isPhWarning = (ph < thresholds.phMin + 0.3) || (ph > thresholds.phMax - 0.3);
-  const isTssWarning = tss > thresholds.tssMax * 0.85;
-  const isFeWarning = fe > thresholds.feMax * 0.85;
-  const isMnWarning = mn > thresholds.mnMax * 0.85;
-
-  if (isPhWarning || isTssWarning || isFeWarning || isMnWarning) {
-    return 'Warning';
+/**
+ * Evaluasi parameter air limbah terhadap baku mutu WASTEWATER_STANDARDS.
+ * Batas bersifat INKLUSIF (nilai tepat sama dengan batas = memenuhi).
+ * Parameter dengan min=null dan max=null (Debit) berstatus 'dipantau'.
+ */
+export function evaluateParam(
+  key: string,
+  value: number
+): 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau' {
+  const std = WASTEWATER_STANDARDS.find(s => s.key === key);
+  if (!std || (std.min === null && std.max === null)) {
+    return 'dipantau';
   }
 
+  // Batas rentang (misal pH: 6.0 - 9.0)
+  if (std.min !== null && std.max !== null) {
+    if (value < std.min || value > std.max) {
+      return 'tidak_memenuhi';
+    }
+    // Ambang warning: mendekati batas bawah atau batas atas dalam margin 0.3
+    if (value < std.min + 0.3 || value > std.max - 0.3) {
+      return 'mendekati';
+    }
+    return 'memenuhi';
+  }
+
+  // Batas maksimum (misal TSS 300, Fe 7.0, Mn 4.0)
+  // TODO: verifikasi nilai terhadap SK Pertek PT DKB dan lampiran Kepmen LH 113/2003 sebelum dipakai untuk pelaporan resmi
+  if (std.max !== null) {
+    if (value > std.max) {
+      return 'tidak_memenuhi';
+    }
+    if (value > std.max * WARNING_RATIO) {
+      return 'mendekati';
+    }
+    return 'memenuhi';
+  }
+
+  // Batas minimum
+  if (std.min !== null) {
+    if (value < std.min) {
+      return 'tidak_memenuhi';
+    }
+    if (value < std.min + (std.min * (1 - WARNING_RATIO))) {
+      return 'mendekati';
+    }
+    return 'memenuhi';
+  }
+
+  return 'dipantau';
+}
+
+export function evaluateWastewaterStatus(
+  ph: number,
+  tss: number,
+  debit: number,
+  fe: number,
+  mn: number
+): 'Safe' | 'Warning' | 'Exceeded' {
+  const params: Array<{ key: string; val: number }> = [
+    { key: 'ph', val: ph },
+    { key: 'tss', val: tss },
+    { key: 'debit', val: debit },
+    { key: 'fe', val: fe },
+    { key: 'mn', val: mn },
+  ];
+
+  const results = params.map(p => evaluateParam(p.key, p.val));
+
+  if (results.some(r => r === 'tidak_memenuhi')) {
+    return 'Exceeded';
+  }
+  if (results.some(r => r === 'mendekati')) {
+    return 'Warning';
+  }
   return 'Safe';
 }
 

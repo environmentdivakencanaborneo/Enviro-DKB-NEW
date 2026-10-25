@@ -15,7 +15,8 @@ import {
   Info, 
   ShieldAlert, 
   Clock,
-  Waves
+  Waves,
+  Recycle
 } from 'lucide-react';
 
 interface NotificationsViewProps {
@@ -90,7 +91,7 @@ export default function NotificationsView({
               <div 
                 key={alert.id}
                 className={`p-5 rounded-2xl border text-left flex gap-4 transition-all ${
-                  isRead ? 'bg-white/40 border-slate-900 opacity-60' : 'bg-white/80 border-slate-200'
+                  isRead ? 'bg-white/40 border-slate-200 opacity-60' : 'bg-white/80 border-slate-200'
                 } ${!isRead && isCrit ? 'border-red-500/30' : ''}`}
               >
                 {/* Category Icon indicator */}
@@ -99,9 +100,19 @@ export default function NotificationsView({
                     ? 'bg-rose-50 border-rose-200 text-rose-600' 
                     : alert.type === 'Warning' 
                     ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' 
+                    : alert.category === 'Solid Waste'
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
                     : 'bg-blue-500/10 border-blue-500/20 text-blue-500'
                 }`}>
-                  {isCrit ? <ShieldAlert className="h-5.5 w-5.5" /> : <Info className="h-5.5 w-5.5" />}
+                  {isCrit ? (
+                    <ShieldAlert className="h-5.5 w-5.5" />
+                  ) : alert.category === 'Solid Waste' ? (
+                    <Recycle className="h-5.5 w-5.5" />
+                  ) : alert.category === 'Wastewater' || alert.category === 'SurfaceWater' ? (
+                    <Waves className="h-5.5 w-5.5" />
+                  ) : (
+                    <Info className="h-5.5 w-5.5" />
+                  )}
                 </div>
 
                 {/* Info blocks */}
@@ -110,7 +121,10 @@ export default function NotificationsView({
                     <div className="flex items-center gap-2">
                       <span className={`text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border ${
                         alert.category === 'Wastewater' ? 'bg-blue-500/10 border-blue-500/25 text-blue-600' :
-                        alert.category === 'B3 Waste' ? 'bg-amber-500/10 border-amber-500/25 text-amber-500' : 'bg-white border-slate-200 text-slate-500'
+                        alert.category === 'B3 Waste' ? 'bg-amber-500/10 border-amber-500/25 text-amber-500' :
+                        alert.category === 'Solid Waste' ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-600' :
+                        alert.category === 'SurfaceWater' ? 'bg-cyan-500/10 border-cyan-500/25 text-cyan-600' :
+                        'bg-white border-slate-200 text-slate-500'
                       }`}>
                         {alert.category}
                       </span>
@@ -172,7 +186,7 @@ export default function NotificationsView({
                       alert('Gagal membersihkan log: ' + err.message);
                     }
                   }}
-                  className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-slate-900 font-bold transition-colors cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-white font-bold transition-colors cursor-pointer"
                 >
                   Hapus Semua
                 </button>

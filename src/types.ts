@@ -8,13 +8,48 @@ export interface WastewaterData {
   date: string;
   location: string;
   officer: string;
-  ph: number;       // standard: 6.0 - 9.0 (PP No. 22 Tahun 2021)
-  tss: number;      // standard: max 200 mg/L (or based on regional)
+  ph: number;       // standard: 6.0 - 9.0 (Kepmen LH No. 113 Tahun 2003 / SK Pertek)
+  tss: number;      // standard: max 300 mg/L (SK Pertek PT DKB No. 503/IPAL-LH/DPM-PTSP/2021)
   debit: number;    // discharge flow rate, allow 3 decimal places
   fe: number;       // Iron - standard: max 7 mg/L
   mn: number;       // Mangan - standard: max 4 mg/L
   status: 'Safe' | 'Warning' | 'Exceeded'; 
   monitoringType?: 'Harian' | 'Bulanan';
+  sampleTime?: string;                 // 'HH:mm' waktu lokal
+  weather?: 'Cerah' | 'Berawan' | 'Hujan Ringan' | 'Hujan Lebat';
+  wastewaterSource?: string;           // contoh 'Settling Pond Outlet'
+  locationCode?: string;               // contoh 'KPL-01'
+  hasPhoto?: boolean;
+  createdAt?: any;
+  createdBy?: string;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+
+export interface WqLocation {
+  id: string;
+  code: string;
+  name: string;
+  defaultSource: string;
+  docSuffix?: string;
+  isActive: boolean;
+  createdAt?: any;
+  createdBy?: string;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+
+export interface WastewaterPhoto {
+  id: string;
+  wastewaterId: string;
+  dataUrl: string;
+  mimeType: 'image/jpeg';
+  width: number;
+  height: number;
+  sizeBytes: number;
+  takenAt: string;
+  createdBy: string;
+  createdAt?: any;
 }
 
 export interface SurfaceWaterData {
@@ -228,7 +263,7 @@ export interface AlertNotification {
   id: string;
   timestamp: string;
   type: 'Critical' | 'Warning' | 'Info';
-  category: 'Wastewater' | 'B3 Waste' | 'Permit' | 'Guarantee' | 'SurfaceWater';
+  category: 'Wastewater' | 'B3 Waste' | 'Permit' | 'Guarantee' | 'SurfaceWater' | 'Solid Waste';
   title: string;
   message: string;
   read: boolean;
@@ -411,4 +446,152 @@ export interface RegulatoryWatchData {
   link?: string;
   createdAt?: string;
   createdBy?: string;
+}
+
+// ============================================================================
+// EVIDENCE HARIAN & BULANAN PEMANTAUAN AIR LIMBAH
+// ============================================================================
+
+export type EvidenceStatus = 'Draft' | 'Disiapkan' | 'Diperiksa' | 'Disetujui' | 'Dibatalkan';
+
+export interface EvidenceSignature {
+  uid: string;
+  email: string;
+  name: string;
+  position: string;
+  signedAt: string;
+  signatureDataUrl: string;
+}
+
+export interface EvidenceParamResult {
+  key: string;
+  label: string;
+  unit: string;
+  value: number;
+  display: string;
+  limitDisplay: string;
+  status: 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau';
+  note?: string;
+}
+
+export interface DailyEvidenceSnapshot {
+  recordId: string;
+  date: string;
+  locationCode: string;
+  locationName: string;
+  locationFullName: string;
+  officer: string;
+  sampleTime?: string;
+  weather?: string;
+  wastewaterSource?: string;
+  monitoringType: string;
+  params: EvidenceParamResult[];
+  overall: 'MEMENUHI' | 'TIDAK MEMENUHI';
+  failedParams: string[];
+  conclusionText: string;
+  followUpAction?: string;
+  hasPhoto: boolean;
+  photoTakenAt?: string;
+  photoDimensions?: string;
+  photoMimeType?: string;
+  standardsBasis: string;
+}
+
+export interface MonthlyParamStat {
+  min: number | null;
+  avg: number | null;
+  max: number | null;
+  status: 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau';
+  exceedDays: number;
+}
+
+export interface MonthlyDayItem {
+  date: string;
+  dayNumber: number;
+  sampleTime?: string;
+  officer?: string;
+  weather?: string;
+  ph: number | null;
+  tss: number | null;
+  debit: number | null;
+  fe: number | null;
+  mn: number | null;
+  status: 'memenuhi' | 'tidak_memenuhi' | 'tanpa_data';
+  duplicateCount: number;
+  dailyDocumentNo?: string | null;
+}
+
+export interface MonthlyEvidenceSnapshot {
+  documentNo: string;
+  period: string; // YYYY-MM
+  periodLabel: string; // e.g. "Juli 2026"
+  locationCode: string;
+  locationName: string;
+  docSuffix?: string;
+  daysInMonth: number;
+  samplingDays: number;
+  passDays: number;
+  failDays: number;
+  compliancePct: number | null;
+  completenessPct: number;
+  overall: 'MEMENUHI' | 'TIDAK MEMENUHI' | 'BELUM ADA DATA';
+  stats: Record<'ph'|'tss'|'debit'|'fe'|'mn', MonthlyParamStat>;
+  days: MonthlyDayItem[];
+  missingDays: string[];
+  failedParamKeys: string[];
+  conclusionText: string;
+  standardsBasis: string;
+}
+
+export interface RevisionHistoryItem {
+  revision: number;
+  revisedAt: string;
+  revisedBy: string;
+  reason?: string;
+  previousHash: string;
+}
+
+export interface EvidenceReport {
+  id: string; // WQD-${kodeTitik}-${YYYYMMDD} or WQM-${kodeTitik}-${YYYYMM}
+  type: 'daily' | 'monthly';
+  documentNo: string | null;
+  revision: number;
+  period: string; // YYYY-MM
+  locationCode: string;
+  wastewaterId?: string;
+  date?: string; // YYYY-MM-DD
+  status: EvidenceStatus;
+  snapshot: DailyEvidenceSnapshot | MonthlyEvidenceSnapshot;
+  snapshotHash: string;
+  signatures: {
+    prepared?: EvidenceSignature;
+    reviewed?: EvidenceSignature;
+    approved?: EvidenceSignature;
+  };
+  issuedAt?: string | null;
+  verifyToken?: string;
+  revisionHistory?: RevisionHistoryItem[];
+  followUpAction?: string;
+  cancellationReason?: string;
+  createdAt?: any;
+  createdBy?: string;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+
+export interface EvidenceVerification {
+  documentNo: string;
+  type: 'daily' | 'monthly';
+  period: string;
+  locationCode: string;
+  issuedAt: string;
+  status: EvidenceStatus;
+  overall: 'MEMENUHI' | 'TIDAK MEMENUHI' | 'BELUM ADA DATA';
+  hashPrefix: string;
+}
+
+export interface UserSignature {
+  uid: string;
+  dataUrl: string;
+  updatedAt?: any;
 }

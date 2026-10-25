@@ -179,3 +179,30 @@ input:focus, select:focus, textarea:focus {
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid #E6ECE6;
 }
+
+/* 11. Evidence Printing Styles (A4 Portrait & Page Breaks) */
+@page {
+  size: A4 portrait;
+  margin: 8mm;
+}
+
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .break-after-page {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+  .break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

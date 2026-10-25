@@ -51,6 +51,11 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(uid)).data.status == 'Active'
       );
     }
+
+    // Helper: Check if user is authenticated and approved member
+    function isActiveMember() {
+      return isVerifiedUser() && isApprovedUser();
+    }
     
     // Helper: Get user role from Firestore
     function getUserRole() {
@@ -79,12 +84,39 @@ service cloud.firestore {
       return isAdmin() || role == 'Superintendent' || role == 'SUPERINTENDENT' || role == 'superintendent' || role == 'Manager' || role == 'Environment Superintendent';
     }
 
+    function isForeman() {
+      let role = getUserRole();
+      return isSuperintendent() || role == 'Foreman' || role == 'Supervisor';
+    }
+
     function isOperator() {
       let role = getUserRole();
-      return isSuperintendent() || role == 'Operator' || role == 'OPERATOR' || role == 'operator' || role == 'Supervisor' || role == 'Foreman';
+      return isForeman() || role == 'Operator' || role == 'OPERATOR' || role == 'operator';
     }
 
     // --- DOMAIN VALIDATORS ---
+
+    function vWastewater() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','date','location','officer','ph','tss','debit','fe','mn','status'])
+        && shapeOk(25)
+        && isValidDocId(d.id)
+        && isText(d.date, 20)
+        && isText(d.location, 150)
+        && isText(d.officer, 100)
+        && d.ph is number && d.ph >= 0 && d.ph <= 14
+        && d.tss is number && d.tss >= 0
+        && d.debit is number && d.debit >= 0
+        && d.fe is number && d.fe >= 0
+        && d.mn is number && d.mn >= 0
+        && d.status in ['Safe', 'Warning', 'Exceeded']
+        && (d.get('monitoringType', null) == null || d.monitoringType in ['Harian', 'Bulanan'])
+        && (d.get('sampleTime', null) == null || (d.sampleTime is string && d.sampleTime.size() == 5))
+        && (d.get('weather', null) == null || d.weather in ['Cerah', 'Berawan', 'Hujan Ringan', 'Hujan Lebat'])
+        && isOptText(d.get('wastewaterSource', null), 150)
+        && isOptText(d.get('locationCode', null), 50)
+        && (d.get('hasPhoto', null) == null || d.hasPhoto is bool);
+    }
 
     function vCapa() {
       let d = request.resource.data;
@@ -220,10 +252,75 @@ service cloud.firestore {
       allow delete: if isVerifiedUser();
     }
     
+    // Master Titik Sampling Air Limbah (Wewenang Superintendent ke atas)
+    match /wq_locations/{id} {
+      allow read: if isActiveMember();
+      allow create, update: if isSuperintendent();
+      allow delete: if false;
+    }
+
+    // Foto Sampling Air Limbah (Evidence visual terpisah)
+    match /wastewater_photos/{id} {
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() 
+        && request.resource.data.dataUrl is string 
+        && request.resource.data.dataUrl.size() <= 400000 
+        && request.resource.data.mimeType == 'image/jpeg';
+      allow delete: if isSuperintendent();
+    }
+
+    // Evidence Reports (Dokumen Evidence Harian & Rekap Bulanan)
+    match /evidence_reports/{id} {
+      allow read: if isActiveMember();
+      allow create: if isActiveMember() && isOperator();
+      allow update: if isActiveMember() && isOperator() && (
+        // Draft edit
+        (resource.data.status == 'Draft') ||
+        // Status transition from Draft to Disiapkan
+        (resource.data.status == 'Draft' && request.resource.data.status == 'Disiapkan') ||
+        // Reviewed signature update by Foreman or higher, email != prepared.email
+        (request.resource.data.status == 'Diperiksa' && isForeman() && request.resource.data.signatures.reviewed.email != resource.data.signatures.prepared.email) ||
+        // Approved signature update by Admin/Manager, email != prepared.email and email != reviewed.email
+        (request.resource.data.status == 'Disetujui' && isAdmin() && request.resource.data.signatures.approved.email != resource.data.signatures.prepared.email && request.resource.data.signatures.approved.email != resource.data.signatures.reviewed.email) ||
+        // Superintendent revision update: revision number incremented
+        (isSuperintendent() && request.resource.data.revision > resource.data.revision) ||
+        // Admin cancellation:
+        (isAdmin() && request.resource.data.status == 'Dibatalkan') ||
+        // Immutable snapshot: snapshot & snapshotHash unchanged
+        (request.resource.data.snapshotHash == resource.data.snapshotHash)
+      );
+      allow delete: if isAdmin() && resource.data.status == 'Draft';
+    }
+
+    // Counters (Atomic sequential numbering FR-EMS-WQ-YYYY-xxxxx)
+    match /counters/{id} {
+      allow read: if isActiveMember();
+      allow create: if isActiveMember() && isOperator() && request.resource.data.value == 1;
+      allow update: if isActiveMember() && isOperator() && request.resource.data.value == resource.data.value + 1;
+      allow delete: if false;
+    }
+
+    // User Signatures (Tanda Tangan Digital Pengguna)
+    match /signatures/{uid} {
+      allow read: if isActiveMember();
+      allow create, update: if request.auth.uid == uid && isActiveMember() 
+        && request.resource.data.dataUrl is string 
+        && request.resource.data.dataUrl.size() <= 80000;
+      allow delete: if false;
+    }
+
+    // Public Verification Documents (Minimal data untuk scan QR Code tanpa login)
+    match /evidence_verify/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if isActiveMember() && isOperator();
+      allow delete: if false;
+    }
+    
     // Environmental Monitoring Collections
     match /wastewater/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow read: if isActiveMember() || isVerifiedUser();
+      allow create, update: if (isOperator() || isVerifiedUser()) && vWastewater();
       allow delete: if isAdmin() || isSuperintendent();
     }
     

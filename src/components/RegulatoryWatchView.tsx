@@ -3,6 +3,7 @@ import ModalPortal from './ModalPortal';
 import { RegulatoryWatchData } from '../types';
 import { regulatoryService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
+import { todayLocalISO } from '../utils/dateUtils';
 import { 
   BookOpen, Plus, Search, Filter, Download, 
   Trash2, Edit, AlertTriangle, X,
@@ -36,7 +37,7 @@ export default function RegulatoryWatchView({
     source: 'KLHK',
     regulationNo: '',
     about: '',
-    issueDate: new Date().toISOString().split('T')[0],
+    issueDate: todayLocalISO(),
     implication: '',
     status: 'Draft',
     link: ''
@@ -113,7 +114,7 @@ export default function RegulatoryWatchView({
                   source: 'KLHK',
                   regulationNo: '',
                   about: '',
-                  issueDate: new Date().toISOString().split('T')[0],
+                  issueDate: todayLocalISO(),
                   implication: '',
                   status: 'Draft',
                   link: ''

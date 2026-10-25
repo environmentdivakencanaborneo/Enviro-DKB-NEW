@@ -21,7 +21,7 @@ export const ROLE_RANK: Record<Role, number> = {
   Viewer: 0,
   Auditor: 1,
   Operator: 2,
-  Foreman: 2,
+  Foreman: 2.5,
   'Environment Superintendent': 3,
   'Environment Manager': 4,
   Admin: 5

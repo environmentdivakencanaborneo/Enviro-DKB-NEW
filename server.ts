@@ -12,13 +12,13 @@ async function startServer() {
   app.get("/api/system-info", (req, res) => {
     res.json({
       status: "online",
-      systemName: "Sistem Pemantauan Air Limbah Tambang & Kepatuhan Lingkungan",
+      systemName: "DEM — Diva Enviro Monitor (PT Diva Kencana Borneo)",
       frameworks: [
         "Permen LHK No 6 Tahun 2021 (Limbah B3)",
-        "Permen LHK No 113 Tahun 2003 (Air Limbah Batubara)",
+        "Kepmen LH No. 113 Tahun 2003 dan SK Pertek Air Limbah PT DKB No. 503/IPAL-LH/DPM-PTSP/2021",
         "Kepmen 344 Tahun 2025 (Reklamasi & Pascatambang)"
       ],
-      lastUpdated: "2026-05-29",
+      lastUpdated: process.env.BUILD_DATE || new Date().toISOString().slice(0, 10),
       contact: "environmentdivakencanaborneo@gmail.com"
     });
   });

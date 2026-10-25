@@ -14,7 +14,7 @@
     },
     "Wastewater": {
       "title": "Wastewater Monitoring Entry",
-      "description": "Mining wastewater pH and heavy metal indicators",
+      "description": "Mining wastewater pH, heavy metal indicators, and sampling evidence",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -26,9 +26,93 @@
         "debit": { "type": "number" },
         "fe": { "type": "number" },
         "mn": { "type": "number" },
-        "status": { "type": "string", "enum": ["Safe", "Warning", "Exceeded"] }
+        "status": { "type": "string", "enum": ["Safe", "Warning", "Exceeded"] },
+        "monitoringType": { "type": "string", "enum": ["Harian", "Bulanan"] },
+        "sampleTime": { "type": "string" },
+        "weather": { "type": "string", "enum": ["Cerah", "Berawan", "Hujan Ringan", "Hujan Lebat"] },
+        "wastewaterSource": { "type": "string" },
+        "locationCode": { "type": "string" },
+        "hasPhoto": { "type": "boolean" }
       },
       "required": ["id", "date", "location", "officer", "ph", "tss", "debit", "fe", "mn", "status"]
+    },
+    "WqLocation": {
+      "title": "Water Quality Sampling Master Location",
+      "description": "Master registry for KPL and settling pond outlets",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "defaultSource": { "type": "string" },
+        "docSuffix": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "code", "name", "defaultSource", "isActive"]
+    },
+    "WastewaterPhoto": {
+      "title": "Sampling Photo Evidence",
+      "description": "Compressed field sampling photo evidence stored separately",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "wastewaterId": { "type": "string" },
+        "dataUrl": { "type": "string" },
+        "mimeType": { "type": "string", "enum": ["image/jpeg"] },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "sizeBytes": { "type": "number" },
+        "takenAt": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "wastewaterId", "dataUrl", "mimeType", "width", "height", "sizeBytes", "takenAt", "createdBy"]
+    },
+    "EvidenceReport": {
+      "title": "Evidence Report Document",
+      "description": "Daily and monthly evidence report documents for wastewater compliance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["daily"] },
+        "documentNo": { "type": "string" },
+        "revision": { "type": "number" },
+        "period": { "type": "string" },
+        "locationCode": { "type": "string" },
+        "wastewaterId": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["Draft", "Disiapkan", "Diperiksa", "Dibatalkan"] },
+        "snapshot": { "type": "object" },
+        "snapshotHash": { "type": "string" },
+        "signatures": { "type": "object" },
+        "verifyToken": { "type": "string" }
+      },
+      "required": ["id", "type", "period", "locationCode", "date", "status", "snapshot", "snapshotHash"]
+    },
+    "EvidenceVerification": {
+      "title": "Public Evidence Verification",
+      "description": "Minimal public verification payload for scanning QR Code",
+      "type": "object",
+      "properties": {
+        "documentNo": { "type": "string" },
+        "type": { "type": "string" },
+        "period": { "type": "string" },
+        "locationCode": { "type": "string" },
+        "issuedAt": { "type": "string" },
+        "status": { "type": "string" },
+        "overall": { "type": "string" },
+        "hashPrefix": { "type": "string" }
+      },
+      "required": ["documentNo", "type", "period", "locationCode", "issuedAt", "status", "overall", "hashPrefix"]
+    },
+    "UserSignature": {
+      "title": "User Digital Signature",
+      "description": "Stored digital signature PNG data URL for users",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "dataUrl": { "type": "string" }
+      },
+      "required": ["uid", "dataUrl"]
     },
     "Rainfall": {
       "title": "Rainfall Monitoring Entry",
@@ -281,6 +365,22 @@
     "audit_logs/{logId}": {
       "schema": "AuditLog",
       "description": "Security audit trails"
+    },
+    "evidence_reports/{id}": {
+      "schema": "EvidenceReport",
+      "description": "Official daily and monthly environmental evidence documents"
+    },
+    "counters/{id}": {
+      "schema": "object",
+      "description": "Atomic sequential numbering counters for evidence documents"
+    },
+    "signatures/{uid}": {
+      "schema": "UserSignature",
+      "description": "User digital signature image data"
+    },
+    "evidence_verify/{token}": {
+      "schema": "EvidenceVerification",
+      "description": "Public verification payload for QR code validation"
     }
   }
 }

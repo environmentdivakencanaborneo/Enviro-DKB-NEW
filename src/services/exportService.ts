@@ -364,3 +364,121 @@ export function exportToExcel(data: any[], fileName: string): void {
     triggerDownload(buffer, outFileName);
   });
 }
+
+/**
+ * Export Rekap Harian Bulanan Pemantauan Air Limbah ke XLSX
+ * Format kolom sesuai lampiran dokumen bukti bulanan dengan baris ringkasan di bawah.
+ */
+export function exportMonthlyWastewaterRecapToXLSX(
+  locationCode: string,
+  locationName: string,
+  period: string, // YYYY-MM
+  days: {
+    date: string;
+    dayNumber: number;
+    sampleTime?: string;
+    officer?: string;
+    weather?: string;
+    ph: number | null;
+    tss: number | null;
+    debit: number | null;
+    fe: number | null;
+    mn: number | null;
+    status: string;
+    duplicateCount?: number;
+    dailyDocumentNo?: string | null;
+  }[],
+  stats: Record<'ph' | 'tss' | 'debit' | 'fe' | 'mn', { min: number | null; avg: number | null; max: number | null }>
+): void {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Rekap Harian');
+
+  ws.columns = [
+    { header: 'Tanggal', key: 'date', width: 14 },
+    { header: 'Jam Sampling', key: 'time', width: 14 },
+    { header: 'Petugas', key: 'officer', width: 20 },
+    { header: 'Cuaca', key: 'weather', width: 16 },
+    { header: 'pH', key: 'ph', width: 10 },
+    { header: 'TSS (mg/L)', key: 'tss', width: 14 },
+    { header: 'Debit (m³/s)', key: 'debit', width: 14 },
+    { header: 'Fe (mg/L)', key: 'fe', width: 12 },
+    { header: 'Mn (mg/L)', key: 'mn', width: 12 },
+    { header: 'Status Kepatuhan', key: 'status', width: 18 },
+    { header: 'No. Dokumen Harian', key: 'docNo', width: 26 },
+  ];
+
+  const headerRow = ws.getRow(1);
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF14532D' }, // Brand Dark Green #14532d
+  };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+  headerRow.height = 26;
+
+  days.forEach((d) => {
+    const isNoData = d.status === 'tanpa_data' || d.status === 'Tidak ada data';
+    const statusLabel = isNoData
+      ? 'Tidak ada data'
+      : d.status === 'memenuhi'
+      ? 'MEMENUHI'
+      : 'TIDAK MEMENUHI';
+
+    const row = ws.addRow({
+      date: d.date,
+      time: d.sampleTime ? `${d.sampleTime} WITA` : '-',
+      officer: d.officer || '-',
+      weather: d.weather || '-',
+      ph: d.ph != null ? Number(d.ph) : null,
+      tss: d.tss != null ? Number(d.tss) : null,
+      debit: d.debit != null ? Number(d.debit) : null,
+      fe: d.fe != null ? Number(d.fe) : null,
+      mn: d.mn != null ? Number(d.mn) : null,
+      status: statusLabel,
+      docNo: d.dailyDocumentNo || '-',
+    });
+
+    if (isNoData) {
+      row.font = { italic: true, color: { argb: 'FF9CA3AF' } };
+    } else if (statusLabel === 'TIDAK MEMENUHI') {
+      row.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFEE2E2' }, // Red-100
+      };
+    }
+  });
+
+  // Summary Rows
+  const addSummaryRow = (label: string, field: 'min' | 'avg' | 'max') => {
+    const row = ws.addRow({
+      date: label,
+      time: '',
+      officer: '',
+      weather: '',
+      ph: stats.ph[field] != null ? Number(stats.ph[field]) : null,
+      tss: stats.tss[field] != null ? Number(stats.tss[field]) : null,
+      debit: stats.debit[field] != null ? Number(stats.debit[field]) : null,
+      fe: stats.fe[field] != null ? Number(stats.fe[field]) : null,
+      mn: stats.mn[field] != null ? Number(stats.mn[field]) : null,
+      status: '',
+      docNo: '',
+    });
+    row.font = { bold: true };
+    row.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF1F5F9' }, // Slate-100
+    };
+  };
+
+  addSummaryRow('Minimum Bulan Ini', 'min');
+  addSummaryRow('Rata-rata Bulan Ini', 'avg');
+  addSummaryRow('Maksimum Bulan Ini', 'max');
+
+  const fileName = `Rekap_Evidence_AirLimbah_${locationCode}_${period}.xlsx`;
+  wb.xlsx.writeBuffer().then((buffer) => {
+    triggerDownload(buffer, fileName);
+  });
+}
