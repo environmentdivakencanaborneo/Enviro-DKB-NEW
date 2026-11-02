@@ -47,6 +47,7 @@ interface AuthContextType {
   registerUser: (data: RegisterUserData) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   registerProfile: (name: string, company: string, role: string) => Promise<void>;
+  updateUserProfile: (name: string, company: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearAuthError: () => void;
@@ -462,6 +463,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUserProfile = async (name: string, company: string) => {
+    if (!user) {
+      throw new Error("No authenticated user found.");
+    }
+    try {
+      setLoading(true);
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        name,
+        fullName: name,
+        company,
+        updatedAt: serverTimestamp(),
+      });
+      await fetchUserProfile(user);
+    } catch (error) {
+      console.error("Failed to update user profile:", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       setLoading(true);
@@ -509,6 +532,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       registerUser,
       sendPasswordReset,
       registerProfile,
+      updateUserProfile,
       logout,
       refreshProfile,
       clearAuthError

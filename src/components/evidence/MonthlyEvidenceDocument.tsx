@@ -168,6 +168,7 @@ export default function MonthlyEvidenceDocument({
           verifyToken={report?.verifyToken}
           isCancelled={report?.status === 'Dibatalkan'}
           cancelReason={report?.cancellationReason}
+          isDraft={!report || report.status === 'Draft'}
         >
           {/* A. INFORMASI REKAP */}
           <div className="border border-slate-300 rounded overflow-hidden">

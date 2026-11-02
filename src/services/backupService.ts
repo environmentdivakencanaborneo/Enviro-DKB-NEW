@@ -137,6 +137,24 @@ export const backupService = {
       const solidWasteSnap = await getDocs(collection(db, 'solid_waste'));
       const solidWaste = solidWasteSnap.docs.map(d => d.data() as SolidWasteData);
 
+      const surfaceWaterSnap = await getDocs(collection(db, 'surfacewater'));
+      const surfacewater = surfaceWaterSnap.docs.map(d => d.data());
+
+      const nsoSnap = await getDocs(collection(db, 'nursery_stock_out'));
+      const nursery_stock_out = nsoSnap.docs.map(d => d.data());
+
+      const capaSnap = await getDocs(collection(db, 'capa'));
+      const capa = capaSnap.docs.map(d => d.data());
+
+      const cmSnap = await getDocs(collection(db, 'compliance_matrix'));
+      const compliance_matrix = cmSnap.docs.map(d => d.data());
+
+      const incSnap = await getDocs(collection(db, 'incidents'));
+      const incidents = incSnap.docs.map(d => d.data());
+
+      const regSnap = await getDocs(collection(db, 'regulatory'));
+      const regulatory = regSnap.docs.map(d => d.data());
+
       if (onStatusChange) onStatusChange({ status: 'syncing', lastSynced: null, message: "Menghubungi Google Drive..." });
 
       // 2. Dapatkan folder ID
@@ -158,7 +176,13 @@ export const backupService = {
           documents,
           calendarEvents,
           environmentalCosts,
-          solidWaste
+          solidWaste,
+          surfacewater,
+          nursery_stock_out,
+          capa,
+          compliance_matrix,
+          incidents,
+          regulatory
         }
       };
 
@@ -371,6 +395,48 @@ export const backupService = {
       if (Array.isArray(data.solidWaste)) {
         for (const item of data.solidWaste) {
           if (item.id) await setDoc(doc(db, 'solid_waste', item.id), item);
+        }
+      }
+
+      // 12. Surface Water
+      if (Array.isArray(data.surfacewater)) {
+        for (const item of data.surfacewater) {
+          if (item.id) await setDoc(doc(db, 'surfacewater', item.id), item);
+        }
+      }
+
+      // 13. Nursery Stock Out
+      if (Array.isArray(data.nursery_stock_out)) {
+        for (const item of data.nursery_stock_out) {
+          if (item.id) await setDoc(doc(db, 'nursery_stock_out', item.id), item);
+        }
+      }
+
+      // 14. CAPA Findings
+      if (Array.isArray(data.capa)) {
+        for (const item of data.capa) {
+          if (item.id) await setDoc(doc(db, 'capa', item.id), item);
+        }
+      }
+
+      // 15. Compliance Matrix
+      if (Array.isArray(data.compliance_matrix)) {
+        for (const item of data.compliance_matrix) {
+          if (item.id) await setDoc(doc(db, 'compliance_matrix', item.id), item);
+        }
+      }
+
+      // 16. Incidents
+      if (Array.isArray(data.incidents)) {
+        for (const item of data.incidents) {
+          if (item.id) await setDoc(doc(db, 'incidents', item.id), item);
+        }
+      }
+
+      // 17. Regulatory Watch
+      if (Array.isArray(data.regulatory)) {
+        for (const item of data.regulatory) {
+          if (item.id) await setDoc(doc(db, 'regulatory', item.id), item);
         }
       }
 

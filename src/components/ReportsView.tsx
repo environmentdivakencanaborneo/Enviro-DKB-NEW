@@ -21,6 +21,7 @@ import {
 import { exportAllDataToXLSX } from '../services/exportService';
 import EvidenceHub from './evidence/EvidenceHub';
 import { WASTEWATER_BASIS_LABEL } from '../data/regulations';
+import { buildWasteLedger, round3 } from '../utils/wasteLedger';
 import { 
   todayLocalISO, 
   getWeekRangeLocal, 
@@ -178,15 +179,21 @@ export default function ReportsView({
     ? (activeRain.reduce((sum, x) => sum + (x.intensity || 0), 0) / activeRain.length).toFixed(1)
     : '—';
 
-  // Calculated stats - Nursery (Hitung 'Healthy' DAN 'Sehat')
-  const totalNurseryQty = nursery.reduce((sum, x) => sum + x.quantity, 0);
-  const healthyPlantsCount = nursery
+  // Calculated stats - Nursery (Hitung 'Healthy' DAN 'Sehat' dikurangi pengeluaran bibit)
+  const totalStockIn = nursery.reduce((sum, x) => sum + x.quantity, 0);
+  const totalStockOut = (nurseryStockOut || []).reduce((sum, x) => sum + (x.jumlahKeluar || 0), 0);
+  const totalNurseryQty = Math.max(0, totalStockIn - totalStockOut);
+  const healthyIn = nursery
     .filter(x => x.status === 'Healthy' || (x.status as any) === 'Sehat')
     .reduce((sum, x) => sum + x.quantity, 0);
+  const healthyRatio = totalStockIn > 0 ? (healthyIn / totalStockIn) : 1;
+  const healthyPlantsCount = Math.round(totalNurseryQty * healthyRatio);
   const nurseryHealthIndex = totalNurseryQty > 0 ? Math.round((healthyPlantsCount / totalNurseryQty) * 100) : 100;
   const uniqueFlowerTypes = Array.from(new Set(nursery.map(x => x.plantType)));
 
   // Calculated stats - Limbah B3
+  const fullB3Ledger = buildWasteLedger(wasteIn, wasteOut);
+  const totalB3StockInTps = round3(fullB3Ledger.stocks.reduce((sum, s) => sum + Math.max(0, s.currentStock), 0));
   const totalB3InWeight = activeWasteIn.reduce((sum, x) => sum + x.weightKg, 0);
   const totalB3OutWeight = activeWasteOut.reduce((sum, x) => sum + x.weightKg, 0);
   const b3NetDifference = totalB3InWeight - totalB3OutWeight;
@@ -604,8 +611,11 @@ export default function ReportsView({
                           <td className="p-2.5 text-center font-mono">{x.fe}</td>
                           <td className="p-2.5 text-center font-mono">{x.mn ?? '—'}</td>
                           <td className="p-2.5 text-center font-bold">
-                            <span className={x.status === 'Safe' ? 'text-emerald-600' : 'text-red-600'}>
-                              {x.status === 'Safe' ? 'Aman' : 'Over limit'}
+                            <span className={
+                              x.status === 'Safe' ? 'text-emerald-600' :
+                              x.status === 'Warning' ? 'text-amber-500' : 'text-red-600'
+                            }>
+                              {x.status === 'Safe' ? 'Aman' : x.status === 'Warning' ? 'Mendekati Batas' : 'Over Limit'}
                             </span>
                           </td>
                         </tr>
@@ -737,8 +747,11 @@ export default function ReportsView({
                           <td className="p-2.5 text-center font-mono">{x.tss}</td>
                           <td className="p-2.5 text-center font-mono">{x.doVal}</td>
                           <td className="p-2.5 text-center font-bold">
-                            <span className={x.status === 'Safe' ? 'text-emerald-600' : 'text-red-600'}>
-                              {x.status === 'Safe' ? 'Aman' : 'Over limit'}
+                            <span className={
+                              x.status === 'Safe' ? 'text-emerald-600' :
+                              x.status === 'Warning' ? 'text-amber-500' : 'text-red-600'
+                            }>
+                              {x.status === 'Safe' ? 'Aman' : x.status === 'Warning' ? 'Mendekati Batas' : 'Over Limit'}
                             </span>
                           </td>
                         </tr>
@@ -753,7 +766,7 @@ export default function ReportsView({
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200/80 pb-1.5">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                  <span className="text-teal-600 font-mono">II.</span> Pemantauan Curah Hujan & Hidrologi (Rain Gauge Audit)
+                  <span className="text-teal-600 font-mono">III.</span> Pemantauan Curah Hujan & Hidrologi (Rain Gauge Audit)
                 </h3>
                 <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 font-mono">Logger Stasiun Site</span>
               </div>
@@ -824,7 +837,7 @@ export default function ReportsView({
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200/80 pb-1.5">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                  <span className="text-teal-600 font-mono">III.</span> Pengelolaan Limbah Bahan Berbahaya & Beracun (B3)
+                  <span className="text-teal-600 font-mono">IV.</span> Pengelolaan Limbah Bahan Berbahaya & Beracun (B3)
                 </h3>
                 <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 font-mono">Permen LHK No. 6/2021</span>
               </div>
@@ -845,9 +858,9 @@ export default function ReportsView({
                   <span className="text-[8px] text-slate-500 mt-0.5 block">Pihak ke-3 / Transporter Berizin</span>
                 </div>
                 <div className="p-3.5 bg-white/60 rounded-xl border border-slate-200">
-                  <span className="text-[10px] text-slate-600 font-mono tracking-wider uppercase font-bold block">STOK BERSIH GUDANG (NET)</span>
-                  <p className="text-lg font-bold text-amber-500 font-mono mt-1">{b3NetDifference.toLocaleString('id-ID')} Kg</p>
-                  <span className="text-[8px] text-slate-500 mt-0.5 block">{b3NetDifference >= 0 ? "Akumulasi Stok Tambahan" : "Penurunan Defisit Gudang"}</span>
+                  <span className="text-[10px] text-teal-800 font-mono tracking-wider uppercase font-bold block">SISA STOK DI TPS</span>
+                  <p className="text-lg font-bold text-teal-600 font-mono mt-1">{totalB3StockInTps.toLocaleString('id-ID')} Kg</p>
+                  <span className="text-[8px] text-slate-500 mt-0.5 block">Sisa persediaan aktif di gudang TPS</span>
                 </div>
               </div>
 
@@ -875,6 +888,70 @@ export default function ReportsView({
                     <span className="text-purple-400 block font-bold">Infectious (Medis)</span>
                     <span className="text-xs text-slate-700 font-black block mt-0.5">{infectiousWasteWeight.toLocaleString('id-ID')} Kg</span>
                   </div>
+                </div>
+              </div>
+
+              {/* Tabel Rincian Mutasi & Sisa Stok Inventaris per Spesi Limbah B3 */}
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-inner text-left">
+                <div className="p-3 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+                  <span className="text-[10px] font-mono uppercase font-bold text-slate-700">
+                    Rincian Mutasi Inventaris & Sisa Stok per Spesi Limbah B3 (Kg)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    {fullB3Ledger.stocks.length} Spesi Terdata
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-[9px] text-slate-500 uppercase font-mono border-b border-slate-200">
+                        <th className="p-2.5 pl-4">Jenis Limbah B3</th>
+                        <th className="p-2.5">Kode</th>
+                        <th className="p-2.5 text-right">Total Masuk (Kg)</th>
+                        <th className="p-2.5 text-right">Total Keluar (Kg)</th>
+                        <th className="p-2.5 text-right">Sisa Stok di TPS (Kg)</th>
+                        <th className="p-2.5 text-center pr-4">Status Umur</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-mono text-slate-700">
+                      {fullB3Ledger.stocks.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-6 text-center text-slate-400 font-sans text-xs">
+                            Belum ada riwayat transaksi limbah B3.
+                          </td>
+                        </tr>
+                      ) : (
+                        fullB3Ledger.stocks.map((stock, sIdx) => (
+                          <tr key={sIdx} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="p-2.5 pl-4 font-bold text-slate-900 font-sans">
+                              {stock.wasteType}
+                            </td>
+                            <td className="p-2.5 text-amber-700 font-bold">
+                              {stock.code}
+                            </td>
+                            <td className="p-2.5 text-right">
+                              {stock.totalIn.toLocaleString('id-ID')} Kg
+                            </td>
+                            <td className="p-2.5 text-right text-slate-500">
+                              {stock.totalOut.toLocaleString('id-ID')} Kg
+                            </td>
+                            <td className="p-2.5 text-right font-black text-teal-700">
+                              {stock.currentStock.toLocaleString('id-ID')} Kg
+                            </td>
+                            <td className="p-2.5 text-center pr-4">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                stock.daysInTps >= 80 && stock.currentStock > 0
+                                  ? 'bg-red-50 text-red-600 border border-red-200'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {stock.currentStock > 0 ? `${stock.daysInTps} Hari` : 'Nihil'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -921,7 +998,7 @@ export default function ReportsView({
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200/80 pb-1.5">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                  <span className="text-teal-600 font-mono">IV.</span> Pelaksanaan Nursery & Keanekaragaman Spesies Persemaian
+                  <span className="text-teal-600 font-mono">V.</span> Pelaksanaan Nursery & Keanekaragaman Spesies Persemaian
                 </h3>
                 <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 font-mono">Logger Keanekaragaman</span>
               </div>
@@ -958,7 +1035,9 @@ export default function ReportsView({
                 <h4 className="text-[10px] font-mono uppercase font-bold text-slate-500">Daftar Inventaris Varietas Vegetasi pembibitan</h4>
                 <div className="flex flex-wrap gap-2">
                   {uniqueFlowerTypes.map((type, i) => {
-                    const count = nursery.filter(n => n.plantType === type).reduce((sum, n) => sum + n.quantity, 0);
+                    const inQty = nursery.filter(n => n.plantType === type).reduce((sum, n) => sum + n.quantity, 0);
+                    const outQty = (nurseryStockOut || []).filter(n => n.namaBibit === type || n.species === type).reduce((sum, n) => sum + (n.jumlahKeluar || 0), 0);
+                    const count = Math.max(0, inQty - outQty);
                     return (
                       <span key={i} className="text-[10.5px] bg-white px-3 py-1 rounded-lg border border-slate-200 text-slate-600 font-sans font-medium">
                         🌳 {type} ({count.toLocaleString('id-ID')} pcs)
@@ -1007,7 +1086,7 @@ export default function ReportsView({
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200/80 pb-1.5">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                  <span className="text-teal-600 font-mono">V.</span> Komparasi Rencana Kerja vs Realisasi Lapangan (RKL - RPL)
+                  <span className="text-teal-600 font-mono">VI.</span> Komparasi Rencana Kerja vs Realisasi Lapangan (RKL - RPL)
                 </h3>
                 <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 font-mono">Kerangka Evaluasi ESDM</span>
               </div>
@@ -1131,7 +1210,7 @@ export default function ReportsView({
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200/80 pb-1.5">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                  <span className="text-teal-600 font-mono">VI.</span> Validasi Dana Jaminan Reklamasi (Financial Bonds Compliance)
+                  <span className="text-teal-600 font-mono">VII.</span> Validasi Dana Jaminan Reklamasi (Financial Bonds Compliance)
                 </h3>
                 <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 font-mono">ESDM Penutupan Tambang</span>
               </div>

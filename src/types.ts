@@ -508,9 +508,9 @@ export interface MonthlyParamStat {
 export interface MonthlyDayItem {
   date: string;
   dayNumber: number;
-  sampleTime?: string;
-  officer?: string;
-  weather?: string;
+  sampleTime?: string | null;
+  officer?: string | null;
+  weather?: string | null;
   ph: number | null;
   tss: number | null;
   debit: number | null;
@@ -527,7 +527,7 @@ export interface MonthlyEvidenceSnapshot {
   periodLabel: string; // e.g. "Juli 2026"
   locationCode: string;
   locationName: string;
-  docSuffix?: string;
+  docSuffix?: string | null;
   daysInMonth: number;
   samplingDays: number;
   passDays: number;

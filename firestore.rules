@@ -150,35 +150,64 @@ service cloud.firestore {
         && isText(d.pic, 100);
     }
 
+    function vComplianceEvent() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','date','title','type','description','status'])
+        && shapeOk(12)
+        && isValidDocId(d.id)
+        && isText(d.date, 20)
+        && isText(d.title, 300)
+        && d.type in ['Reporting', 'Inspection', 'Exceedance', 'Permit Expiry']
+        && isText(d.description, 1000)
+        && d.status in ['Pending', 'Completed', 'Overdue'];
+    }
+
     function vIncident() {
       let d = request.resource.data;
-      return d.keys().hasAll(['id','title','date','severity','status'])
-        && shapeOk(22)
+      return d.keys().hasAll(['id','date','time','category','location','chronology','firstAction','status','environmentalLoss','reporter'])
+        && shapeOk(20)
         && isValidDocId(d.id)
-        && isText(d.title, 300)
-        && isText(d.date, 50)
-        && isText(d.severity, 50)
-        && isText(d.status, 50);
+        && isText(d.date, 20)
+        && isText(d.time, 20)
+        && d.category in ['Tumpahan Hidrokarbon', 'Tanggul Jebol', 'Air Asam Tambang', 'Kebakaran Hutan/Lahan', 'Emisi Asap Tebal', 'Lainnya']
+        && isText(d.location, 200)
+        && isText(d.chronology, 4000)
+        && isText(d.firstAction, 4000)
+        && d.status in ['Dilaporkan', 'Investigasi', 'Tindakan Korektif', 'Ditutup']
+        && isText(d.environmentalLoss, 2000)
+        && isText(d.reporter, 100)
+        && isOptText(d.get('documentationUrl', null), 2000)
+        && isOptText(d.get('createdBy', null), 100);
     }
 
     function vComplianceMatrix() {
       let d = request.resource.data;
-      return d.keys().hasAll(['id','regulation','aspect','status'])
-        && shapeOk(20)
+      return d.keys().hasAll(['id','period','aspect','impactDetails','target','status'])
+        && shapeOk(15)
         && isValidDocId(d.id)
-        && isText(d.regulation, 300)
-        && isText(d.aspect, 200)
-        && isText(d.status, 50);
+        && isText(d.period, 50)
+        && d.aspect in ['Kualitas Air', 'Kualitas Udara/Emisi', 'Pengelolaan Limbah B3', 'Sosial/Masyarakat', 'Flora/Fauna', 'Lainnya']
+        && isText(d.impactDetails, 2000)
+        && isText(d.target, 2000)
+        && d.status in ['Taat', 'Belum Taat', 'Tidak Taat', 'Tidak Relevan']
+        && isOptText(d.get('evidenceUrl', null), 2000)
+        && isOptText(d.get('notes', null), 2000)
+        && isOptText(d.get('createdBy', null), 100);
     }
 
     function vRegulatory() {
       let d = request.resource.data;
-      return d.keys().hasAll(['id','title','category','status'])
-        && shapeOk(20)
+      return d.keys().hasAll(['id','source','regulationNo','about','issueDate','implication','status'])
+        && shapeOk(15)
         && isValidDocId(d.id)
-        && isText(d.title, 300)
-        && isText(d.category, 100)
-        && isText(d.status, 50);
+        && isText(d.source, 200)
+        && isText(d.regulationNo, 100)
+        && isText(d.about, 2000)
+        && isText(d.issueDate, 50)
+        && isText(d.implication, 4000)
+        && d.status in ['Draft', 'Berlaku', 'Dicabut']
+        && isOptText(d.get('link', null), 2000)
+        && isOptText(d.get('createdBy', null), 100);
     }
 
     // --- COLLECTION MATCHES ---
@@ -186,10 +215,12 @@ service cloud.firestore {
     // --- COLLECTION: users ---
     match /users/{userId} {
       allow read: if isVerifiedUser();
-      allow create: if isVerifiedUser() && request.auth.uid == userId;
+      allow create: if isVerifiedUser() && request.auth.uid == userId
+        && (!('role' in request.resource.data) || request.resource.data.role == 'Viewer')
+        && (!('isApproved' in request.resource.data) || request.resource.data.isApproved == false);
       allow update: if isVerifiedUser() && (
         isAdmin() || 
-        request.auth.uid == userId
+        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isApproved', 'status', 'approvedBy', 'approvedAt']))
       );
       allow delete: if isAdmin();
     }
@@ -219,28 +250,28 @@ service cloud.firestore {
     // Compliance Matrix
     match /compliance_matrix/{matrixId} {
       allow read: if isVerifiedUser();
-      allow create, update: if (isOperator() || isVerifiedUser()) && vComplianceMatrix();
+      allow create, update: if isActiveMember() && isOperator() && vComplianceMatrix();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
     // Regulatory Watch
     match /regulatory/{regId} {
       allow read: if isVerifiedUser();
-      allow create, update: if (isSuperintendent() || isVerifiedUser()) && vRegulatory();
+      allow create, update: if isActiveMember() && isSuperintendent() && vRegulatory();
       allow delete: if isAdmin();
     }
     
     // Incidents
     match /incidents/{incidentId} {
       allow read: if isVerifiedUser();
-      allow create, update: if (isOperator() || isVerifiedUser()) && vIncident();
+      allow create, update: if isActiveMember() && isOperator() && vIncident();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
     // CAPA Findings
     match /capa/{capaId} {
       allow read: if isVerifiedUser();
-      allow create, update: if (isOperator() || isVerifiedUser()) && vCapa();
+      allow create, update: if isActiveMember() && isOperator() && vCapa();
       allow delete: if isAdmin() || isSuperintendent();
     }
 
@@ -279,15 +310,13 @@ service cloud.firestore {
         // Status transition from Draft to Disiapkan
         (resource.data.status == 'Draft' && request.resource.data.status == 'Disiapkan') ||
         // Reviewed signature update by Foreman or higher, email != prepared.email
-        (request.resource.data.status == 'Diperiksa' && isForeman() && request.resource.data.signatures.reviewed.email != resource.data.signatures.prepared.email) ||
+        (request.resource.data.status == 'Diperiksa' && isForeman() && request.resource.data.signatures.reviewed.email != resource.data.signatures.prepared.email && request.resource.data.snapshotHash == resource.data.snapshotHash) ||
         // Approved signature update by Admin/Manager, email != prepared.email and email != reviewed.email
-        (request.resource.data.status == 'Disetujui' && isAdmin() && request.resource.data.signatures.approved.email != resource.data.signatures.prepared.email && request.resource.data.signatures.approved.email != resource.data.signatures.reviewed.email) ||
+        (request.resource.data.status == 'Disetujui' && isAdmin() && request.resource.data.signatures.approved.email != resource.data.signatures.prepared.email && request.resource.data.signatures.approved.email != resource.data.signatures.reviewed.email && request.resource.data.snapshotHash == resource.data.snapshotHash) ||
         // Superintendent revision update: revision number incremented
         (isSuperintendent() && request.resource.data.revision > resource.data.revision) ||
         // Admin cancellation:
-        (isAdmin() && request.resource.data.status == 'Dibatalkan') ||
-        // Immutable snapshot: snapshot & snapshotHash unchanged
-        (request.resource.data.snapshotHash == resource.data.snapshotHash)
+        (isAdmin() && request.resource.data.status == 'Dibatalkan')
       );
       allow delete: if isAdmin() && resource.data.status == 'Draft';
     }
@@ -320,68 +349,70 @@ service cloud.firestore {
     // Environmental Monitoring Collections
     match /wastewater/{docId} {
       allow read: if isActiveMember() || isVerifiedUser();
-      allow create, update: if (isOperator() || isVerifiedUser()) && vWastewater();
+      allow create, update: if isActiveMember() && isOperator() && vWastewater();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
     match /surfacewater/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
     match /rainfall/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
-    
     match /nursery_stock_out/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator();
       allow delete: if isAdmin() || isSuperintendent();
     }
 
     match /nursery/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
     match /solid_waste/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
     match /reclamation/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
     match /waste_b3/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator();
       allow delete: if isAdmin() || isSuperintendent();
     }
     
     match /documents/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if (isSuperintendent() || isVerifiedUser()) && vEnvDocument();
-      allow delete: if isAdmin();
+      allow create, update: if isActiveMember() && (
+        (docId.matches('^DOC-.*') && isSuperintendent() && vEnvDocument()) ||
+        (docId.matches('^EV-.*') && isOperator() && vComplianceEvent())
+      );
+      allow delete: if isAdmin() || (docId.matches('^EV-.*') && isSuperintendent());
     }
     
     match /costs/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isSuperintendent() || isVerifiedUser();
+      allow create, update: if isActiveMember() && isSuperintendent();
       allow delete: if isAdmin();
     }
     
     match /alerts/{docId} {
       allow read: if isVerifiedUser();
-      allow create, update: if isOperator() || isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator();
       allow delete: if isAdmin();
     }
   }

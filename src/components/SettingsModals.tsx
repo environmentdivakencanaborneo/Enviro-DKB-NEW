@@ -36,7 +36,9 @@ import {
   WastewaterData, RainfallData, NurseryData,
   ReclamationPlan, ReclamationGuarantee,
   WasteIn, WasteOut, EnvironmentalDocument,
-  ComplianceCalendarEvent, EnvironmentalCost, SolidWasteData
+  ComplianceCalendarEvent, EnvironmentalCost, SolidWasteData,
+  SurfaceWaterData, NurseryStockOut, CapaData,
+  ComplianceMatrixData, IncidentData, RegulatoryWatchData
 } from '../types';
 
 
@@ -64,7 +66,7 @@ export default function SettingsModals({
   onBackupStatusChange
 }: SettingsModalsProps) {
 
-  const { registerProfile, token: authServiceToken, loginWithGoogle, logout: authLogout, profile } = useAuth();
+  const { updateUserProfile, token: authServiceToken, loginWithGoogle, logout: authLogout, profile } = useAuth();
 
   // Live Google Auth state
   const [googleUser, setGoogleUser] = useState<any>(null);
@@ -256,7 +258,7 @@ export default function SettingsModals({
     setIsSavingUser(true);
     setUserSaveError(null);
     try {
-      await registerProfile(uName, uCompany, uRole);
+      await updateUserProfile(uName, uCompany);
       setUserModalOpen(false);
       onRefresh();
     } catch (err: any) {
@@ -272,7 +274,7 @@ export default function SettingsModals({
     setXlsxExportStatus('idle');
     try {
       // Ambil semua data langsung dari Firestore
-      const [wwSnap, rfSnap, nsSnap, rcSnap, wb3Snap, docSnap, costSnap, swSnap] = await Promise.all([
+      const [wwSnap, rfSnap, nsSnap, rcSnap, wb3Snap, docSnap, costSnap, swSnap, surfSnap, nsoSnap, capaSnap, cmSnap, incSnap, regSnap] = await Promise.all([
         getDocs(collection(db, 'wastewater')),
         getDocs(collection(db, 'rainfall')),
         getDocs(collection(db, 'nursery')),
@@ -281,6 +283,12 @@ export default function SettingsModals({
         getDocs(collection(db, 'documents')),
         getDocs(collection(db, 'costs')),
         getDocs(collection(db, 'solid_waste')),
+        getDocs(collection(db, 'surfacewater')),
+        getDocs(collection(db, 'nursery_stock_out')),
+        getDocs(collection(db, 'capa')),
+        getDocs(collection(db, 'compliance_matrix')),
+        getDocs(collection(db, 'incidents')),
+        getDocs(collection(db, 'regulatory')),
       ]);
 
       exportAllDataToXLSX({
@@ -295,6 +303,12 @@ export default function SettingsModals({
         calendarEvents:       docSnap.docs.filter(d => d.id.startsWith('EV-')).map(d => d.data() as ComplianceCalendarEvent),
         environmentalCosts:   costSnap.docs.map(d => d.data() as EnvironmentalCost),
         solidWaste:           swSnap.docs.map(d => d.data() as SolidWasteData),
+        surfaceWater:         surfSnap.docs.map(d => d.data() as SurfaceWaterData),
+        nurseryStockOut:      nsoSnap.docs.map(d => d.data() as NurseryStockOut),
+        capa:                 capaSnap.docs.map(d => d.data() as CapaData),
+        complianceMatrix:     cmSnap.docs.map(d => d.data() as ComplianceMatrixData),
+        incidents:            incSnap.docs.map(d => d.data() as IncidentData),
+        regulatory:           regSnap.docs.map(d => d.data() as RegulatoryWatchData),
       }, user?.company);
 
       setXlsxExportStatus('success');
@@ -697,10 +711,9 @@ export default function SettingsModals({
                 <input
                   id="user-field-role"
                   type="text"
-                  required
+                  disabled
                   value={uRole}
-                  onChange={(e) => setURole(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                  className="w-full bg-white/60 border border-slate-200/80 rounded-xl px-3 py-2 text-xs outline-none text-slate-500 cursor-not-allowed"
                 />
               </div>
 

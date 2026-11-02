@@ -132,6 +132,7 @@ export default function DailyEvidenceDocument({
         verifyToken={report?.verifyToken}
         isCancelled={report?.status === 'Dibatalkan'}
         cancelReason={report?.cancellationReason}
+        isDraft={!report || report.status === 'Draft'}
       >
         {/* BAGIAN A: DATA SAMPLING */}
         <div className="border border-slate-300 rounded overflow-hidden">

@@ -54,6 +54,8 @@ import {
 } from 'lucide-react';
 import { INDONESIAN_REGULATIONS } from '../data/regulations';
 import { computeDocumentStatus } from '../utils/documentStatus';
+import { todayLocalISO } from '../utils/dateUtils';
+import { useAuth } from '../services/authService';
 
 // Custom Tooltip for pH & TSS line charts
 const CustomChartTooltip = ({ active, payload, label }: any) => {
@@ -72,8 +74,8 @@ const CustomChartTooltip = ({ active, payload, label }: any) => {
             isExceeded = val < 6.0 || val > 9.0;
             limitText = '(Baku Mutu: 6.0 - 9.0)';
           } else if (isTSS) {
-            isExceeded = val > 200;
-            limitText = '(Baku Mutu: max 200 mg/L)';
+            isExceeded = val > 300;
+            limitText = '(Baku Mutu: max 300 mg/L)';
           }
 
           return (
@@ -193,6 +195,7 @@ export default function DashboardView({
   environmentalCosts = [],
   setCurrentTab
 }: DashboardViewProps) {
+  const { user } = useAuth();
   const [chartMetric, setChartMetric] = useState<'ph' | 'tss' | 'combined' | 'rainfall'>('combined');
 
   // Calculations
@@ -232,7 +235,13 @@ export default function DashboardView({
   }).length;
   
   // Alerts stats
-  const unreadAlerts = alerts.filter(a => !a.read).length;
+  const unreadAlerts = alerts.filter(a => {
+    if (a.createdBy === 'system') {
+      const email = user?.email || '';
+      return !(a.readBy || []).includes(email) && !(a.clearedBy || []).includes(email);
+    }
+    return !a.read;
+  }).length;
 
   // Real-time environmental costs metrics
   const totalOpexPlanned = environmentalCosts.reduce((sum, x) => sum + x.plannedOpex, 0);
@@ -249,37 +258,34 @@ export default function DashboardView({
     ? Math.max(...wasteStocks.map(x => x.daysInTps))
     : 0;
 
-  // 30 days trend computation (reference date '2026-05-30')
+  // Aggregates for B3 waste stocks
+  const totalB3StockKg = wasteStocks.reduce((sum, x) => sum + Math.max(0, x.currentStock), 0);
+  const totalB3InKg = wasteStocks.reduce((sum, x) => sum + (x.totalIn || 0), 0);
+  const totalB3OutKg = wasteStocks.reduce((sum, x) => sum + (x.totalOut || 0), 0);
+
+  // 30 days trend computation (reference date todayLocalISO())
   const get30DaysWastewaterData = () => {
-    const refDate = new Date('2026-05-30');
+    const refDate = new Date(todayLocalISO());
     const limitDate = new Date(refDate);
     limitDate.setDate(refDate.getDate() - 30);
 
-    let filtered = wastewater.filter(item => {
+    const filtered = wastewater.filter(item => {
       const itemDate = new Date(item.date);
       return itemDate >= limitDate && itemDate <= refDate;
     });
-
-    if (filtered.length < 2) {
-      filtered = [...wastewater];
-    }
 
     return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
 
   const get30DaysRainfallData = () => {
-    const refDate = new Date('2026-05-30');
+    const refDate = new Date(todayLocalISO());
     const limitDate = new Date(refDate);
     limitDate.setDate(refDate.getDate() - 30);
 
-    let filtered = rainfall.filter(item => {
+    const filtered = rainfall.filter(item => {
       const itemDate = new Date(item.date);
       return itemDate >= limitDate && itemDate <= refDate;
     });
-
-    if (filtered.length < 2) {
-      filtered = [...rainfall];
-    }
 
     return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
@@ -302,21 +308,25 @@ export default function DashboardView({
   }));
 
   const getLast12MonthsData = () => {
-    // 12 months from July 2025 to June 2026
-    const monthlyBase = [
-      { month: 'Jul 25', name: 'Juli', year: 2025, baseRainfall: 145, baseDays: 11 },
-      { month: 'Agu 25', name: 'Agustus', year: 2025, baseRainfall: 120, baseDays: 9 },
-      { month: 'Sep 25', name: 'September', year: 2025, baseRainfall: 155, baseDays: 12 },
-      { month: 'Okt 25', name: 'Oktober', year: 2025, baseRainfall: 185, baseDays: 14 },
-      { month: 'Nov 25', name: 'November', year: 2025, baseRainfall: 240, baseDays: 18 },
-      { month: 'Des 25', name: 'Desember', year: 2025, baseRainfall: 285, baseDays: 20 },
-      { month: 'Jan 26', name: 'Januari', year: 2026, baseRainfall: 220, baseDays: 16 },
-      { month: 'Feb 26', name: 'Februari', year: 2026, baseRainfall: 195, baseDays: 13 },
-      { month: 'Mar 26', name: 'Maret', year: 2026, baseRainfall: 250, baseDays: 17 },
-      { month: 'Apr 26', name: 'April', year: 2026, baseRainfall: 290, baseDays: 19 },
-      { month: 'Mei 26', name: 'Mei', year: 2026, baseRainfall: 275, baseDays: 18 },
-      { month: 'Jun 26', name: 'Juni', year: 2026, baseRainfall: 180, baseDays: 12 },
+    const now = new Date(todayLocalISO());
+    const monthsList: { month: string; name: string; year: number; mIndex: number }[] = [];
+    const monthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
+    const monthShorts = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mIdx = d.getMonth();
+      const yr = d.getFullYear();
+      monthsList.push({
+        month: `${monthShorts[mIdx]} ${String(yr).slice(-2)}`,
+        name: monthNames[mIdx],
+        year: yr,
+        mIndex: mIdx
+      });
+    }
 
     const realGrouped: { [key: string]: { totalRainfall: number; count: number } } = {};
     
@@ -330,21 +340,14 @@ export default function DashboardView({
       if (!realGrouped[key]) {
         realGrouped[key] = { totalRainfall: 0, count: 0 };
       }
-      realGrouped[key].totalRainfall += item.rainfall;
+      realGrouped[key].totalRainfall += (item.rainfall || 0);
       realGrouped[key].count += 1;
     });
 
-    return monthlyBase.map(item => {
-      const monthIndexMap: { [key: string]: number } = {
-        'Januari': 0, 'Februari': 1, 'Maret': 2, 'April': 3, 'Mei': 4, 'Juni': 5,
-        'Juli': 6, 'Agustus': 7, 'September': 8, 'Oktober': 9, 'November': 10, 'Desember': 11
-      };
-      
-      const mIndex = monthIndexMap[item.name];
-      const key = `${mIndex}-${item.year}`;
-      
-      let totalRainfall = item.baseRainfall;
-      let daysWithRain = item.baseDays;
+    return monthsList.map(item => {
+      const key = `${item.mIndex}-${item.year}`;
+      let totalRainfall = 0;
+      let daysWithRain = 0;
       let isRealData = false;
 
       if (realGrouped[key]) {
@@ -478,7 +481,7 @@ export default function DashboardView({
           </div>
         </motion.div>
 
-        {/* Card 3: B3 Storage Limit */}
+        {/* Card 3: Sisa Stok TPS B3 */}
         <motion.div 
           id="kpi-b3-safety" 
           className="bg-white p-6 rounded-[20px] border border-border-custom shadow-custom flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-300 group cursor-default"
@@ -489,23 +492,29 @@ export default function DashboardView({
             <div className={`p-3.5 rounded-2xl border transition-all duration-200 group-hover:scale-105 ${
               maxDaysB3 > 80 
                 ? 'bg-[#D95C5C]/8 text-[#9C3333] border-[#D95C5C]/15 animate-pulse' 
-                : 'bg-[#E2A43B]/8 text-[#8F5E13] border-[#E2A43B]/15'
+                : 'bg-teal-50 text-teal-600 border-teal-200'
             }`}>
               <Clock className="h-6 w-6 stroke-[1.5]" />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Penyimpanan Terlama TPS</span>
-              <span className={`text-[48px] font-bold font-manrope mt-1 tracking-tight leading-none block ${
-                maxDaysB3 > 80 ? 'text-[#9C3333]' : 'text-text-primary'
-              }`}>
-                {maxDaysB3} Hari
+              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Sisa Stok TPS B3</span>
+              <span className="text-[38px] font-bold font-manrope text-text-primary mt-1 tracking-tight leading-none block truncate">
+                {totalB3StockKg.toLocaleString('id-ID')} <span className="text-xl font-bold text-text-secondary">Kg</span>
               </span>
             </div>
           </div>
-          <div className="mt-5 pt-4 border-t border-border-custom flex items-center gap-2 text-[12px]">
-            <span className={`font-bold ${maxDaysB3 >= 80 ? 'text-[#9C3333]' : 'text-text-secondary'}`}>
-              {maxDaysB3 >= 90 ? 'Melampaui Batas!' : `Sisa ${90 - maxDaysB3} Hari Maksimal`}
-            </span>
+          <div className="mt-5 pt-4 border-t border-border-custom flex flex-col gap-1 text-[12px]">
+            <div className="flex items-center justify-between">
+              <span className={`font-bold ${maxDaysB3 >= 80 ? 'text-[#9C3333]' : 'text-text-secondary'}`}>
+                {maxDaysB3} Hari (Sisa {Math.max(0, 90 - maxDaysB3)} Hari)
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">Batas 90 Hari</span>
+            </div>
+            <div className="text-[11px] text-text-secondary flex items-center gap-1 font-mono">
+              <span>Masuk: <strong className="text-slate-700">{totalB3InKg.toLocaleString('id-ID')} Kg</strong></span>
+              <span>•</span>
+              <span>Keluar: <strong className="text-slate-700">{totalB3OutKg.toLocaleString('id-ID')} Kg</strong></span>
+            </div>
           </div>
         </motion.div>
 
@@ -907,8 +916,8 @@ export default function DashboardView({
                       {/* Regulatory guidelines reference lines (6.0 - 9.0) */}
                       <ReferenceLine yAxisId="left" y={6} stroke="#D95C5C" strokeDasharray="3 3" label={{ value: 'pH Min (6.0)', position: 'insideBottomLeft', fill: '#D95C5C', fontSize: 8 }} />
                       <ReferenceLine yAxisId="left" y={9} stroke="#D95C5C" strokeDasharray="3 3" label={{ value: 'pH Max (9.0)', position: 'insideTopLeft', fill: '#D95C5C', fontSize: 8 }} />
-                      {/* Regulatory guideline for TSS (max 200) */}
-                      <ReferenceLine yAxisId="right" y={200} stroke="#D95C5C" strokeDasharray="3 3" label={{ value: 'Batas TSS (200 mg/L)', position: 'insideTopRight', fill: '#D95C5C', fontSize: 8 }} />
+                      {/* Regulatory guideline for TSS (max 300) */}
+                      <ReferenceLine yAxisId="right" y={300} stroke="#D95C5C" strokeDasharray="3 3" label={{ value: 'Batas TSS (300 mg/L)', position: 'insideTopRight', fill: '#D95C5C', fontSize: 8 }} />
                       
                       <Line yAxisId="left" type="monotone" dataKey="pH" name="pH" stroke="#4D7C5A" strokeWidth={2.5} activeDot={{ r: 6 }} dot={{ r: 3 }} />
                       <Line yAxisId="right" type="monotone" dataKey="TSS" name="TSS" stroke="#A8B9A5" strokeWidth={2.5} activeDot={{ r: 6 }} dot={{ r: 3 }} />
@@ -934,7 +943,7 @@ export default function DashboardView({
                       <RechartsTooltip content={<CustomChartTooltip />} />
                       <Legend verticalAlign="top" height={36} iconSize={8} wrapperStyle={{ fontSize: 10, color: '#2F5A46' }} />
                       
-                      <ReferenceLine y={200} stroke="#D95C5C" strokeDasharray="3 3" label={{ value: 'Batas TSS (200 mg/L)', position: 'insideTopRight', fill: '#D95C5C', fontSize: 8 }} />
+                      <ReferenceLine y={300} stroke="#D95C5C" strokeDasharray="3 3" label={{ value: 'Batas TSS (300 mg/L)', position: 'insideTopRight', fill: '#D95C5C', fontSize: 8 }} />
                       
                       <Line type="monotone" dataKey="TSS" name="TSS" stroke="#A8B9A5" strokeWidth={2.5} activeDot={{ r: 6 }} dot={{ r: 4 }} />
                     </LineChart>

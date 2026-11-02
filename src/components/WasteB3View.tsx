@@ -387,13 +387,27 @@ export default function WasteB3View({
     return currentLedger.stocks.filter(s => s.currentStock < 0);
   }, [currentLedger]);
 
-  const totalStockAllTps = useMemo(() => {
+  const totalInAllTps = useMemo(() => {
+    return round3(currentLedger.stocks.reduce((sum, s) => sum + s.totalIn, 0));
+  }, [currentLedger]);
+
+  const totalOutAllTps = useMemo(() => {
+    return round3(currentLedger.stocks.reduce((sum, s) => sum + s.totalOut, 0));
+  }, [currentLedger]);
+
+  const totalRemainingStockKg = useMemo(() => {
     return round3(currentLedger.stocks.reduce((sum, s) => sum + Math.max(0, s.currentStock), 0));
   }, [currentLedger]);
 
+  const remainingCapacityKg = useMemo(() => {
+    return round3(Math.max(0, TPS_CAPACITY_KG - totalRemainingStockKg));
+  }, [totalRemainingStockKg]);
+
+  const totalStockAllTps = totalRemainingStockKg;
+
   const tpsCapacityPercentage = useMemo(() => {
-    return Math.min(100, round3((totalStockAllTps / TPS_CAPACITY_KG) * 100));
-  }, [totalStockAllTps]);
+    return Math.min(100, round3((totalRemainingStockKg / TPS_CAPACITY_KG) * 100));
+  }, [totalRemainingStockKg]);
 
   return (
     <div id="waste-b3-view-wrapper" className="space-y-6 text-slate-700">
@@ -472,9 +486,9 @@ export default function WasteB3View({
               </div>
               <div className="flex items-center gap-4 text-xs font-mono">
                 <div className="text-right">
-                  <span className="text-slate-500 block text-[10px] uppercase font-sans">Total Limbah di TPS</span>
+                  <span className="text-slate-500 block text-[10px] uppercase font-sans">Sisa Stok TPS</span>
                   <span className="text-base font-black text-teal-600">
-                    {totalStockAllTps.toLocaleString('id-ID')}
+                    {totalRemainingStockKg.toLocaleString('id-ID')}
                   </span>
                   <span className="text-slate-400 font-sans ml-1 text-xs">/ {TPS_CAPACITY_KG.toLocaleString('id-ID')} Kg</span>
                 </div>
@@ -484,6 +498,38 @@ export default function WasteB3View({
                     {tpsCapacityPercentage.toFixed(1)}%
                   </span>
                 </div>
+              </div>
+            </div>
+
+            {/* 4 Distinct Metric Cards: Total In, Total Out, Sisa Stok, Sisa Kapasitas (Kg) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 my-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left">
+                <span className="text-[10px] font-mono uppercase text-slate-500 block font-semibold">Total Limbah Masuk</span>
+                <span className="text-lg font-bold font-mono text-slate-800 mt-0.5 block">
+                  {totalInAllTps.toLocaleString('id-ID')} Kg
+                </span>
+                <span className="text-[10px] text-slate-400">Kumulatif log masuk</span>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left">
+                <span className="text-[10px] font-mono uppercase text-slate-500 block font-semibold">Total Limbah Keluar (Diangkut)</span>
+                <span className="text-lg font-bold font-mono text-slate-800 mt-0.5 block">
+                  {totalOutAllTps.toLocaleString('id-ID')} Kg
+                </span>
+                <span className="text-[10px] text-slate-400">Transporter berizin KLHK</span>
+              </div>
+              <div className="bg-teal-50/70 border border-teal-200 rounded-xl p-3 text-left">
+                <span className="text-[10px] font-mono uppercase text-teal-800 block font-bold">Sisa Stok di TPS Saat Ini</span>
+                <span className="text-2xl font-black font-mono text-teal-600 mt-0.5 block">
+                  {totalRemainingStockKg.toLocaleString('id-ID')} Kg
+                </span>
+                <span className="text-[10px] text-teal-700 font-medium">Aktif tersimpan di gudang</span>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left">
+                <span className="text-[10px] font-mono uppercase text-slate-500 block font-semibold">Sisa Kapasitas Ruang TPS</span>
+                <span className="text-lg font-bold font-mono text-slate-800 mt-0.5 block">
+                  {remainingCapacityKg.toLocaleString('id-ID')} Kg
+                </span>
+                <span className="text-[10px] text-slate-400">Dari batas {TPS_CAPACITY_KG.toLocaleString('id-ID')} Kg</span>
               </div>
             </div>
 
@@ -615,8 +661,8 @@ export default function WasteB3View({
                             {stock.wasteType}
                           </span>
                         </div>
-                        <span className="font-mono text-slate-500 font-bold ml-2.5 whitespace-nowrap">
-                          {percentage}%
+                        <span className="font-mono text-slate-600 font-bold ml-2.5 whitespace-nowrap">
+                          {stock.currentStock.toLocaleString('id-ID')} Kg <span className="text-slate-400 font-normal">({percentage}%)</span>
                         </span>
                       </div>
                     );
@@ -683,18 +729,18 @@ export default function WasteB3View({
 
                         {/* Stock Balance Gauges */}
                         <div className="mt-4 pt-3 border-t border-slate-100">
-                          <div className="flex items-end justify-between text-xs font-semibold mb-2">
-                            <span className="text-slate-500">Saldo Stok Tersedia:</span>
-                            <span className={`text-sm font-bold font-mono ${
+                          <div className="flex items-baseline justify-between mb-2">
+                            <span className="text-xs font-semibold text-slate-500">Sisa Stok di TPS:</span>
+                            <span className={`text-xl font-black font-mono ${
                               isNegative ? 'text-red-600' : 'text-teal-600'
                             }`}>
                               {stock.currentStock.toLocaleString('id-ID')} Kg
                             </span>
                           </div>
 
-                          <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-1 uppercase">
-                            <span>Total Masuk: {stock.totalIn.toLocaleString('id-ID')} Kg</span>
-                            <span>Total Keluar: {stock.totalOut.toLocaleString('id-ID')} Kg</span>
+                          <div className="flex items-center justify-between text-[11px] text-slate-600 font-mono pt-1.5 border-t border-slate-50 uppercase">
+                            <span>Masuk: <strong className="text-slate-800">{stock.totalIn.toLocaleString('id-ID')} Kg</strong></span>
+                            <span>Keluar: <strong className="text-slate-800">{stock.totalOut.toLocaleString('id-ID')} Kg</strong></span>
                           </div>
                         </div>
                       </div>
@@ -710,6 +756,22 @@ export default function WasteB3View({
       {/* TAB 2: LOG LIMBAH MASUK (INFLOW) */}
       {activeTab === 'intake' && (
         <div className="space-y-4">
+          {/* Summary Metric Banner (Total Masuk, Total Keluar, Sisa Stok dalam Kg) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm text-left font-mono">
+            <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
+              <span className="text-[10px] uppercase text-slate-500 block font-sans font-semibold">Total Limbah Masuk</span>
+              <span className="text-base font-bold text-slate-800">{totalInAllTps.toLocaleString('id-ID')} Kg</span>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
+              <span className="text-[10px] uppercase text-slate-500 block font-sans font-semibold">Total Limbah Keluar (Diangkut)</span>
+              <span className="text-base font-bold text-slate-800">{totalOutAllTps.toLocaleString('id-ID')} Kg</span>
+            </div>
+            <div className="bg-teal-50/80 rounded-xl p-2.5 border border-teal-200">
+              <span className="text-[10px] uppercase text-teal-800 block font-sans font-bold">Sisa Stok di TPS Saat Ini</span>
+              <span className="text-base font-black text-teal-700">{totalRemainingStockKg.toLocaleString('id-ID')} Kg</span>
+            </div>
+          </div>
+
           {/* Header Action & Filter Bar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex flex-wrap items-center gap-3">
@@ -1001,8 +1063,11 @@ export default function WasteB3View({
                             {info.weightUsed.toLocaleString('id-ID')} Kg
                           </td>
                           <td className="p-3.5 text-right whitespace-nowrap">
-                            <span className="font-mono font-bold text-teal-700 block">
+                            <span className="font-mono font-bold text-teal-700 block text-xs">
                               {info.weightRemaining.toLocaleString('id-ID')} Kg
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono block">
+                              dari {item.weightKg.toLocaleString('id-ID')} Kg
                             </span>
                             {/* Thin progress bar sisa stok */}
                             <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mt-1">
@@ -1094,6 +1159,22 @@ export default function WasteB3View({
       {/* TAB 3: LOG MANIFEST PENGELUARAN (OUTFLOW) */}
       {activeTab === 'outflow' && (
         <div className="space-y-4">
+          {/* Summary Metric Banner (Total Masuk, Total Keluar, Sisa Stok dalam Kg) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm text-left font-mono">
+            <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
+              <span className="text-[10px] uppercase text-slate-500 block font-sans font-semibold">Total Limbah Masuk</span>
+              <span className="text-base font-bold text-slate-800">{totalInAllTps.toLocaleString('id-ID')} Kg</span>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
+              <span className="text-[10px] uppercase text-slate-500 block font-sans font-semibold">Total Limbah Keluar (Diangkut)</span>
+              <span className="text-base font-bold text-slate-800">{totalOutAllTps.toLocaleString('id-ID')} Kg</span>
+            </div>
+            <div className="bg-teal-50/80 rounded-xl p-2.5 border border-teal-200">
+              <span className="text-[10px] uppercase text-teal-800 block font-sans font-bold">Sisa Stok di TPS Saat Ini</span>
+              <span className="text-base font-black text-teal-700">{totalRemainingStockKg.toLocaleString('id-ID')} Kg</span>
+            </div>
+          </div>
+
           {/* Header Action & Filter Bar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex flex-wrap items-center gap-3">

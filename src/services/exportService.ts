@@ -17,7 +17,11 @@ import {
   ComplianceCalendarEvent,
   EnvironmentalCost,
   SolidWasteData,
-  SurfaceWaterData
+  SurfaceWaterData,
+  CapaData,
+  ComplianceMatrixData,
+  IncidentData,
+  RegulatoryWatchData
 } from '../types';
 import { formatWasteSource } from '../constants/wasteSources';
 import { todayLocalISO } from '../utils/dateUtils';
@@ -224,6 +228,86 @@ function mapSolidWaste(data: SolidWasteData[]) {
   }));
 }
 
+function mapNurseryStockOut(data: NurseryStockOut[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Nomor Transaksi': d.nomorTransaksi || '-',
+    'Tanggal': d.tanggal,
+    'Nama Bibit': d.namaBibit,
+    'Spesies': d.species,
+    'Jumlah Keluar': d.jumlahKeluar,
+    'Satuan': d.satuan,
+    'Jenis Transaksi': d.jenisTransaksi || '-',
+    'Tujuan': d.tujuan,
+    'Lokasi Penanaman': d.lokasiPenanaman || '-',
+    'Kapling': d.kapling || '-',
+    'Blok': d.blok || '-',
+    'Pit': d.pit || '-',
+    'Luas Reklamasi (Ha)': d.luasReklamasi,
+    'Penanggung Jawab': d.penanggungJawab,
+    'Keterangan': d.keterangan || '-',
+    'Petugas Perekam': d.createdBy,
+  }));
+}
+
+function mapCapa(data: CapaData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Sumber': d.source,
+    'Judul Temuan': d.title,
+    'Deskripsi': d.description,
+    'Tingkat Keparahan': d.severity,
+    'Tanggal Temuan': d.discoveryDate,
+    'Target Selesai': d.targetDate,
+    'PIC': d.pic,
+    'Akar Masalah': d.rootCause || '-',
+    'Tindakan Korektif': d.correctiveAction,
+    'Tindakan Preventif': d.preventiveAction,
+    'Status': d.status,
+    'Catatan Verifikasi': d.verificationNotes || '-',
+    'Tanggal Ditutup': d.closedDate || '-',
+  }));
+}
+
+function mapComplianceMatrix(data: ComplianceMatrixData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Periode': d.period,
+    'Aspek': d.aspect,
+    'Rincian Dampak': d.impactDetails,
+    'Target Kepatuhan': d.target,
+    'Status': d.status,
+    'Catatan': d.notes || '-',
+  }));
+}
+
+function mapIncidents(data: IncidentData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Tanggal': d.date,
+    'Waktu': d.time,
+    'Kategori': d.category,
+    'Lokasi': d.location,
+    'Kronologi': d.chronology,
+    'Tindakan Pertama': d.firstAction,
+    'Dampak Lingkungan': d.environmentalLoss,
+    'Status': d.status,
+    'Pelapor': d.reporter,
+  }));
+}
+
+function mapRegulatory(data: RegulatoryWatchData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Sumber': d.source,
+    'Nomor Regulasi': d.regulationNo,
+    'Perihal': d.about,
+    'Tanggal Terbit': d.issueDate,
+    'Implikasi Operasional': d.implication,
+    'Status': d.status,
+  }));
+}
+
 function triggerDownload(buffer: ArrayBuffer | Uint8Array, fileName: string): void {
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -256,6 +340,10 @@ export interface ExportPayload {
   calendarEvents: ComplianceCalendarEvent[];
   environmentalCosts: EnvironmentalCost[];
   solidWaste?: SolidWasteData[];
+  capa?: CapaData[];
+  complianceMatrix?: ComplianceMatrixData[];
+  incidents?: IncidentData[];
+  regulatory?: RegulatoryWatchData[];
 }
 
 export function exportAllDataToXLSX(payload: ExportPayload, companyName?: string): void {
@@ -271,6 +359,7 @@ export function exportAllDataToXLSX(payload: ExportPayload, companyName?: string
     { name: 'Kualitas Air Permukaan',   rows: mapSurfaceWater(payload.surfaceWater || []) },
     { name: 'Curah Hujan',              rows: mapRainfall(payload.rainfall) },
     { name: 'Nursery & Bibit',          rows: mapNursery(payload.nursery) },
+    { name: 'Pengeluaran Bibit',        rows: mapNurseryStockOut(payload.nurseryStockOut || []) },
     { name: 'Rencana Reklamasi',        rows: mapReclamationPlans(payload.reclamationPlans) },
     { name: 'Jaminan Reklamasi',        rows: mapReclamationGuarantees(payload.reclamationGuarantees) },
     { name: 'Limbah B3 Masuk',          rows: mapWasteIn(payload.wasteIn) },
@@ -279,6 +368,10 @@ export function exportAllDataToXLSX(payload: ExportPayload, companyName?: string
     { name: 'Agenda Kepatuhan',         rows: mapCalendarEvents(payload.calendarEvents) },
     { name: 'Biaya Lingkungan',         rows: mapEnvironmentalCosts(payload.environmentalCosts) },
     { name: 'Pengolahan Sampah',        rows: mapSolidWaste(payload.solidWaste || []) },
+    { name: 'CAPA & Temuan',            rows: mapCapa(payload.capa || []) },
+    { name: 'Matriks Kepatuhan',        rows: mapComplianceMatrix(payload.complianceMatrix || []) },
+    { name: 'Insiden Lingkungan',       rows: mapIncidents(payload.incidents || []) },
+    { name: 'Regulatory Watch',         rows: mapRegulatory(payload.regulatory || []) },
   ];
 
   // Sheet 1: Ringkasan / Cover

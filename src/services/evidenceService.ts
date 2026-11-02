@@ -28,6 +28,36 @@ import { auditService } from './auditService';
 import { triggerToast } from '../utils/errorHandler';
 import { getOfflineCache, setOfflineCache } from '../utils/googleSync';
 
+/**
+ * Recursively cleans an object/array so Firestore setDoc / updateDoc never receives `undefined`.
+ * In objects, keys with `undefined` values are omitted.
+ * In arrays, any `undefined` items are converted to `null`.
+ */
+export function cleanFirestoreData<T>(val: T): T {
+  if (val === undefined) {
+    return null as any;
+  }
+  if (val === null || typeof val !== 'object') {
+    return val;
+  }
+  if (val instanceof Date) {
+    return val;
+  }
+  if ((val as any)?._methodName || typeof (val as any)?.toMillis === 'function') {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.map((item) => (item === undefined ? null : cleanFirestoreData(item))) as any;
+  }
+  const result: any = {};
+  for (const [k, v] of Object.entries(val)) {
+    if (v !== undefined) {
+      result[k] = cleanFirestoreData(v);
+    }
+  }
+  return result;
+}
+
 export const evidenceService = {
   subscribe: (
     period: string, // YYYY-MM
@@ -156,16 +186,16 @@ export const evidenceService = {
       };
 
       // 1. Increment counter atomically
-      transaction.set(counterRef, {
+      transaction.set(counterRef, cleanFirestoreData({
         value: seq,
         updatedAt: serverTimestamp(),
-      });
+      }));
 
       // 2. Write full evidence report
-      transaction.set(reportRef, newReport);
+      transaction.set(reportRef, cleanFirestoreData(newReport));
 
       // 3. Write public minimal verify document
-      transaction.set(verifyRef, publicVerification);
+      transaction.set(verifyRef, cleanFirestoreData(publicVerification));
 
       return newReport;
     }).then(async (published) => {
@@ -206,17 +236,17 @@ export const evidenceService = {
     const userEmail = auth.currentUser?.email || reviewedSignature.email;
 
     try {
-      await updateDoc(reportRef, {
+      await updateDoc(reportRef, cleanFirestoreData({
         'signatures.reviewed': reviewedSignature,
         status: 'Diperiksa',
         updatedAt: serverTimestamp(),
         updatedBy: userEmail,
-      });
+      }));
 
       if (report.verifyToken) {
-        await updateDoc(doc(db, 'evidence_verify', report.verifyToken), {
+        await updateDoc(doc(db, 'evidence_verify', report.verifyToken), cleanFirestoreData({
           status: 'Diperiksa',
-        });
+        }));
       }
 
       await auditService.createLog({
@@ -302,8 +332,8 @@ export const evidenceService = {
     };
 
     try {
-      await setDoc(reportRef, newReport);
-      await setDoc(verifyRef, publicVerification);
+      await setDoc(reportRef, cleanFirestoreData(newReport));
+      await setDoc(verifyRef, cleanFirestoreData(publicVerification));
 
       await auditService.createLog({
         collection: 'evidence_reports',
@@ -346,17 +376,17 @@ export const evidenceService = {
     const userEmail = auth.currentUser?.email || approvedSignature.email;
 
     try {
-      await updateDoc(reportRef, {
+      await updateDoc(reportRef, cleanFirestoreData({
         'signatures.approved': approvedSignature,
         status: 'Disetujui',
         updatedAt: serverTimestamp(),
         updatedBy: userEmail,
-      });
+      }));
 
       if (report.verifyToken) {
-        await updateDoc(doc(db, 'evidence_verify', report.verifyToken), {
+        await updateDoc(doc(db, 'evidence_verify', report.verifyToken), cleanFirestoreData({
           status: 'Disetujui',
-        });
+        }));
       }
 
       await auditService.createLog({
@@ -408,7 +438,7 @@ export const evidenceService = {
     const newHistory = [...(oldReport.revisionHistory || []), revisionItem];
 
     try {
-      await updateDoc(reportRef, {
+      await updateDoc(reportRef, cleanFirestoreData({
         revision: nextRevision,
         snapshot: newSnapshot,
         snapshotHash: newHash,
@@ -419,14 +449,14 @@ export const evidenceService = {
         revisionHistory: newHistory,
         updatedAt: serverTimestamp(),
         updatedBy: userEmail,
-      });
+      }));
 
       if (oldReport.verifyToken) {
-        await updateDoc(doc(db, 'evidence_verify', oldReport.verifyToken), {
+        await updateDoc(doc(db, 'evidence_verify', oldReport.verifyToken), cleanFirestoreData({
           status: 'Disiapkan',
           overall: newSnapshot.overall,
           hashPrefix: newHash.slice(0, 12),
-        });
+        }));
       }
 
       await auditService.createLog({
@@ -464,17 +494,17 @@ export const evidenceService = {
     const userEmail = auth.currentUser?.email || 'admin';
 
     try {
-      await updateDoc(reportRef, {
+      await updateDoc(reportRef, cleanFirestoreData({
         status: 'Dibatalkan',
         cancellationReason: cancellationReason.trim(),
         updatedAt: serverTimestamp(),
         updatedBy: userEmail,
-      });
+      }));
 
       if (report.verifyToken) {
-        await updateDoc(doc(db, 'evidence_verify', report.verifyToken), {
+        await updateDoc(doc(db, 'evidence_verify', report.verifyToken), cleanFirestoreData({
           status: 'Dibatalkan',
-        });
+        }));
       }
 
       await auditService.createLog({

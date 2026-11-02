@@ -23,6 +23,7 @@ interface EvidenceShellProps {
   verifyToken?: string;
   isCancelled?: boolean;
   cancelReason?: string;
+  isDraft?: boolean;
   children: React.ReactNode;
 }
 
@@ -40,6 +41,7 @@ export default function EvidenceShell({
   verifyToken,
   isCancelled = false,
   cancelReason,
+  isDraft = false,
   children,
 }: EvidenceShellProps) {
   const formattedIssuedDate = issuedAt
@@ -68,6 +70,17 @@ export default function EvidenceShell({
                 Alasan: {cancelReason}
               </p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Watermark for Draft Documents */}
+      {isDraft && !isCancelled && (
+        <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-20 select-none overflow-hidden">
+          <div className="transform -rotate-45 border-8 border-slate-400/20 rounded-3xl px-16 py-8 text-center bg-slate-50/10 backdrop-blur-[0.5px]">
+            <span className="text-7xl md:text-9xl font-black text-slate-400/25 tracking-widest font-mono">
+              DRAFT
+            </span>
           </div>
         </div>
       )}

@@ -66,7 +66,7 @@ export default function DocumentsView({
   const [eventTitle, setEventTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventDesc, setEventDesc] = useState('');
-  const [eventType, setEventType] = useState('Pelaporan');
+  const [eventType, setEventType] = useState('Reporting');
 
   const [deleteConfirm, setDeleteConfirm] = useState<{id: string, type: 'document'|'event', message: string} | null>(null);
 
@@ -464,11 +464,10 @@ export default function DocumentsView({
                <div>
                   <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KATEGORI AGENDA</label>
                   <select value={eventType} onChange={e => setEventType(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] cursor-pointer">
-                    <option value="Pelaporan">Pelaporan</option>
-                    <option value="Kalibrasi">Kalibrasi</option>
-                    <option value="Pembayaran">Pembayaran</option>
-                    <option value="Perpanjangan Izin">Perpanjangan Izin</option>
-                    <option value="Lainnya">Lainnya</option>
+                    <option value="Reporting">Pelaporan (Reporting)</option>
+                    <option value="Inspection">Inspeksi Lapangan (Inspection)</option>
+                    <option value="Permit Expiry">Masa Berlaku Izin (Permit Expiry)</option>
+                    <option value="Exceedance">Penanganan Baku Mutu (Exceedance)</option>
                   </select>
                </div>
                <div>

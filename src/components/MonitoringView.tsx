@@ -778,7 +778,7 @@ export default function MonitoringView({
                       </div>
                       <div className="bg-white border border-slate-200/60 rounded-xl p-1.5 flex flex-col justify-center">
                         <span className="text-slate-500 text-[8px] uppercase">Rerata TSS</span>
-                        <strong className={`text-xs mt-0.5 ${monthlyAvgTss > 200 ? 'text-rose-600' : 'text-slate-700'}`}>
+                        <strong className={`text-xs mt-0.5 ${monthlyAvgTss > 300 ? 'text-rose-600' : 'text-slate-700'}`}>
                           {monthlyAvgTss} <span className="text-[8px] font-normal text-slate-500">mg/L</span>
                         </strong>
                       </div>
