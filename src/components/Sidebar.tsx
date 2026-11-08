@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { GoogleSyncConfig } from '../types';
 import DivaLogo from './DivaLogo';
+import MiningEnvIcon from './MiningEnvIcon';
 import { APP_MENU_GROUPS } from '../data/navigation';
 import { useAuth } from '../services/authService';
 import { canAccessModule } from '../services/permissionService';
@@ -46,14 +47,22 @@ export default function Sidebar({
     >
       {/* Upper Brand Section */}
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden">
-        <div className="flex items-center justify-between p-[20px] border-b border-white/5 relative shrink-0">
+        <div className="flex items-center justify-between p-[18px] border-b border-white/10 relative shrink-0">
           {!collapsed ? (
-            <div className="flex items-center gap-2.5 animate-fade-in pl-1 text-white filter brightness-0 invert">
-              <DivaLogo variant="full" size={42} />
+            <div className="flex items-center gap-2.5 animate-fade-in pl-1">
+              <div className="text-white filter brightness-0 invert">
+                <DivaLogo variant="full" size={38} />
+              </div>
+              <div className="p-1 rounded-lg bg-emerald-950/60 border border-emerald-500/25 shadow-sm" title="Diva Enviro Monitor — Coal Mining Eco-Emblem">
+                <MiningEnvIcon type="emblem" size={26} />
+              </div>
             </div>
           ) : (
-            <div className="mx-auto flex items-center justify-center animate-fade-in text-white filter brightness-0 invert">
-              <DivaLogo variant="icon" size={32} />
+            <div className="mx-auto flex flex-col items-center justify-center gap-1.5 animate-fade-in">
+              <div className="text-white filter brightness-0 invert">
+                <DivaLogo variant="icon" size={26} />
+              </div>
+              <MiningEnvIcon type="emblem" size={22} />
             </div>
           )}
           

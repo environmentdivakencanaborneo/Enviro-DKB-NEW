@@ -119,13 +119,13 @@ export function useFirestoreData(activeTab: string) {
     if (!user || !profile) return;
 
     const needsMonitoring = ['dashboard', 'monitoring', 'reports'].includes(activeTab);
-    const needsReclamation = ['dashboard', 'reclamation', 'reports'].includes(activeTab);
+    const needsReclamation = ['dashboard', 'reclamation', 'reports', 'executive'].includes(activeTab);
     const needsWaste = ['dashboard', 'waste', 'reports'].includes(activeTab);
     const needsSolidWaste = ['dashboard', 'solid_waste', 'reports'].includes(activeTab);
-    const needsDocuments = ['dashboard', 'documents', 'reports'].includes(activeTab);
+    const needsDocuments = ['dashboard', 'documents', 'reports', 'executive'].includes(activeTab);
     const needsCosts = ['dashboard', 'costs'].includes(activeTab);
-    const needsCapa = ['dashboard', 'findings'].includes(activeTab);
-    const needsCompliance = ['dashboard', 'compliance_matrix'].includes(activeTab);
+    const needsCapa = ['dashboard', 'findings', 'executive'].includes(activeTab);
+    const needsCompliance = ['dashboard', 'compliance_matrix', 'executive'].includes(activeTab);
     const needsIncidents = ['dashboard', 'incidents', 'executive'].includes(activeTab);
     const needsRegulatory = ['regulatory_watch'].includes(activeTab);
 

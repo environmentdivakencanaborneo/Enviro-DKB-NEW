@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { 
   WastewaterData, 
   RainfallData, 
@@ -25,11 +25,7 @@ import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import Header from './components/Header';
 import DashboardView from './components/DashboardView';
-import MonitoringView from './components/MonitoringView';
-import ReclamationView from './components/ReclamationView';
-import WasteB3View from './components/WasteB3View';
 import EnvironmentalCostsView from './components/EnvironmentalCostsView';
-import ReportsView from './components/ReportsView';
 import DocumentsView from './components/DocumentsView';
 import NotificationsView from './components/NotificationsView';
 import SettingsModals from './components/SettingsModals';
@@ -42,8 +38,15 @@ import ComplianceMatrixView from './components/ComplianceMatrixView';
 import IncidentView from './components/IncidentView';
 import ExecutiveDashboardView from './components/ExecutiveDashboardView';
 import RegulatoryWatchView from './components/RegulatoryWatchView';
-import AdminManagementView from './components/AdminManagementView';
 import PublicVerifyView from './components/evidence/PublicVerifyView';
+
+// Code-split lazy views
+const MonitoringView = lazy(() => import('./components/MonitoringView'));
+const ReclamationView = lazy(() => import('./components/ReclamationView'));
+const WasteB3View = lazy(() => import('./components/WasteB3View'));
+const ReportsView = lazy(() => import('./components/ReportsView'));
+const AdminManagementView = lazy(() => import('./components/AdminManagementView'));
+const EvidenceHub = lazy(() => import('./components/evidence/EvidenceHub'));
 
 import { useAuth } from './services/authService';
 import { canAccessModule, isAdmin, isSuperintendent, canDelete } from './services/permissionService';
@@ -444,6 +447,7 @@ export default function App() {
       await reclamationService.addPlan(item);
     } catch (e: any) {
       handleGlobalError(e, "Tambah Rencana Reklamasi");
+      throw e;
     }
   };
   const handleUpdatePlan = async (id: string, item: any) => {
@@ -455,6 +459,7 @@ export default function App() {
       await reclamationService.updatePlan(id, item);
     } catch (e: any) {
       handleGlobalError(e, "Ubah Rencana Reklamasi");
+      throw e;
     }
   };
   const handleDeletePlan = async (id: string) => {
@@ -466,6 +471,7 @@ export default function App() {
       await reclamationService.deletePlan(id);
     } catch (e: any) {
       handleGlobalError(e, "Hapus Rencana Reklamasi");
+      throw e;
     }
   };
 
@@ -478,6 +484,7 @@ export default function App() {
       await reclamationService.addGuarantee(item);
     } catch (e: any) {
       handleGlobalError(e, "Tambah Jaminan Reklamasi");
+      throw e;
     }
   };
   const handleUpdateGuarantee = async (id: string, item: any) => {
@@ -489,6 +496,7 @@ export default function App() {
       await reclamationService.updateGuarantee(id, item);
     } catch (e: any) {
       handleGlobalError(e, "Ubah Jaminan Reklamasi");
+      throw e;
     }
   };
   const handleDeleteGuarantee = async (id: string) => {
@@ -500,6 +508,7 @@ export default function App() {
       await reclamationService.deleteGuarantee(id);
     } catch (e: any) {
       handleGlobalError(e, "Hapus Jaminan Reklamasi");
+      throw e;
     }
   };
 
@@ -772,24 +781,26 @@ export default function App() {
           );
         }
         return (
-          <ModuleErrorBoundary moduleName="Monitoring Mutu Air & Curah Hujan">
-            <MonitoringView 
-              wastewater={wastewater}
-              surfaceWater={surfaceWater}
-              rainfall={rainfall}
-              userProfile={profile}
-              onAddWastewater={handleAddWastewater}
-              onUpdateWastewater={handleUpdateWastewater}
-              onDeleteWastewater={handleDeleteWastewater}
-              onAddSurfaceWater={handleAddSurfaceWater}
-              onUpdateSurfaceWater={handleUpdateSurfaceWater}
-              onDeleteSurfaceWater={handleDeleteSurfaceWater}
-              onAddRainfall={handleAddRainfall}
-              onUpdateRainfall={handleUpdateRainfall}
-              onDeleteRainfall={handleDeleteRainfall}
-              plans={reclamationPlans}
-            />
-          </ModuleErrorBoundary>
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Monitoring Mutu Air & Curah Hujan">
+              <MonitoringView 
+                wastewater={wastewater}
+                surfaceWater={surfaceWater}
+                rainfall={rainfall}
+                userProfile={profile}
+                onAddWastewater={handleAddWastewater}
+                onUpdateWastewater={handleUpdateWastewater}
+                onDeleteWastewater={handleDeleteWastewater}
+                onAddSurfaceWater={handleAddSurfaceWater}
+                onUpdateSurfaceWater={handleUpdateSurfaceWater}
+                onDeleteSurfaceWater={handleDeleteSurfaceWater}
+                onAddRainfall={handleAddRainfall}
+                onUpdateRainfall={handleUpdateRainfall}
+                onDeleteRainfall={handleDeleteRainfall}
+                plans={reclamationPlans}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
         );
       case 'reclamation':
         if (isLoadingNursery || isLoadingReclamation) {
@@ -801,29 +812,31 @@ export default function App() {
           );
         }
         return (
-          <ModuleErrorBoundary moduleName="Reklamasi Area Tambang & Nursery">
-            <ReclamationView 
-              nursery={nursery}
-              nurseryStockOut={nurseryStockOut}
-              onAddNurseryStockOut={handleAddNurseryStockOut}
-              onUpdateNurseryStockOut={handleUpdateNurseryStockOut}
-              onDeleteNurseryStockOut={handleDeleteNurseryStockOut}
-              plans={reclamationPlans}
-              guarantees={reclamationGuarantees}
-              onAddNursery={handleAddNursery}
-              onUpdateNursery={handleUpdateNursery}
-              onDeleteNursery={handleDeleteNursery}
-              onAddPlan={handleAddPlan}
-              onUpdatePlan={handleUpdatePlan}
-              onDeletePlan={handleDeletePlan}
-              onAddGuarantee={handleAddGuarantee}
-              onUpdateGuarantee={handleUpdateGuarantee}
-              onDeleteGuarantee={handleDeleteGuarantee}
-              canEdit={hasWriteAuthority}
-              canDelete={canDelete(profile)}
-              onUnauthorizedAction={showAuthorityWarning}
-            />
-          </ModuleErrorBoundary>
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Reklamasi Area Tambang & Nursery">
+              <ReclamationView 
+                nursery={nursery}
+                nurseryStockOut={nurseryStockOut}
+                onAddNurseryStockOut={handleAddNurseryStockOut}
+                onUpdateNurseryStockOut={handleUpdateNurseryStockOut}
+                onDeleteNurseryStockOut={handleDeleteNurseryStockOut}
+                plans={reclamationPlans}
+                guarantees={reclamationGuarantees}
+                onAddNursery={handleAddNursery}
+                onUpdateNursery={handleUpdateNursery}
+                onDeleteNursery={handleDeleteNursery}
+                onAddPlan={handleAddPlan}
+                onUpdatePlan={handleUpdatePlan}
+                onDeletePlan={handleDeletePlan}
+                onAddGuarantee={handleAddGuarantee}
+                onUpdateGuarantee={handleUpdateGuarantee}
+                onDeleteGuarantee={handleDeleteGuarantee}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
         );
       case 'waste':
         if (isLoadingWaste) {
@@ -835,23 +848,25 @@ export default function App() {
           );
         }
         return (
-          <ModuleErrorBoundary moduleName="Pengelolaan Limbah Industri B3">
-            <WasteB3View 
-              wasteIn={wasteIn}
-              wasteOut={wasteOut}
-              wasteStocks={wasteStocks}
-              ledger={wasteLedger}
-              onAddIn={handleAddWasteIn}
-              onUpdateIn={handleUpdateWasteIn}
-              onDeleteIn={handleDeleteWasteIn}
-              onAddOut={handleAddWasteOut}
-              onUpdateOut={handleUpdateWasteOut}
-              onDeleteOut={handleDeleteWasteOut}
-              canEdit={hasWriteAuthority}
-              canDelete={canDelete(profile)}
-              onUnauthorizedAction={showAuthorityWarning}
-            />
-          </ModuleErrorBoundary>
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Pengelolaan Limbah Industri B3">
+              <WasteB3View 
+                wasteIn={wasteIn}
+                wasteOut={wasteOut}
+                wasteStocks={wasteStocks}
+                ledger={wasteLedger}
+                onAddIn={handleAddWasteIn}
+                onUpdateIn={handleUpdateWasteIn}
+                onDeleteIn={handleDeleteWasteIn}
+                onAddOut={handleAddWasteOut}
+                onUpdateOut={handleUpdateWasteOut}
+                onDeleteOut={handleDeleteWasteOut}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
         );
       case 'solid_waste':
         if (isLoadingSolidWaste) {
@@ -931,24 +946,35 @@ export default function App() {
         );
       case 'reports':
         return (
-          <ModuleErrorBoundary moduleName="Laporan Terintegrasi AMDAL">
-            <ReportsView 
-              wastewater={wastewater}
-              surfaceWater={surfaceWater}
-              rainfall={rainfall}
-              nursery={nursery}
-              nurseryStockOut={nurseryStockOut}
-              plans={reclamationPlans}
-              wasteIn={wasteIn}
-              wasteOut={wasteOut}
-              guarantees={reclamationGuarantees}
-              documents={documents}
-              calendarEvents={calendarEvents}
-              environmentalCosts={environmentalCosts}
-              solidWaste={solidWaste}
-              user={profile}
-            />
-          </ModuleErrorBoundary>
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Laporan Terintegrasi AMDAL">
+              <ReportsView 
+                wastewater={wastewater}
+                surfaceWater={surfaceWater}
+                rainfall={rainfall}
+                nursery={nursery}
+                nurseryStockOut={nurseryStockOut}
+                plans={reclamationPlans}
+                wasteIn={wasteIn}
+                wasteOut={wasteOut}
+                guarantees={reclamationGuarantees}
+                documents={documents}
+                calendarEvents={calendarEvents}
+                environmentalCosts={environmentalCosts}
+                solidWaste={solidWaste}
+                user={profile}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'evidence':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Evidence Hub">
+              <EvidenceHub wastewater={wastewater} user={profile} />
+            </ModuleErrorBoundary>
+          </Suspense>
         );
 
       case 'documents':
@@ -1044,9 +1070,11 @@ export default function App() {
         };
 
         return (
-          <ModuleErrorBoundary moduleName="Administrasi Sistem">
-            <AdminManagementView initialTab={adminTabMap[activeTab] || 'users'} />
-          </ModuleErrorBoundary>
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Administrasi Sistem">
+              <AdminManagementView initialTab={adminTabMap[activeTab] || 'users'} />
+            </ModuleErrorBoundary>
+          </Suspense>
         );
       }
 

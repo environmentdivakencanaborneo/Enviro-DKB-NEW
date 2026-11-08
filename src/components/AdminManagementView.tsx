@@ -379,57 +379,57 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
   });
 
   return (
-    <div className="space-y-6 animate-fade-in text-left font-sans">
+    <div className="space-y-6 animate-fade-in text-left font-sans text-slate-700">
       
       {/* Toast Banner */}
       {actionSuccessMsg && (
-        <div className="p-4 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl text-emerald-300 text-xs font-semibold flex items-center gap-3 shadow-lg">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-semibold flex items-center gap-3 shadow-sm">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
           <span>{actionSuccessMsg}</span>
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 sm:p-8 relative overflow-hidden backdrop-blur-md shadow-xl">
+      {/* Header Banner - Clean Eco-Mining Bento */}
+      <div className="bg-white border border-[#E4EDE6] rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-[11px] font-mono font-semibold">
-              <ShieldCheck className="w-3.5 h-3.5" />
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-[11px] font-mono font-bold">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               ENTERPRISE GOVERNANCE & ACCESS CONTROL
             </div>
-            <h1 className="text-2xl font-extrabold text-slate-100 tracking-tight">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight font-heading">
               Persetujuan Registrasi & Manajemen Pengguna
             </h1>
-            <p className="text-xs text-slate-400 leading-relaxed max-w-2xl">
+            <p className="text-xs text-slate-500 leading-relaxed max-w-2xl">
               Pusat kendali autentikasi enterprise, persetujuan pendaftaran karyawan, alokasi peranan (RBAC), serta pemantauan jejak audit log keamanan.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700/60 rounded-2xl p-2 shrink-0">
-            <div className="text-right px-2">
-              <p className="text-[10px] text-slate-400 font-mono">Pending Approval</p>
-              <p className="text-lg font-bold text-amber-400">{pendingUsers.length} Permohonan</p>
+          <div className="flex items-center gap-3 bg-amber-50/70 border border-amber-200 rounded-2xl p-3 shrink-0 shadow-sm">
+            <div className="text-right px-1">
+              <p className="text-[10px] text-amber-800 font-mono font-semibold uppercase">Pending Approval</p>
+              <p className="text-xl font-black text-amber-700 font-manrope">{pendingUsers.length} Permohonan</p>
             </div>
-            <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
+            <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-sm">
               <Clock className="w-5 h-5" />
             </div>
           </div>
         </div>
 
         {/* Tab Selection Navigation */}
-        <div className="flex flex-wrap gap-2 pt-6 border-t border-slate-700/60 mt-6">
+        <div className="flex flex-wrap gap-2 pt-6 border-t border-slate-100 mt-6">
           <button
             onClick={() => setActiveTab('approval')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'approval'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'bg-slate-900/50 text-slate-300 hover:bg-slate-700/50 border border-slate-700/50'
+                ? 'bg-[#2E4B3D] text-white shadow-sm'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             <UserCheck className="w-4 h-4" />
             Registration Approval
             {pendingUsers.length > 0 && (
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold">
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-extrabold shadow-sm">
                 {pendingUsers.length}
               </span>
             )}
@@ -439,8 +439,8 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
             onClick={() => setActiveTab('users')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'users'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'bg-slate-900/50 text-slate-300 hover:bg-slate-700/50 border border-slate-700/50'
+                ? 'bg-[#2E4B3D] text-white shadow-sm'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -451,8 +451,8 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
             onClick={() => setActiveTab('roles')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'roles'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'bg-slate-900/50 text-slate-300 hover:bg-slate-700/50 border border-slate-700/50'
+                ? 'bg-[#2E4B3D] text-white shadow-sm'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
@@ -463,8 +463,8 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
             onClick={() => setActiveTab('audit')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'audit'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'bg-slate-900/50 text-slate-300 hover:bg-slate-700/50 border border-slate-700/50'
+                ? 'bg-[#2E4B3D] text-white shadow-sm'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             <Activity className="w-4 h-4" />
@@ -475,84 +475,84 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
       {/* TAB CONTENT 1: REGISTRATION APPROVAL */}
       {activeTab === 'approval' && (
-        <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-5 shadow-xl">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-700/60 pb-4">
+        <div className="bg-white border border-[#E4EDE6] rounded-3xl p-6 space-y-5 shadow-sm text-slate-700">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-400" />
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-500" />
                 Permohonan Registrasi Menunggu Persetujuan
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 Verifikasi identitas karyawan sebelum memberikan otorisasi akses ke sistem EEMS tambang.
               </p>
             </div>
-            <span className="text-xs text-slate-400 font-mono">
-              Total Permohonan: <strong className="text-amber-400">{pendingUsers.length}</strong>
+            <span className="text-xs text-slate-500 font-mono">
+              Total Permohonan: <strong className="text-amber-600 font-bold">{pendingUsers.length}</strong>
             </span>
           </div>
 
           {loadingUsers ? (
             <div className="py-12 text-center text-xs text-slate-400 font-mono">Memuat permohonan...</div>
           ) : pendingUsers.length === 0 ? (
-            <div className="py-12 text-center space-y-2 border border-dashed border-slate-700/70 rounded-2xl bg-slate-900/30">
-              <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto opacity-80" />
-              <p className="text-sm font-bold text-slate-200">Tidak Ada Permohonan Pending</p>
-              <p className="text-xs text-slate-400">Seluruh registrasi akun telah diproses dan disetujui.</p>
+            <div className="py-12 text-center space-y-2 border border-dashed border-slate-200 rounded-2xl bg-slate-50">
+              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto opacity-80" />
+              <p className="text-sm font-bold text-slate-800">Tidak Ada Permohonan Pending</p>
+              <p className="text-xs text-slate-500">Seluruh registrasi akun telah diproses dan disetujui.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-700/60">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-900/80 text-slate-400 font-mono uppercase tracking-wider text-[10px] border-b border-slate-700">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+              <table className="w-full text-left text-xs text-slate-600">
+                <thead className="bg-[#F8FAF8] text-slate-600 font-mono uppercase tracking-wider text-[10px] border-b border-slate-200">
                   <tr>
-                    <th className="p-3.5">Foto & Nama</th>
+                    <th className="p-3.5 pl-4">Foto & Nama</th>
                     <th className="p-3.5">Email</th>
                     <th className="p-3.5">Departemen</th>
                     <th className="p-3.5">Jabatan</th>
                     <th className="p-3.5">Site</th>
                     <th className="p-3.5">Tanggal Registrasi</th>
                     <th className="p-3.5">Status</th>
-                    <th className="p-3.5 text-center">Aksi</th>
+                    <th className="p-3.5 text-center pr-4">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700/50 bg-slate-800/40">
+                <tbody className="divide-y divide-slate-100 bg-white">
                   {pendingUsers.map((u) => (
-                    <tr key={u.uid} className="hover:bg-slate-700/30 transition-colors">
-                      <td className="p-3.5">
+                    <tr key={u.uid} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-3.5 pl-4">
                         <div className="flex items-center gap-3">
                           {u.photoURL ? (
-                            <img src={u.photoURL} alt={u.fullName} className="w-9 h-9 rounded-full object-cover border border-slate-600" />
+                            <img src={u.photoURL} alt={u.fullName} className="w-9 h-9 rounded-full object-cover border border-slate-200" />
                           ) : (
-                            <div className="w-9 h-9 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center font-bold text-slate-300">
+                            <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center font-bold text-emerald-800">
                               {(u.fullName || u.name || 'U').charAt(0)}
                             </div>
                           )}
                           <div>
-                            <p className="font-bold text-slate-100">{u.fullName || u.name}</p>
+                            <p className="font-bold text-slate-900">{u.fullName || u.name}</p>
                             {u.nik && <p className="text-[10px] text-slate-400 font-mono">NIK: {u.nik}</p>}
                           </div>
                         </div>
                       </td>
-                      <td className="p-3.5 font-mono text-slate-300">{u.email}</td>
+                      <td className="p-3.5 font-mono text-slate-600">{u.email}</td>
                       <td className="p-3.5">{u.department || '-'}</td>
                       <td className="p-3.5">{u.position || '-'}</td>
                       <td className="p-3.5">{u.site || '-'}</td>
-                      <td className="p-3.5 font-mono text-[11px] text-slate-400">
+                      <td className="p-3.5 font-mono text-[11px] text-slate-500">
                         {formatTimestamp(u.createdAt, 'id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td className="p-3.5">
-                        <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           Pending
                         </span>
                       </td>
-                      <td className="p-3.5">
+                      <td className="p-3.5 pr-4">
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => {
                               setApproveUserTarget(u);
                               setSelectedApproveRole('Viewer');
                             }}
-                            className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-[11px] transition-all flex items-center gap-1 cursor-pointer shadow"
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-[11px] transition-all flex items-center gap-1 cursor-pointer shadow-sm"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             Approve
@@ -563,7 +563,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                               setRejectUserTarget(u);
                               setRejectReason('');
                             }}
-                            className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 font-bold rounded-xl text-[11px] transition-all flex items-center gap-1 cursor-pointer"
+                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold rounded-xl text-[11px] transition-all flex items-center gap-1 cursor-pointer"
                           >
                             <XCircle className="w-3.5 h-3.5" />
                             Reject
@@ -581,14 +581,14 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
       {/* TAB CONTENT 2: USER MANAGEMENT */}
       {activeTab === 'users' && (
-        <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-5 shadow-xl">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-700/60 pb-4">
+        <div className="bg-white border border-[#E4EDE6] rounded-3xl p-6 space-y-5 shadow-sm text-slate-700">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Users className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-emerald-600" />
                 Direktori & Status Pengguna Enterprise
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 Kelola hak akses role, status aktifasi, reset password, dan pemantauan aktivitas login seluruh pengguna.
               </p>
             </div>
@@ -602,14 +602,14 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Cari nama, email, site..."
-                  className="bg-slate-900/80 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 outline-none focus:border-emerald-500 w-48 sm:w-64"
+                  className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 outline-none focus:border-emerald-500 w-48 sm:w-64"
                 />
               </div>
 
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-slate-900/80 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-emerald-500 cursor-pointer"
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 outline-none focus:border-emerald-500 cursor-pointer"
               >
                 <option value="ALL">Semua Status</option>
                 <option value="Active">Active</option>
@@ -620,21 +620,21 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-slate-700/60">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-900/80 text-slate-400 font-mono uppercase tracking-wider text-[10px] border-b border-slate-700">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-[#F8FAF8] text-slate-600 font-mono uppercase tracking-wider text-[10px] border-b border-slate-200">
                 <tr>
-                  <th className="p-3.5">Nama & Profil</th>
+                  <th className="p-3.5 pl-4">Nama & Profil</th>
                   <th className="p-3.5">Email</th>
                   <th className="p-3.5">Role (RBAC)</th>
                   <th className="p-3.5">Departemen & Site</th>
                   <th className="p-3.5">Last Login</th>
-                  <th className="p-3.5">Login Count</th>
+                  <th className="p-3.5 text-center">Login Count</th>
                   <th className="p-3.5">Status</th>
-                  <th className="p-3.5 text-center">Aksi Manajemen</th>
+                  <th className="p-3.5 text-center pr-4">Aksi Manajemen</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/50 bg-slate-800/40">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-slate-400 font-mono">
@@ -643,59 +643,59 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                   </tr>
                 ) : (
                   filteredUsers.map((u) => (
-                    <tr key={u.uid} className="hover:bg-slate-700/30 transition-colors">
-                      <td className="p-3.5">
+                    <tr key={u.uid} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-3.5 pl-4">
                         <div className="flex items-center gap-3">
                           {u.photoURL ? (
-                            <img src={u.photoURL} alt={u.fullName} className="w-8 h-8 rounded-full object-cover border border-slate-600" />
+                            <img src={u.photoURL} alt={u.fullName} className="w-8 h-8 rounded-full object-cover border border-slate-200" />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center font-bold text-slate-300">
+                            <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center font-bold text-emerald-800">
                               {(u.fullName || u.name || 'U').charAt(0)}
                             </div>
                           )}
                           <div>
-                            <p className="font-bold text-slate-100">{u.fullName || u.name}</p>
+                            <p className="font-bold text-slate-900">{u.fullName || u.name}</p>
                             <p className="text-[10px] text-slate-400">{u.position || 'Staff'}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="p-3.5 font-mono text-slate-300">{u.email}</td>
+                      <td className="p-3.5 font-mono text-slate-600">{u.email}</td>
                       <td className="p-3.5">
-                        <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-900 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3" />
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
                           {u.role || 'Viewer'}
                         </span>
                       </td>
                       <td className="p-3.5">
-                        <p className="text-slate-200">{u.department || '-'}</p>
+                        <p className="text-slate-800 font-medium">{u.department || '-'}</p>
                         <p className="text-[10px] text-slate-400">{u.site || '-'}</p>
                       </td>
-                      <td className="p-3.5 font-mono text-[10px] text-slate-400">
+                      <td className="p-3.5 font-mono text-[10px] text-slate-500">
                         {formatTimestamp(u.lastLogin, 'id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }, 'Belum Pernah')}
                       </td>
-                      <td className="p-3.5 font-mono font-bold text-slate-300 text-center">
+                      <td className="p-3.5 font-mono font-bold text-slate-700 text-center">
                         {u.loginCount || 0}
                       </td>
                       <td className="p-3.5">
                         {u.status === 'Active' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Active
                           </span>
                         ) : u.status === 'Pending' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                             Pending
                           </span>
                         ) : u.status === 'Disabled' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-400 border border-slate-600">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                             Disabled
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">
                             {u.status || 'Inactive'}
                           </span>
                         )}
                       </td>
-                      <td className="p-3.5">
+                      <td className="p-3.5 pr-4">
                         <div className="flex items-center justify-center gap-1.5">
                           {/* Ubah Peran */}
                           <button
@@ -704,7 +704,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                               setSelectedNewRole(u.role || 'Viewer');
                             }}
                             title="Ubah Peran (Role)"
-                            className="p-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors cursor-pointer"
+                            className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </button>
@@ -714,7 +714,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                             <button
                               onClick={() => handleDisableUser(u)}
                               title="Nonaktifkan Akun"
-                              className="p-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg transition-colors cursor-pointer"
+                              className="p-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
                             >
                               <Ban className="w-3.5 h-3.5" />
                             </button>
@@ -722,7 +722,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                             <button
                               onClick={() => handleEnableUser(u)}
                               title="Aktifkan Akun"
-                              className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-lg transition-colors cursor-pointer"
+                              className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
@@ -732,7 +732,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                           <button
                             onClick={() => handleResetPassword(u)}
                             title="Kirim Email Reset Password"
-                            className="p-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors cursor-pointer"
+                            className="p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
                           >
                             <KeyRound className="w-3.5 h-3.5" />
                           </button>
@@ -741,7 +741,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                           <button
                             onClick={() => handleDeleteUser(u)}
                             title="Hapus Pengguna (Soft Delete)"
-                            className="p-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors cursor-pointer"
+                            className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -758,24 +758,24 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
       {/* TAB CONTENT 3: ROLE MANAGEMENT & PERMISSION MATRIX */}
       {activeTab === 'roles' && (
-        <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-5 shadow-xl">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-700/60 pb-4">
+        <div className="bg-white border border-[#E4EDE6] rounded-3xl p-6 space-y-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                Matrix Matriks Hak Akses & Peranan (RBAC)
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                Matriks Hak Akses & Peranan (RBAC)
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 Konfigurasi otorisasi modul aplikasi berdasarkan peranan jabatan teknis dan manajerial.
               </p>
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-slate-700/60">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-900/80 text-slate-400 font-mono uppercase tracking-wider text-[10px] border-b border-slate-700">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-[#F8FAF8] text-slate-600 font-mono uppercase tracking-wider text-[10px] border-b border-slate-200">
                 <tr>
-                  <th className="p-3.5 w-64">Modul / Fitur Aplikasi</th>
+                  <th className="p-3.5 pl-4 w-64">Modul / Fitur Aplikasi</th>
                   {AVAILABLE_ROLES.map(role => (
                     <th key={role} className="p-3.5 text-center min-w-[110px]">
                       {role}
@@ -783,10 +783,10 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/50 bg-slate-800/40">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {MODULE_PERMISSIONS.map(mod => (
-                  <tr key={mod.key} className="hover:bg-slate-700/30 transition-colors">
-                    <td className="p-3.5 font-bold text-slate-200">
+                  <tr key={mod.key} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-3.5 pl-4 font-bold text-slate-900">
                       {mod.label}
                     </td>
                     {AVAILABLE_ROLES.map(role => {
@@ -798,9 +798,10 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                             onClick={() => togglePermission(role, mod.key)}
                             className={`w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all cursor-pointer ${
                               isAllowed
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
-                                : 'bg-slate-900/50 text-slate-600 border border-slate-700/50 hover:bg-slate-800'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 shadow-xs'
+                                : 'bg-slate-50 text-slate-300 border border-slate-200 hover:bg-slate-100 hover:text-slate-400'
                             }`}
+                            title={`${role}: ${isAllowed ? 'Diizinkan' : 'Dilarang'}`}
                           >
                             {isAllowed ? <Check className="w-4 h-4 font-bold" /> : <X className="w-3.5 h-3.5" />}
                           </button>
@@ -817,58 +818,58 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
       {/* TAB CONTENT 4: AUDIT LOG ACTIVITY */}
       {activeTab === 'audit' && (
-        <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-6 space-y-5 shadow-xl">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-700/60 pb-4">
+        <div className="bg-white border border-[#E4EDE6] rounded-3xl p-6 space-y-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-emerald-400" />
-                Audit Trail activity Keamanan & Autentikasi
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-emerald-600" />
+                Audit Trail Aktivitas Keamanan & Autentikasi
               </h2>
-              <p className="text-xs text-slate-400">
-                Catatan immutable otomatis untuk setiap peristiwa REGISTER_USER, LOGIN, LOGOUT, APPROVE_USER, REJECT_USER, CHANGE_ROLE, ENABLE_USER, DISABLE_USER, DELETE_USER, RESET_PASSWORD.
+              <p className="text-xs text-slate-500">
+                Catatan immutable otomatis untuk setiap peristiwa registrasi, persetujuan, pergantian peranan, dan pembaruan akun.
               </p>
             </div>
-            <span className="text-xs text-slate-400 font-mono">
-              Total Log: <strong className="text-emerald-400">{auditLogs.length}</strong>
+            <span className="text-xs text-slate-500 font-mono">
+              Total Log: <strong className="text-emerald-700">{auditLogs.length}</strong>
             </span>
           </div>
 
           {loadingAudit ? (
-            <div className="py-12 text-center text-xs text-slate-400 font-mono">Memuat audit log...</div>
+            <div className="py-12 text-center text-xs text-slate-500 font-mono">Memuat audit log...</div>
           ) : auditLogs.length === 0 ? (
             <div className="py-12 text-center text-xs text-slate-400 font-mono">
               Belum ada data audit log tercatat.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-700/60">
-              <table className="w-full text-left text-xs text-slate-300 font-mono">
-                <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-700">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+              <table className="w-full text-left text-xs text-slate-600 font-mono">
+                <thead className="bg-[#F8FAF8] text-slate-600 uppercase tracking-wider text-[10px] border-b border-slate-200">
                   <tr>
-                    <th className="p-3.5">Timestamp</th>
+                    <th className="p-3.5 pl-4">Timestamp</th>
                     <th className="p-3.5">User Executed</th>
                     <th className="p-3.5">Koleksi</th>
                     <th className="p-3.5">Tipe Aksi</th>
-                    <th className="p-3.5">Detail Catatan Audit</th>
+                    <th className="p-3.5 pr-4">Detail Catatan Audit</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700/50 bg-slate-800/40">
+                <tbody className="divide-y divide-slate-100 bg-white">
                   {auditLogs.map((log, idx) => (
-                    <tr key={log.id || idx} className="hover:bg-slate-700/30 transition-colors text-[11px]">
-                      <td className="p-3.5 text-slate-400 whitespace-nowrap">
+                    <tr key={log.id || idx} className="hover:bg-slate-50 transition-colors text-[11px]">
+                      <td className="p-3.5 pl-4 text-slate-500 whitespace-nowrap">
                         {formatTimestamp(log.timestamp, 'id-ID')}
                       </td>
-                      <td className="p-3.5 text-emerald-400 font-semibold">{log.user || 'system'}</td>
-                      <td className="p-3.5 text-slate-300">{log.collection || 'users'}</td>
+                      <td className="p-3.5 text-emerald-700 font-semibold">{log.user || 'system'}</td>
+                      <td className="p-3.5 text-slate-600">{log.collection || 'users'}</td>
                       <td className="p-3.5">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          log.action === 'insert' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                          log.action === 'delete' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
-                          'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          log.action === 'insert' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          log.action === 'delete' ? 'bg-red-50 text-red-700 border-red-200' :
+                          'bg-sky-50 text-sky-700 border-sky-200'
                         }`}>
                           {log.action?.toUpperCase() || 'INFO'}
                         </span>
                       </td>
-                      <td className="p-3.5 text-slate-200">{log.details}</td>
+                      <td className="p-3.5 pr-4 text-slate-700 font-sans">{log.details}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -880,48 +881,48 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
       {/* DIALOG 1: APPROVE USER MODAL */}
       {approveUserTarget && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-3xl p-6 w-full max-w-md space-y-5 shadow-2xl animate-fade-in text-left">
-            <div className="flex justify-between items-center border-b border-slate-700 pb-3">
-              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-md space-y-5 shadow-2xl animate-fade-in text-left">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                 Approve User Registration
               </h3>
               <button 
                 onClick={() => setApproveUserTarget(null)}
-                className="p-1 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer"
+                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-4 text-xs space-y-2">
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2">
               <div className="flex justify-between">
-                <span className="text-slate-400">Nama Lengkap:</span>
-                <span className="font-bold text-slate-100">{approveUserTarget.fullName || approveUserTarget.name}</span>
+                <span className="text-slate-500">Nama Lengkap:</span>
+                <span className="font-bold text-slate-900">{approveUserTarget.fullName || approveUserTarget.name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Email:</span>
-                <span className="font-mono text-slate-300">{approveUserTarget.email}</span>
+                <span className="text-slate-500">Email:</span>
+                <span className="font-mono text-slate-700">{approveUserTarget.email}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Departemen:</span>
-                <span className="text-slate-200">{approveUserTarget.department || '-'}</span>
+                <span className="text-slate-500">Departemen:</span>
+                <span className="text-slate-700">{approveUserTarget.department || '-'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Jabatan:</span>
-                <span className="text-slate-200">{approveUserTarget.position || '-'}</span>
+                <span className="text-slate-500">Jabatan:</span>
+                <span className="text-slate-700">{approveUserTarget.position || '-'}</span>
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] text-slate-300 font-semibold mb-1.5 uppercase tracking-wide">
-                Pilih Peran Hak Akses (Role RBAC) <span className="text-red-400">*</span>
+              <label className="block text-[11px] text-slate-700 font-semibold mb-1.5 uppercase tracking-wide">
+                Pilih Peran Hak Akses (Role RBAC) <span className="text-red-500">*</span>
               </label>
               <select
                 value={selectedApproveRole}
                 onChange={(e) => setSelectedApproveRole(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-3 text-xs outline-none text-slate-100 cursor-pointer font-sans"
+                className="w-full bg-white border border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3 py-2.5 text-xs outline-none text-slate-900 cursor-pointer font-sans"
               >
                 {AVAILABLE_ROLES.map(r => (
                   <option key={r} value={r}>{r}</option>
@@ -933,14 +934,14 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
               <button
                 type="button"
                 onClick={() => setApproveUserTarget(null)}
-                className="w-1/3 py-3 border border-slate-700 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                className="w-1/3 py-2.5 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleApproveConfirm}
-                className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-xl transition-all font-sans cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                className="flex-1 py-2.5 bg-[#2E4B3D] hover:bg-[#365A48] text-white text-xs font-bold rounded-xl transition-all font-sans cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider shadow-sm"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Approve User
@@ -952,28 +953,28 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
       {/* DIALOG 2: REJECT USER MODAL */}
       {rejectUserTarget && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-3xl p-6 w-full max-w-md space-y-5 shadow-2xl animate-fade-in text-left">
-            <div className="flex justify-between items-center border-b border-slate-700 pb-3">
-              <h3 className="text-base font-bold text-red-400 flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-md space-y-5 shadow-2xl animate-fade-in text-left">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-red-600 flex items-center gap-2">
                 <XCircle className="w-5 h-5" />
                 Tolak Pendaftaran User
               </h3>
               <button 
                 onClick={() => setRejectUserTarget(null)}
-                className="p-1 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer"
+                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="text-xs text-slate-300 leading-relaxed">
-              Anda akan menolak permohonan pendaftaran <strong className="text-slate-100">{rejectUserTarget.fullName || rejectUserTarget.email}</strong>.
+            <div className="text-xs text-slate-600 leading-relaxed">
+              Anda akan menolak permohonan pendaftaran <strong className="text-slate-900">{rejectUserTarget.fullName || rejectUserTarget.email}</strong>.
             </div>
 
             <div>
-              <label className="block text-[11px] text-slate-300 font-semibold mb-1.5 uppercase tracking-wide">
-                Alasan Penolakan <span className="text-red-400">*</span>
+              <label className="block text-[11px] text-slate-700 font-semibold mb-1.5 uppercase tracking-wide">
+                Alasan Penolakan <span className="text-red-500">*</span>
               </label>
               <textarea
                 required
@@ -981,7 +982,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="Contoh: Email bukan domain resmi perusahaan / data NIK tidak terverifikasi..."
-                className="w-full bg-slate-900 border border-slate-700 focus:border-red-500 rounded-xl p-3 text-xs outline-none text-slate-100 placeholder:text-slate-500"
+                className="w-full bg-white border border-slate-300 focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl p-3 text-xs outline-none text-slate-900 placeholder:text-slate-400"
               />
             </div>
 
@@ -989,14 +990,14 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
               <button
                 type="button"
                 onClick={() => setRejectUserTarget(null)}
-                className="w-1/3 py-3 border border-slate-700 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                className="w-1/3 py-2.5 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleRejectConfirm}
-                className="flex-1 py-3 bg-red-500 hover:bg-red-400 text-white text-xs font-bold rounded-xl transition-all font-sans cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl transition-all font-sans cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider shadow-sm"
               >
                 <XCircle className="w-4 h-4" />
                 Konfirmasi Tolak
@@ -1008,33 +1009,33 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
       {/* DIALOG 3: EDIT ROLE MODAL */}
       {editRoleTarget && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-3xl p-6 w-full max-w-md space-y-5 shadow-2xl animate-fade-in text-left">
-            <div className="flex justify-between items-center border-b border-slate-700 pb-3">
-              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Edit className="w-5 h-5 text-emerald-400" />
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-md space-y-5 shadow-2xl animate-fade-in text-left">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Edit className="w-5 h-5 text-emerald-600" />
                 Ubah Peran Hak Akses (Role)
               </h3>
               <button 
                 onClick={() => setEditRoleTarget(null)}
-                className="p-1 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer"
+                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-300">
-              Pengguna: <strong className="text-slate-100">{editRoleTarget.fullName || editRoleTarget.email}</strong>
+            <p className="text-xs text-slate-600">
+              Pengguna: <strong className="text-slate-900">{editRoleTarget.fullName || editRoleTarget.email}</strong>
             </p>
 
             <div>
-              <label className="block text-[11px] text-slate-300 font-semibold mb-1.5 uppercase tracking-wide">
-                Peran Baru <span className="text-red-400">*</span>
+              <label className="block text-[11px] text-slate-700 font-semibold mb-1.5 uppercase tracking-wide">
+                Peran Baru <span className="text-red-500">*</span>
               </label>
               <select
                 value={selectedNewRole}
                 onChange={(e) => setSelectedNewRole(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-3 text-xs outline-none text-slate-100 cursor-pointer font-sans"
+                className="w-full bg-white border border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3 py-2.5 text-xs outline-none text-slate-900 cursor-pointer font-sans"
               >
                 {AVAILABLE_ROLES.map(r => (
                   <option key={r} value={r}>{r}</option>
@@ -1046,14 +1047,14 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
               <button
                 type="button"
                 onClick={() => setEditRoleTarget(null)}
-                className="w-1/3 py-3 border border-slate-700 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                className="w-1/3 py-2.5 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleEditRoleConfirm}
-                className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-xl transition-all font-sans cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                className="flex-1 py-2.5 bg-[#2E4B3D] hover:bg-[#365A48] text-white text-xs font-bold rounded-xl transition-all font-sans cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider shadow-sm"
               >
                 <Check className="w-4 h-4" />
                 Simpan Perubahan Role

@@ -143,6 +143,7 @@ export interface ReclamationPlan {
 export interface ReclamationGuarantee {
   id: string;
   guaranteeNo: string;
+  periodYear?: number;
   guaranteeType: 'Bank Guarantee' | 'Time Deposit' | 'Environmental Bond';
   value: number;
   issuingInstitution: string;

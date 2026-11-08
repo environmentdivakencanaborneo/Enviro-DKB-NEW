@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useAuth, RegisterUserData } from '../services/authService';
 import DivaLogo from './DivaLogo';
+import MiningEnvIcon from './MiningEnvIcon';
 import { triggerToast } from '../utils/errorHandler';
 
 type AuthMode = 'login' | 'register' | 'registered_success' | 'reset_password';
@@ -242,8 +243,20 @@ export default function AuthView() {
         
         {/* Brand Header */}
         <div className="text-center space-y-3 flex flex-col items-center justify-center">
-          <div className="flex items-center justify-center p-2 bg-slate-900/50 rounded-2xl border border-slate-700/50">
-            <DivaLogo variant="full" size={60} />
+          <div className="flex items-center justify-center gap-3 p-3 bg-slate-900/60 rounded-2xl border border-slate-700/60 shadow-inner">
+            <DivaLogo variant="full" size={54} />
+            <div className="h-9 w-[1px] bg-slate-700/80" />
+            <div className="flex items-center gap-2 pr-1">
+              <MiningEnvIcon type="emblem" size={42} />
+              <div className="text-left hidden sm:block">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold block leading-none">
+                  Mining Eco
+                </span>
+                <span className="text-[9px] text-slate-400 block font-sans mt-0.5">
+                  DEM Console
+                </span>
+              </div>
+            </div>
           </div>
           <p className="text-[11px] font-mono tracking-widest text-emerald-400 font-semibold uppercase">
             Enterprise Environmental Management System (EEMS)

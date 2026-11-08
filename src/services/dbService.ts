@@ -92,7 +92,7 @@ export const waterQualityService = {
     }
     const q = query(collection(db, 'wastewater'), orderBy('date', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as WastewaterData);
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as WastewaterData);
       setOfflineCache('wastewater', docs);
       callback(docs);
     }, (error) => {
@@ -199,7 +199,10 @@ export const waterQualityService = {
   delete: async (id: string): Promise<void> => {
     const docRef = doc(db, 'wastewater', id);
     const snap = await getDoc(docRef);
-    const oldData = snap.exists() ? snap.data() : null;
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as WastewaterData;
 
     await deleteDoc(docRef);
 
@@ -220,7 +223,7 @@ export const waterQualityService = {
       collection: 'wastewater',
       recordId: id,
       action: 'delete',
-      details: oldData ? `Menghapus kualitas air limbah di lokasi ${oldData.location}` : `Menghapus air limbah ID ${id}`
+      details: `Menghapus kualitas air limbah di lokasi ${oldData.location || '-'}, tgl: ${oldData.date || '-'}, pH: ${oldData.ph ?? '-'}, TSS: ${oldData.tss ?? '-'}`
     });
   },
 
@@ -316,7 +319,7 @@ export const surfaceWaterService = {
     }
     const q = query(collection(db, 'surfacewater'), orderBy('date', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as SurfaceWaterData);
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as SurfaceWaterData);
       setOfflineCache('surfacewater', docs);
       callback(docs);
     }, (error) => {
@@ -372,7 +375,10 @@ export const surfaceWaterService = {
   delete: async (id: string): Promise<void> => {
     const docRef = doc(db, 'surfacewater', id);
     const snap = await getDoc(docRef);
-    const oldData = snap.exists() ? snap.data() : null;
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as SurfaceWaterData;
 
     await deleteDoc(docRef);
 
@@ -386,7 +392,7 @@ export const surfaceWaterService = {
       collection: 'surfacewater',
       recordId: id,
       action: 'delete',
-      details: oldData ? `Menghapus kualitas air permukaan di lokasi ${oldData.location}` : `Menghapus air permukaan ID ${id}`
+      details: `Menghapus kualitas air permukaan di lokasi ${oldData.location || '-'}, tgl: ${oldData.date || '-'}, status: ${oldData.status || '-'}`
     });
   },
 
@@ -429,7 +435,7 @@ export const rainfallService = {
     }
     const q = query(collection(db, 'rainfall'), orderBy('date', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as RainfallData);
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as RainfallData);
       setOfflineCache('rainfall', docs);
       callback(docs);
     }, (error) => {
@@ -473,7 +479,14 @@ export const rainfallService = {
   },
 
   delete: async (id: string): Promise<void> => {
-    await deleteDoc(doc(db, 'rainfall', id));
+    const docRef = doc(db, 'rainfall', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as RainfallData;
+
+    await deleteDoc(docRef);
 
     // Update offline cache
     const docs = getOfflineCache<RainfallData[]>('rainfall', []);
@@ -484,7 +497,7 @@ export const rainfallService = {
       collection: 'rainfall',
       recordId: id,
       action: 'delete',
-      details: `Menghapus curah hujan ID ${id}`
+      details: `Menghapus curah hujan stasiun ${oldData.station || '-'}, tgl: ${oldData.date || '-'}, curah: ${oldData.rainfall ?? 0} mm`
     });
   },
 
@@ -525,7 +538,7 @@ export const nurseryService = {
     }
     const q = query(collection(db, 'nursery'), orderBy('dateIn', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as NurseryData);
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as NurseryData);
       setOfflineCache('nursery', docs);
       callback(docs);
     }, (error) => {
@@ -559,7 +572,14 @@ export const nurseryService = {
   },
 
   delete: async (id: string): Promise<void> => {
-    await deleteDoc(doc(db, 'nursery', id));
+    const docRef = doc(db, 'nursery', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as NurseryData;
+
+    await deleteDoc(docRef);
 
     // Update offline cache
     const docs = getOfflineCache<NurseryData[]>('nursery', []);
@@ -570,7 +590,7 @@ export const nurseryService = {
       collection: 'nursery',
       recordId: id,
       action: 'delete',
-      details: `Menghapus nursery ID ${id}`
+      details: `Menghapus bibit nursery: ${oldData.plantType || '-'}, batch: ${oldData.batchCode || '-'}, jumlah: ${oldData.quantity ?? 0}`
     });
   },
 
@@ -618,10 +638,10 @@ export const reclamationService = {
     return onSnapshot(q, (snapshot) => {
       const plans = snapshot.docs
         .filter(doc => doc.id.startsWith('RP-'))
-        .map(doc => doc.data() as ReclamationPlan);
+        .map(doc => ({ ...doc.data(), id: doc.id }) as ReclamationPlan);
       const guarantees = snapshot.docs
         .filter(doc => doc.id.startsWith('RG-'))
-        .map(doc => doc.data() as ReclamationGuarantee);
+        .map(doc => ({ ...doc.data(), id: doc.id }) as ReclamationGuarantee);
       setOfflineCache('reclamation_plans', plans);
       setOfflineCache('reclamation_guarantees', guarantees);
       onPlans(plans);
@@ -644,6 +664,11 @@ export const reclamationService = {
     }
 
     await setDoc(doc(db, 'reclamation', id), { ...newItem, ...trailCreate() });
+
+    // Update offline cache
+    const docs = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
+    const updated = [newItem, ...docs.filter(x => x.id !== id)];
+    setOfflineCache('reclamation_plans', updated);
 
     await auditService.createLog({
       collection: 'reclamation',
@@ -671,6 +696,11 @@ export const reclamationService = {
 
     await updateDoc(docRef, { ...merged, ...trailUpdate() } as any);
 
+    // Update offline cache
+    const docs = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
+    const updatedDocs = docs.map(x => x.id === id ? merged : x);
+    setOfflineCache('reclamation_plans', updatedDocs);
+
     await auditService.createLog({
       collection: 'reclamation',
       recordId: id,
@@ -690,7 +720,14 @@ export const reclamationService = {
   },
 
   deletePlan: async (id: string): Promise<void> => {
-    await deleteDoc(doc(db, 'reclamation', id));
+    const docRef = doc(db, 'reclamation', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const current = snap.data() as ReclamationPlan;
+
+    await deleteDoc(docRef);
 
     // Update offline cache
     const docs = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
@@ -701,7 +738,7 @@ export const reclamationService = {
       collection: 'reclamation',
       recordId: id,
       action: 'delete',
-      details: `Menghapus rencana reklamasi ${id}`
+      details: `Menghapus rencana reklamasi area: ${current.areaName || '-'}, tahun target: ${current.targetYear ?? '-'}, luas: ${current.sizeHa ?? 0} Ha`
     });
   },
 
@@ -719,6 +756,11 @@ export const reclamationService = {
 
     await setDoc(doc(db, 'reclamation', id), { ...newItem, ...trailCreate() });
 
+    // Update offline cache
+    const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
+    const updated = [newItem, ...docs.filter(x => x.id !== id)];
+    setOfflineCache('reclamation_guarantees', updated);
+
     await auditService.createLog({
       collection: 'reclamation',
       recordId: id,
@@ -730,18 +772,26 @@ export const reclamationService = {
   },
 
   deleteGuarantee: async (id: string): Promise<void> => {
-    await deleteDoc(doc(db, 'reclamation', id));
+    const docRef = doc(db, 'reclamation', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const current = snap.data() as ReclamationGuarantee;
+
+    await deleteDoc(docRef);
 
     // Update offline cache
     const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
     const updated = docs.filter(x => x.id !== id);
     setOfflineCache('reclamation_guarantees', updated);
 
+    const valFormatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(current.value || 0);
     await auditService.createLog({
       collection: 'reclamation',
       recordId: id,
       action: 'delete',
-      details: `Menghapus jaminan reklamasi ${id}`
+      details: `Menghapus jaminan reklamasi No: ${current.guaranteeNo || '-'}, Tipe: ${current.guaranteeType || '-'}, Nilai: ${valFormatted}, Penerbit: ${current.issuingInstitution || '-'}, Jatuh Tempo: ${current.dueDate || '-'}`
     });
   },
 
@@ -750,7 +800,7 @@ export const reclamationService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Jaminan tidak ditemukan");
     const oldData = snap.data() as ReclamationGuarantee;
-    const updatedItem = { ...oldData, ...item };
+    const updatedItem = { ...oldData, ...item, id };
 
     const parseResult = ReclamationGuaranteeSchema.safeParse(updatedItem);
     if (!parseResult.success) {
@@ -788,11 +838,11 @@ export const wasteB3Service = {
     return onSnapshot(q, (snapshot) => {
       const listIn = snapshot.docs
         .filter(doc => doc.id.startsWith('WI-'))
-        .map(doc => doc.data({ serverTimestamps: 'estimate' }) as WasteIn)
+        .map(doc => ({ ...doc.data({ serverTimestamps: 'estimate' }), id: doc.id }) as WasteIn)
         .sort(compareLatestFirst);
       const listOut = snapshot.docs
         .filter(doc => doc.id.startsWith('WO-'))
-        .map(doc => doc.data({ serverTimestamps: 'estimate' }) as WasteOut)
+        .map(doc => ({ ...doc.data({ serverTimestamps: 'estimate' }), id: doc.id }) as WasteOut)
         .sort(compareLatestFirst);
       setOfflineCache('waste_in', listIn);
       setOfflineCache('waste_out', listOut);
@@ -833,16 +883,22 @@ export const wasteB3Service = {
   },
 
   deleteIn: async (id: string): Promise<void> => {
+    const docRef = doc(db, 'waste_b3', id);
+    const targetSnap = await getDoc(docRef);
+    if (!targetSnap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const targetIn = ({ ...targetSnap.data({ serverTimestamps: 'estimate' }), id: targetSnap.id }) as WasteIn;
+
     // Ambil data terkini dari Firestore untuk pengecekan konsistensi ledger
     const snap = await getDocs(collection(db, 'waste_b3'));
     const currentIn = snap.docs
       .filter(d => d.id.startsWith('WI-'))
-      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteIn);
+      .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteIn);
     const currentOut = snap.docs
       .filter(d => d.id.startsWith('WO-'))
-      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteOut);
+      .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteOut);
 
-    const targetIn = currentIn.find(x => x.id === id);
     const candidateIn = currentIn.filter(x => x.id !== id);
     const simLedger = buildWasteLedger(candidateIn, currentOut);
 
@@ -857,7 +913,7 @@ export const wasteB3Service = {
       throw new Error(`Tidak dapat menghapus: limbah pada batch ${id} sudah dikeluarkan lewat manifest ${manifestList || 'pengeluaran B3'}.`);
     }
 
-    await deleteDoc(doc(db, 'waste_b3', id));
+    await deleteDoc(docRef);
 
     // Update offline cache
     const docs = getOfflineCache<WasteIn[]>('waste_in', []);
@@ -868,7 +924,7 @@ export const wasteB3Service = {
       collection: 'waste_b3',
       recordId: id,
       action: 'delete',
-      details: `Menghapus catatan masuk limbah B3 ${id} (${targetIn?.wasteType || ''})`
+      details: `Menghapus catatan masuk limbah B3 ${id} (Jenis: ${targetIn.wasteType || '-'}, TPS: ${targetIn.tpsLocation || '-'}, Berat: ${targetIn.weightKg ?? 0} kg, Tgl: ${targetIn.dateIn || '-'})`
     });
   },
 
@@ -876,10 +932,10 @@ export const wasteB3Service = {
     const snapAll = await getDocs(collection(db, 'waste_b3'));
     const currentIn = snapAll.docs
       .filter(d => d.id.startsWith('WI-'))
-      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteIn);
+      .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteIn);
     const currentOut = snapAll.docs
       .filter(d => d.id.startsWith('WO-'))
-      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteOut);
+      .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteOut);
 
     const oldData = currentIn.find(x => x.id === id);
     if (!oldData) throw new Error("Manifest masuk tidak ditemukan");
@@ -931,10 +987,10 @@ export const wasteB3Service = {
     const snapAll = await getDocs(collection(db, 'waste_b3'));
     const currentIn = snapAll.docs
       .filter(d => d.id.startsWith('WI-'))
-      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteIn);
+      .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteIn);
     const currentOut = snapAll.docs
       .filter(d => d.id.startsWith('WO-'))
-      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteOut);
+      .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteOut);
 
     const candidateOut = [...currentOut, newItem];
     const ledger = buildWasteLedger(currentIn, candidateOut);
@@ -975,19 +1031,25 @@ export const wasteB3Service = {
   },
 
   deleteOut: async (id: string): Promise<void> => {
+    const docRef = doc(db, 'waste_b3', id);
+    const targetSnap = await getDoc(docRef);
+    if (!targetSnap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = ({ ...targetSnap.data({ serverTimestamps: 'estimate' }), id: targetSnap.id }) as WasteOut;
+
     const snapAll = await getDocs(collection(db, 'waste_b3'));
     const currentIn = snapAll.docs
       .filter(d => d.id.startsWith('WI-'))
-      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteIn);
+      .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteIn);
     const currentOut = snapAll.docs
       .filter(d => d.id.startsWith('WO-'))
-      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteOut);
+      .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteOut);
 
-    const oldData = currentOut.find(x => x.id === id);
     const candidateOut = currentOut.filter(x => x.id !== id);
     const simLedger = buildWasteLedger(currentIn, candidateOut);
 
-    await deleteDoc(doc(db, 'waste_b3', id));
+    await deleteDoc(docRef);
 
     // Update offline cache
     const docs = getOfflineCache<WasteOut[]>('waste_out', []);
@@ -1003,7 +1065,7 @@ export const wasteB3Service = {
       collection: 'waste_b3',
       recordId: id,
       action: 'delete',
-      details: `Menghapus manifest keluar limbah B3 ${id} (No Manifest: ${oldData?.manifestNo || '-'}). Sisa stok sesudahnya: ${remainingStock.toLocaleString('id-ID')} Kg.`
+      details: `Menghapus manifest keluar limbah B3 ${id} (No Manifest: ${oldData.manifestNo || '-'}, Jenis: ${oldData.wasteType || '-'}, Berat: ${oldData.weightKg ?? 0} kg, Transporter: ${oldData.transporter || '-'}). Sisa stok sesudahnya: ${remainingStock.toLocaleString('id-ID')} Kg.`
     });
   },
 
@@ -1011,10 +1073,10 @@ export const wasteB3Service = {
     const snapAll = await getDocs(collection(db, 'waste_b3'));
     const currentIn = snapAll.docs
       .filter(d => d.id.startsWith('WI-'))
-      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteIn);
+      .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteIn);
     const currentOut = snapAll.docs
       .filter(d => d.id.startsWith('WO-'))
-      .map(d => d.data({ serverTimestamps: 'estimate' }) as WasteOut);
+      .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteOut);
 
     const oldData = currentOut.find(x => x.id === id);
     if (!oldData) throw new Error("Manifest keluar tidak ditemukan");
@@ -1078,10 +1140,10 @@ export const documentService = {
     return onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs
         .filter(doc => doc.id.startsWith('DOC-'))
-        .map(doc => doc.data() as EnvironmentalDocument);
+        .map(doc => ({ ...doc.data(), id: doc.id }) as EnvironmentalDocument);
       const events = snapshot.docs
         .filter(doc => doc.id.startsWith('EV-'))
-        .map(doc => doc.data() as ComplianceCalendarEvent);
+        .map(doc => ({ ...doc.data(), id: doc.id }) as ComplianceCalendarEvent);
       setOfflineCache('documents', docs);
       setOfflineCache('compliance_events', events);
       onDocs(docs);
@@ -1116,7 +1178,14 @@ export const documentService = {
   },
 
   deleteDoc: async (id: string): Promise<void> => {
-    await deleteDoc(doc(db, 'documents', id));
+    const docRef = doc(db, 'documents', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as EnvironmentalDocument;
+
+    await deleteDoc(docRef);
 
     // Update offline cache
     const docs = getOfflineCache<EnvironmentalDocument[]>('documents', []);
@@ -1127,7 +1196,7 @@ export const documentService = {
       collection: 'documents',
       recordId: id,
       action: 'delete',
-      details: `Menghapus dokumen lingkungan ID ${id}`
+      details: `Menghapus dokumen lingkungan: ${oldData.name || '-'} (No: ${oldData.docNo || '-'}, Tipe: ${oldData.type || '-'})`
     });
   },
 
@@ -1207,7 +1276,14 @@ export const documentService = {
   },
 
   deleteEvent: async (id: string): Promise<void> => {
-    await deleteDoc(doc(db, 'documents', id));
+    const docRef = doc(db, 'documents', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as ComplianceCalendarEvent;
+
+    await deleteDoc(docRef);
 
     // Update offline cache
     const docs = getOfflineCache<ComplianceCalendarEvent[]>('compliance_events', []);
@@ -1218,7 +1294,7 @@ export const documentService = {
       collection: 'documents',
       recordId: id,
       action: 'delete',
-      details: `Menghapus kegiatan agenda ${id}`
+      details: `Menghapus kegiatan agenda: ${oldData.title || '-'} (Tanggal: ${oldData.date || '-'}, Status: ${oldData.status || '-'})`
     });
   }
 };
@@ -1232,7 +1308,7 @@ export const environmentalCostService = {
     }
     const q = query(collection(db, 'costs'), orderBy('year', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as EnvironmentalCost);
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as EnvironmentalCost);
       setOfflineCache('costs', docs);
       callback(docs);
     }, (error) => {
@@ -1265,7 +1341,14 @@ export const environmentalCostService = {
   },
 
   delete: async (id: string): Promise<void> => {
-    await deleteDoc(doc(db, 'costs', id));
+    const docRef = doc(db, 'costs', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as EnvironmentalCost;
+
+    await deleteDoc(docRef);
 
     // Update offline cache
     const docs = getOfflineCache<EnvironmentalCost[]>('costs', []);
@@ -1276,7 +1359,7 @@ export const environmentalCostService = {
       collection: 'costs',
       recordId: id,
       action: 'delete',
-      details: `Menghapus alokasi biaya lingkungan ${id}`
+      details: `Menghapus alokasi biaya lingkungan ${id} (Kategori: ${oldData.category || '-'}, Periode: ${oldData.period || '-'} ${oldData.year ?? ''}, OPEX: Rp${(oldData.plannedOpex ?? 0).toLocaleString('id-ID')})`
     });
   },
 
@@ -1333,7 +1416,7 @@ export const notificationService = {
     );
     return onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs
-        .map(doc => doc.data() as AlertNotification)
+        .map(doc => ({ ...doc.data(), id: doc.id }) as AlertNotification)
         .sort((a, b) => getTimeMs(b.timestamp) - getTimeMs(a.timestamp));
       setOfflineCache('notifications', docs);
       callback(docs);
@@ -1421,7 +1504,7 @@ export const solidWasteService = {
     }
     const q = query(collection(db, 'solid_waste'), orderBy('date', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as SolidWasteData);
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as SolidWasteData);
       setOfflineCache('solid_waste', docs);
       callback(docs);
     }, (error) => {
@@ -1471,7 +1554,10 @@ export const solidWasteService = {
   delete: async (id: string): Promise<void> => {
     const docRef = doc(db, 'solid_waste', id);
     const snap = await getDoc(docRef);
-    const oldData = snap.exists() ? snap.data() as SolidWasteData : null;
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as SolidWasteData;
 
     await deleteDoc(docRef);
 
@@ -1484,7 +1570,7 @@ export const solidWasteService = {
       collection: 'solid_waste',
       recordId: id,
       action: 'delete',
-      details: oldData ? `Menghapus data pengolahan sampah tanggal ${oldData.date} dari sumber ${oldData.source}` : `Menghapus data sampah ID ${id}`
+      details: `Menghapus data pengolahan sampah tanggal ${oldData.date || '-'} dari sumber ${oldData.source || '-'} (Total timbulan: ${(oldData.organicKg || 0) + (oldData.inorganicKg || 0) + (oldData.residueKg || 0)} kg)`
     });
   },
 
@@ -1522,7 +1608,7 @@ export const capaService = {
     try {
       const q = query(collection(db, 'capa'), orderBy('createdAt', 'desc'));
       return onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(doc => doc.data() as CapaData);
+        const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as CapaData);
         setOfflineCache('capa', data);
         callback(data);
       }, (error) => {
@@ -1586,14 +1672,21 @@ export const capaService = {
   },
 
   delete: async (id: string): Promise<void> => {
-    await deleteDoc(doc(db, 'capa', id));
+    const docRef = doc(db, 'capa', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as CapaData;
+
+    await deleteDoc(docRef);
     const docs = getOfflineCache<CapaData[]>('capa', []);
     setOfflineCache('capa', docs.filter(x => x.id !== id));
     await auditService.createLog({
       collection: 'capa',
       action: 'delete',
       recordId: id,
-      details: `Deleted CAPA record.`
+      details: `Menghapus temuan CAPA: ${oldData.title || '-'} (Severity: ${oldData.severity || '-'}, Status: ${oldData.status || '-'})`
     });
   }
 };
@@ -1607,7 +1700,7 @@ export const complianceMatrixService = {
     }
     const q = query(collection(db, 'compliance_matrix'), orderBy('period', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as ComplianceMatrixData);
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as ComplianceMatrixData);
       setOfflineCache('compliance_matrix', docs);
       callback(docs);
     }, (error) => {
@@ -1672,6 +1765,12 @@ export const complianceMatrixService = {
 
   delete: async (id: string): Promise<void> => {
     const docRef = doc(db, 'compliance_matrix', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as ComplianceMatrixData;
+
     await deleteDoc(docRef);
 
     const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
@@ -1681,7 +1780,7 @@ export const complianceMatrixService = {
       collection: 'compliance_matrix',
       action: 'delete',
       recordId: id,
-      details: `Deleted Compliance Matrix record`
+      details: `Menghapus matriks kepatuhan RKL/RPL: ${oldData.aspect || '-'} (Periode: ${oldData.period || '-'}, Target: ${oldData.target || '-'})`
     });
   }
 };
@@ -1695,7 +1794,7 @@ export const incidentService = {
     }
     const q = query(collection(db, 'incidents'), orderBy('date', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as IncidentData);
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as IncidentData);
       setOfflineCache('incidents', docs);
       callback(docs);
     }, (error) => {
@@ -1760,6 +1859,12 @@ export const incidentService = {
 
   delete: async (id: string): Promise<void> => {
     const docRef = doc(db, 'incidents', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as IncidentData;
+
     await deleteDoc(docRef);
 
     const docs = getOfflineCache<IncidentData[]>('incidents', []);
@@ -1769,7 +1874,7 @@ export const incidentService = {
       collection: 'incidents',
       action: 'delete',
       recordId: id,
-      details: `Deleted Incident record`
+      details: `Menghapus catatan insiden: ${oldData.category || '-'} di lokasi ${oldData.location || '-'} (Tgl: ${oldData.date || '-'})`
     });
   }
 };
@@ -1783,7 +1888,7 @@ export const regulatoryService = {
     }
     const q = query(collection(db, 'regulatory'), orderBy('issueDate', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as RegulatoryWatchData);
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as RegulatoryWatchData);
       setOfflineCache('regulatory', docs);
       callback(docs);
     }, (error) => {
@@ -1848,6 +1953,12 @@ export const regulatoryService = {
 
   delete: async (id: string): Promise<void> => {
     const docRef = doc(db, 'regulatory', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as RegulatoryWatchData;
+
     await deleteDoc(docRef);
 
     const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
@@ -1857,7 +1968,7 @@ export const regulatoryService = {
       collection: 'regulatory',
       action: 'delete',
       recordId: id,
-      details: `Deleted Regulatory Watch`
+      details: `Menghapus regulasi: ${oldData.regulationNo || '-'} (${oldData.about || '-'})`
     });
   }
 };
@@ -1871,7 +1982,7 @@ export const nurseryStockOutService = {
     }
     const q = query(collection(db, 'nursery_stock_out'), orderBy('tanggal', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => doc.data() as NurseryStockOut);
+      const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as NurseryStockOut);
       setOfflineCache('nursery_stock_out', docs);
       callback(docs);
     }, (error) => {
@@ -1925,13 +2036,20 @@ export const nurseryStockOutService = {
   },
 
   delete: async (id: string): Promise<void> => {
-    await deleteDoc(doc(db, 'nursery_stock_out', id));
+    const docRef = doc(db, 'nursery_stock_out', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
+    }
+    const oldData = snap.data() as NurseryStockOut;
+
+    await deleteDoc(docRef);
 
     await auditService.createLog({
       collection: 'nursery_stock_out',
       recordId: id,
       action: 'delete',
-      details: `Menghapus data nursery stock out`
+      details: `Menghapus penyaluran bibit: ${oldData.namaBibit || '-'} (Jumlah: ${oldData.jumlahKeluar ?? 0}, Lokasi: ${oldData.lokasiPenanaman || '-'}, Tgl: ${oldData.tanggal || '-'})`
     });
   }
 };

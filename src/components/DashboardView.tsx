@@ -34,6 +34,7 @@ import {
   EnvironmentalDocument,
   AlertNotification
 } from '../types';
+import { calculateGuaranteeMetrics } from '../utils/guaranteeMetrics';
 import { 
   AlertTriangle, 
   CheckCircle, 
@@ -44,14 +45,16 @@ import {
   ShieldAlert, 
   FileCheck2, 
   Clock, 
-  CalendarDays,
-  ExternalLink,
-  Coins,
-  ArrowUpRight,
-  Layers,
-  CheckSquare,
-  User
+  CalendarDays, 
+  ExternalLink, 
+  Coins, 
+  ArrowUpRight, 
+  Layers, 
+  CheckSquare, 
+  User,
+  FileSpreadsheet
 } from 'lucide-react';
+import MiningEnvIcon from './MiningEnvIcon';
 import { INDONESIAN_REGULATIONS } from '../data/regulations';
 import { computeDocumentStatus } from '../utils/documentStatus';
 import { todayLocalISO } from '../utils/dateUtils';
@@ -202,8 +205,9 @@ export default function DashboardView({
   const totalSeedsIn = nursery.reduce((sum, x) => sum + x.quantity, 0);
   const totalSeedsOut = nurseryStockOut.reduce((sum, x) => sum + x.jumlahKeluar, 0);
   const totalSeeds = totalSeedsIn - totalSeedsOut;
-  const totalGuaranteesValue = guarantees.reduce((sum, x) => sum + x.value, 0);
-  const activeGuaranteesCount = guarantees.filter(x => x.status === 'Active').length;
+  const guaranteeMetrics = calculateGuaranteeMetrics(guarantees);
+  const totalGuaranteesValue = guaranteeMetrics.totalActiveValue;
+  const activeGuaranteesCount = guaranteeMetrics.activeCount;
 
   const totalWaterTests = wastewater.length;
   const passedWaterTests = wastewater.filter(x => x.status === 'Safe').length;
@@ -428,226 +432,320 @@ export default function DashboardView({
 
   return (
     <div id="dashboard-view-wrapper" className="space-y-6">
-      {/* KPI Cards Grid - Premium Redesign */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Hero Banner Ringkas - Eco-Mining Bento */}
+      <div className="bg-gradient-to-r from-[#2E4B3D] via-[#365A48] to-[#253D32] rounded-3xl p-6 text-white shadow-md relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-5 text-left border border-emerald-900/30">
+        <div className="flex items-center gap-4 relative z-10">
+          <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 shrink-0 shadow-inner">
+            <MiningEnvIcon type="emblem" size={44} />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono tracking-widest text-emerald-300 font-bold uppercase bg-white/10 px-2 py-0.5 rounded-full border border-white/10">
+                Site Coal Mining Operation
+              </span>
+              <span className="text-[10px] text-emerald-200/80 font-mono">
+                {todayLocalISO()}
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white font-heading">
+              PT Diva Kencana Borneo
+            </h1>
+            <p className="text-xs text-emerald-100/80 max-w-xl font-sans leading-relaxed">
+              Sistem Pemantauan Lingkungan Tambang Terpadu — Kualitas Air KPL, Neraca TPS B3, Curah Hujan & Reklamasi Progresif.
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Action Shortcuts */}
+        <div className="flex flex-wrap items-center gap-2 relative z-10 shrink-0">
+          <button
+            onClick={() => setCurrentTab('monitoring')}
+            className="px-3.5 py-2 bg-white/15 hover:bg-white/25 border border-white/20 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-sm backdrop-blur-sm"
+          >
+            <MiningEnvIcon type="water-kpl" size={16} />
+            Input Air KPL
+          </button>
+          <button
+            onClick={() => setCurrentTab('monitoring')}
+            className="px-3.5 py-2 bg-white/15 hover:bg-white/25 border border-white/20 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-sm backdrop-blur-sm"
+          >
+            <MiningEnvIcon type="rainfall" size={16} />
+            Catat Hujan
+          </button>
+          <button
+            onClick={() => setCurrentTab('waste')}
+            className="px-3.5 py-2 bg-white/15 hover:bg-white/25 border border-white/20 rounded-xl text-xs font-bold text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-sm backdrop-blur-sm"
+          >
+            <MiningEnvIcon type="tps-b3" size={16} />
+            Cek Stok TPS B3
+          </button>
+          <button
+            onClick={() => setCurrentTab('reports')}
+            className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            Cetak Laporan
+          </button>
+        </div>
+
+        {/* Ambient glow decoration */}
+        <div className="absolute -right-8 -bottom-8 w-48 h-48 rounded-full bg-emerald-400/10 blur-2xl pointer-events-none" />
+      </div>
+
+      {/* KPI Cards Grid - Clean Eco-Mining Bento */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         
         {/* Card 1: Compliance Air Limbah */}
         <motion.div 
           id="kpi-water-compliance" 
-          className="bg-white p-6 rounded-[20px] border border-border-custom shadow-custom flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-300 group cursor-default"
+          onClick={() => setCurrentTab('monitoring')}
+          className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer text-left group"
           whileHover={{ scale: 1.01 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
+          title="Klik untuk buka Pemantauan Air Limbah"
         >
-          <div className="flex items-start gap-4">
-            <div className="p-3.5 bg-forest-50 text-[#4D7C5A] rounded-2xl border border-border-custom group-hover:scale-105 transition-all duration-200">
-              <Waves className="h-6 w-6 stroke-[1.5]" />
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-100 group-hover:scale-105 transition-transform duration-200 shrink-0">
+              <MiningEnvIcon type="water-kpl" size={26} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Compliance Air Limbah</span>
-              <span className="text-[48px] font-bold font-manrope text-text-primary mt-1 tracking-tight leading-none block">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block font-sans truncate">
+                Compliance Air KPL
+              </span>
+              <span className="text-3xl font-extrabold font-manrope text-slate-900 mt-1 tracking-tight leading-none block">
                 <AnimatedCounter value={waterComplianceRate} format={v => Math.round(v) + "%"} />
               </span>
             </div>
           </div>
-          <div className="mt-5 pt-4 border-t border-border-custom flex items-center gap-2 text-[12px]">
-            <span className="text-[#3FA66B] font-bold">✓ {passedWaterTests} Compliant</span>
-            <span className="text-text-secondary font-light">•</span>
-            <span className="text-[#D95C5C] font-bold">⚠ {failedWaterTests} Need Review</span>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              ✓ {passedWaterTests} Aman
+            </span>
+            {failedWaterTests > 0 ? (
+              <span className="text-[11px] font-bold text-red-600">
+                ⚠ {failedWaterTests} Melebihi
+              </span>
+            ) : (
+              <span className="text-[10px] text-slate-400 font-mono">Baku Mutu Terpenuhi</span>
+            )}
           </div>
         </motion.div>
 
         {/* Card 2: Nursery Stocks */}
         <motion.div 
           id="kpi-nursery" 
-          className="bg-white p-6 rounded-[20px] border border-border-custom shadow-custom flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-300 group cursor-default"
+          onClick={() => setCurrentTab('reclamation')}
+          className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer text-left group"
           whileHover={{ scale: 1.01 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
+          title="Klik untuk buka Modul Reklamasi & Nursery"
         >
-          <div className="flex items-start gap-4">
-            <div className="p-3.5 bg-forest-50 text-[#4D7C5A] rounded-2xl border border-border-custom group-hover:scale-105 transition-all duration-200">
-              <Trees className="h-6 w-6 stroke-[1.5]" />
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-100 group-hover:scale-105 transition-transform duration-200 shrink-0">
+              <MiningEnvIcon type="reclamation" size={26} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Total Stok Tersedia</span>
-              <span className="text-[48px] font-bold font-manrope text-text-primary mt-1 tracking-tight leading-none block">
-                {totalSeeds.toLocaleString('id-ID')}
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block font-sans truncate">
+                Stok Bibit Reklamasi
+              </span>
+              <span className="text-3xl font-extrabold font-manrope text-slate-900 mt-1 tracking-tight leading-none block truncate">
+                {totalSeeds.toLocaleString('id-ID')} <span className="text-sm font-semibold text-slate-500">Btg</span>
               </span>
             </div>
           </div>
-          <div className="mt-5 pt-4 border-t border-border-custom flex items-center gap-2 text-[12px]">
-            <span className="text-[#3FA66B] font-bold bg-[#3FA66B]/8 px-2 py-0.5 rounded-full text-[11px]">
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
               {nursery.filter(x => x.status === 'Healthy').length} Spesies Sehat
             </span>
+            <span className="text-[10px] text-slate-400 font-mono">Siap Tanam</span>
           </div>
         </motion.div>
 
         {/* Card 3: Sisa Stok TPS B3 */}
         <motion.div 
           id="kpi-b3-safety" 
-          className="bg-white p-6 rounded-[20px] border border-border-custom shadow-custom flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-300 group cursor-default"
+          onClick={() => setCurrentTab('waste')}
+          className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer text-left group"
           whileHover={{ scale: 1.01 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
+          title="Klik untuk buka Modul Limbah B3 TPS"
         >
-          <div className="flex items-start gap-4">
-            <div className={`p-3.5 rounded-2xl border transition-all duration-200 group-hover:scale-105 ${
-              maxDaysB3 > 80 
-                ? 'bg-[#D95C5C]/8 text-[#9C3333] border-[#D95C5C]/15 animate-pulse' 
-                : 'bg-teal-50 text-teal-600 border-teal-200'
-            }`}>
-              <Clock className="h-6 w-6 stroke-[1.5]" />
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-100 group-hover:scale-105 transition-transform duration-200 shrink-0">
+              <MiningEnvIcon type="tps-b3" size={26} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Sisa Stok TPS B3</span>
-              <span className="text-[38px] font-bold font-manrope text-text-primary mt-1 tracking-tight leading-none block truncate">
-                {totalB3StockKg.toLocaleString('id-ID')} <span className="text-xl font-bold text-text-secondary">Kg</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block font-sans truncate">
+                Sisa Stok TPS B3
+              </span>
+              <span className="text-3xl font-extrabold font-manrope text-slate-900 mt-1 tracking-tight leading-none block truncate">
+                {totalB3StockKg.toLocaleString('id-ID')} <span className="text-sm font-semibold text-slate-500">Kg</span>
               </span>
             </div>
           </div>
-          <div className="mt-5 pt-4 border-t border-border-custom flex flex-col gap-1 text-[12px]">
-            <div className="flex items-center justify-between">
-              <span className={`font-bold ${maxDaysB3 >= 80 ? 'text-[#9C3333]' : 'text-text-secondary'}`}>
-                {maxDaysB3} Hari (Sisa {Math.max(0, 90 - maxDaysB3)} Hari)
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono">Batas 90 Hari</span>
-            </div>
-            <div className="text-[11px] text-text-secondary flex items-center gap-1 font-mono">
-              <span>Masuk: <strong className="text-slate-700">{totalB3InKg.toLocaleString('id-ID')} Kg</strong></span>
-              <span>•</span>
-              <span>Keluar: <strong className="text-slate-700">{totalB3OutKg.toLocaleString('id-ID')} Kg</strong></span>
-            </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+              maxDaysB3 >= 80 ? 'bg-red-50 text-red-700 border-red-200 animate-pulse' : 'bg-slate-50 text-slate-700 border-slate-200'
+            }`}>
+              {maxDaysB3} Hari di TPS
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono">
+              Sisa {Math.max(0, 90 - maxDaysB3)} Hari
+            </span>
           </div>
         </motion.div>
 
         {/* Card 4: Reclamation Escrow */}
         <motion.div 
           id="kpi-guarantee" 
-          className="bg-white p-6 rounded-[20px] border border-border-custom shadow-custom flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-300 group cursor-default"
+          onClick={() => setCurrentTab('reclamation')}
+          className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer text-left group"
           whileHover={{ scale: 1.01 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
+          title="Klik untuk buka Jaminan Reklamasi"
         >
-          <div className="flex items-start gap-4">
-            <div className="p-3.5 bg-forest-50 text-[#4D7C5A] rounded-2xl border border-border-custom group-hover:scale-105 transition-all duration-200">
-              <FileCheck2 className="h-6 w-6 stroke-[1.5]" />
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-100 group-hover:scale-105 transition-transform duration-200 shrink-0">
+              <MiningEnvIcon type="compliance" size={26} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Total Jaminan Reklamasi</span>
-              <span className="text-[32px] font-bold font-manrope text-text-primary mt-1 tracking-tight leading-none block truncate">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block font-sans truncate">
+                Jaminan Reklamasi (Active + Renewal)
+              </span>
+              <span className="text-3xl font-extrabold font-manrope text-slate-900 mt-1 tracking-tight leading-none block truncate">
                 Rp {(totalGuaranteesValue / 1000000000).toFixed(1)}M
               </span>
             </div>
           </div>
-          <div className="mt-5 pt-4 border-t border-border-custom flex items-center gap-2 text-[12px]">
-            <span className="text-[#3FA66B] font-bold">✓ {activeGuaranteesCount} Aktif</span>
-            <span className="text-text-secondary font-light">•</span>
-            <span className="text-[#E2A43B] font-bold">
-              ⚠ {guarantees.filter(x => x.status === 'Renewal Needed').length} Renewal
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              ✓ {activeGuaranteesCount} Bank Garansi
             </span>
+            <span className="text-[10px] text-slate-400 font-mono">Tervalidasi ESDM</span>
           </div>
         </motion.div>
 
         {/* Card 5: Surface Water Compliance */}
         <motion.div 
           id="kpi-surface-water" 
-          className="bg-white p-6 rounded-[20px] border border-border-custom shadow-custom flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-300 group cursor-default"
+          onClick={() => setCurrentTab('reports')}
+          className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer text-left group"
           whileHover={{ scale: 1.01 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
+          title="Klik untuk buka Laporan Kualitas Air Permukaan"
         >
-          <div className="flex items-start gap-4">
-            <div className="p-3.5 bg-forest-50 text-[#4D7C5A] rounded-2xl border border-border-custom group-hover:scale-105 transition-all duration-200">
-              <Waves className="h-6 w-6 stroke-[1.5]" />
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-100 group-hover:scale-105 transition-transform duration-200 shrink-0">
+              <MiningEnvIcon type="surface-water" size={26} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Kepatuhan Air Permukaan</span>
-              <span className="text-[48px] font-bold font-manrope text-text-primary mt-1 tracking-tight leading-none block">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block font-sans truncate">
+                Air Permukaan (Sungai)
+              </span>
+              <span className="text-3xl font-extrabold font-manrope text-slate-900 mt-1 tracking-tight leading-none block">
                 <AnimatedCounter value={surfaceWaterComplianceRate} format={v => Math.round(v) + "%"} />
               </span>
             </div>
           </div>
-          <div className="mt-5 pt-4 border-t border-border-custom flex items-center gap-2 text-[12px]">
-            <span className="text-[#3FA66B] font-bold">✓ {totalSurfaceWaterTests - failedSurfaceWaterTests} Aman</span>
-            <span className="text-text-secondary font-light">•</span>
-            <span className="text-[#D95C5C] font-bold">⚠ {failedSurfaceWaterTests} Melebihi</span>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+              ✓ {totalSurfaceWaterTests - failedSurfaceWaterTests} Titik Aman
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">PP 22/2021 Kelas II</span>
           </div>
         </motion.div>
 
         {/* Card 6: Solid Waste Recycling */}
         <motion.div 
           id="kpi-solid-waste" 
-          className="bg-white p-6 rounded-[20px] border border-border-custom shadow-custom flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-300 group cursor-default"
+          onClick={() => setCurrentTab('solid_waste')}
+          className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer text-left group"
           whileHover={{ scale: 1.01 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
+          title="Klik untuk buka Pengolahan Sampah Non-B3"
         >
-          <div className="flex items-start gap-4">
-            <div className="p-3.5 bg-forest-50 text-[#4D7C5A] rounded-2xl border border-border-custom group-hover:scale-105 transition-all duration-200">
-              <Trees className="h-6 w-6 stroke-[1.5]" />
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-100 group-hover:scale-105 transition-transform duration-200 shrink-0">
+              <MiningEnvIcon type="solid-waste" size={26} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Daur Ulang Sampah</span>
-              <span className="text-[48px] font-bold font-manrope text-text-primary mt-1 tracking-tight leading-none block">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block font-sans truncate">
+                Daur Ulang Sampah
+              </span>
+              <span className="text-3xl font-extrabold font-manrope text-slate-900 mt-1 tracking-tight leading-none block">
                 {recyclingRate}%
               </span>
             </div>
           </div>
-          <div className="mt-5 pt-4 border-t border-border-custom flex items-center gap-2 text-[12px] text-text-secondary font-medium">
-            <span className="text-[#3FA66B] font-bold">{totalSolidWasteRecycled} kg</span> diproses dari <span className="font-bold">{totalSolidWasteGenerated} kg</span>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              {totalSolidWasteRecycled.toLocaleString('id-ID')} Kg Daur Ulang
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">Permen LH 7/2025</span>
           </div>
         </motion.div>
 
         {/* Card 7: Expiring Documents */}
         <motion.div 
           id="kpi-documents" 
-          className="bg-white p-6 rounded-[20px] border border-border-custom shadow-custom flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-300 group cursor-default"
+          onClick={() => setCurrentTab('documents')}
+          className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer text-left group"
           whileHover={{ scale: 1.01 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
+          title="Klik untuk buka Registrasi Perizinan & AMDAL"
         >
-          <div className="flex items-start gap-4">
-            <div className={`p-3.5 rounded-2xl border transition-all duration-200 group-hover:scale-105 ${
-              expiringDocuments > 0 
-                ? 'bg-[#E2A43B]/8 text-[#8F5E13] border-[#E2A43B]/15' 
-                : 'bg-forest-50 text-[#4D7C5A] border-border-custom'
-            }`}>
-              <FileCheck2 className="h-6 w-6 stroke-[1.5]" />
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-100 group-hover:scale-105 transition-transform duration-200 shrink-0">
+              <MiningEnvIcon type="compliance" size={26} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Dokumen & Izin Berisiko</span>
-              <span className="text-[48px] font-bold font-manrope text-text-primary mt-1 tracking-tight leading-none block">
-                {expiringDocuments} Izin
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block font-sans truncate">
+                Izin Lingkungan & AMDAL
+              </span>
+              <span className="text-3xl font-extrabold font-manrope text-slate-900 mt-1 tracking-tight leading-none block">
+                {documents.length} Dokumen
               </span>
             </div>
           </div>
-          <div className="mt-5 pt-4 border-t border-border-custom flex items-center gap-2 text-[12px]">
-            <span className={`font-bold ${expiringDocuments > 0 ? 'text-[#8F5E13]' : 'text-[#3FA66B]'}`}>
-              {expiringDocuments > 0 ? 'Perlu Segera Diperpanjang' : 'Seluruh Dokumen Valid'}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+              expiringDocuments > 0 ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            }`}>
+              {expiringDocuments > 0 ? `⚠ ${expiringDocuments} Perlu Perpanjang` : '✓ Seluruh Izin Aktif'}
             </span>
+            <span className="text-[10px] text-slate-400 font-mono">Legal Compliance</span>
           </div>
         </motion.div>
 
         {/* Card 8: Unread Alerts */}
         <motion.div 
           id="kpi-alerts" 
-          className="bg-white p-6 rounded-[20px] border border-border-custom shadow-custom flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-300 group cursor-default"
+          onClick={() => setCurrentTab('notifications')}
+          className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer text-left group"
           whileHover={{ scale: 1.01 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
+          title="Klik untuk buka Notifikasi Kepatuhan"
         >
-          <div className="flex items-start gap-4">
-            <div className={`p-3.5 rounded-2xl border transition-all duration-200 group-hover:scale-105 ${
-              unreadAlerts > 0 
-                ? 'bg-[#D95C5C]/8 text-[#9C3333] border-[#D95C5C]/15 animate-pulse' 
-                : 'bg-forest-50 text-[#6D7B73] border-border-custom'
-            }`}>
-              <AlertTriangle className="h-6 w-6 stroke-[1.5]" />
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-100 group-hover:scale-105 transition-transform duration-200 shrink-0">
+              <MiningEnvIcon type="rainfall" size={26} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider block">Peringatan Kepatuhan</span>
-              <span className="text-[48px] font-bold font-manrope text-text-primary mt-1 tracking-tight leading-none block">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block font-sans truncate">
+                Peringatan Dini
+              </span>
+              <span className="text-3xl font-extrabold font-manrope text-slate-900 mt-1 tracking-tight leading-none block">
                 {unreadAlerts} Baru
               </span>
             </div>
           </div>
-          <div className="mt-5 pt-4 border-t border-border-custom flex items-center gap-2 text-[12px]">
-            <span className={`font-bold ${unreadAlerts > 0 ? 'text-[#9C3333]' : 'text-[#3FA66B]'}`}>
-              {unreadAlerts > 0 ? 'Tindakan Segera Diperlukan' : 'Sistem Terpantau Aman'}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+              unreadAlerts > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            }`}>
+              {unreadAlerts > 0 ? '⚠ Tindakan Diperlukan' : '✓ Sistem Normal'}
             </span>
+            <span className="text-[10px] text-slate-400 font-mono">Sensor Site</span>
           </div>
         </motion.div>
       </div>

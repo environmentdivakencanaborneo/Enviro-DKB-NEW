@@ -155,6 +155,7 @@ export const ReclamationPlanSchema = z.object({
 export const ReclamationGuaranteeSchema = z.object({
   id: z.string().min(1, "ID wajib diisi"),
   guaranteeNo: z.string().trim().min(1, "Nomor jaminan wajib diisi"),
+  periodYear: z.number().int().min(2000).max(2100).optional().nullable(),
   guaranteeType: z.enum(["Bank Guarantee", "Time Deposit", "Environmental Bond"]),
   value: z.number().min(0, "Nilai jaminan tidak boleh negatif"),
   issuingInstitution: z.string().trim().min(2, "Lembaga penerbit wajib diisi"),

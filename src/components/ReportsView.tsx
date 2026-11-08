@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { 
   WastewaterData, 
   RainfallData, 
@@ -19,9 +19,11 @@ import {
   SurfaceWaterData
 } from '../types';
 import { exportAllDataToXLSX } from '../services/exportService';
-import EvidenceHub from './evidence/EvidenceHub';
+import TableSkeleton from './TableSkeleton';
+const EvidenceHub = lazy(() => import('./evidence/EvidenceHub'));
 import { WASTEWATER_BASIS_LABEL } from '../data/regulations';
 import { buildWasteLedger, round3 } from '../utils/wasteLedger';
+import { calculateGuaranteeMetrics } from '../utils/guaranteeMetrics';
 import { 
   todayLocalISO, 
   getWeekRangeLocal, 
@@ -211,9 +213,10 @@ export default function ReportsView({
   const costReal = plans.reduce((sum, p) => sum + (p.realizedCost || 0), 0);
   const budgetDiff = budgetEst - costReal;
 
-  const totalGuaranteesValue = guarantees.filter(g => g.status === 'Active').reduce((sum, g) => sum + g.value, 0);
-  const activeGuaranteesCount = guarantees.filter(g => g.status === 'Active').length;
-  const renewalGuaranteesCount = guarantees.filter(g => g.status === 'Renewal Needed').length;
+  const guaranteeMetrics = calculateGuaranteeMetrics(guarantees);
+  const totalGuaranteesValue = guaranteeMetrics.totalActiveValue;
+  const activeGuaranteesCount = guaranteeMetrics.activeCount;
+  const renewalGuaranteesCount = guaranteeMetrics.renewalCount;
 
   const inProgressReclamationsList = plans.filter(x => x.status === 'In Progress');
 
@@ -334,9 +337,11 @@ export default function ReportsView({
       </div>
 
       {mainTab === 'evidence' ? (
-        <div className="evidence-hub-container">
-          <EvidenceHub wastewater={wastewater} user={user} />
-        </div>
+        <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+          <div className="evidence-hub-container">
+            <EvidenceHub wastewater={wastewater} user={user} />
+          </div>
+        </Suspense>
       ) : !isPreview ? (
         <div id="reports-setup-tab" className="space-y-6 animate-fade-in">
           {/* Main selection card */}
@@ -1221,7 +1226,7 @@ export default function ReportsView({
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-left">
                 <div className="p-3.5 bg-white/60 rounded-xl border border-slate-200">
-                  <span className="text-[10px] text-slate-600 font-mono tracking-wider uppercase font-bold block">TOTAL JAMINAN DISETOR</span>
+                  <span className="text-[10px] text-slate-600 font-mono tracking-wider uppercase font-bold block">TOTAL JAMINAN AKTIF (ACTIVE + RENEWAL)</span>
                   <p className="text-base font-bold text-slate-800 font-mono mt-1">{formatIDR(totalGuaranteesValue)}</p>
                   <span className="text-[8px] text-slate-500 mt-1 block">Tercatat di Kementerian ESDM</span>
                 </div>
@@ -1287,7 +1292,7 @@ export default function ReportsView({
                       Kesesuaian Nilai Jaminan & Penutupan Tambang:
                     </h5>
                     <p className="text-slate-500 text-[11px]">
-                      Total nilai penjaminan yang disetor berizin resmi adalah <span className="text-teal-600 font-mono font-bold">{formatIDR(totalGuaranteesValue)}</span>. Secara finansial, penjaminan ini mencocoki standar taksiran perhitungan biaya penataan lahan, revegetasi, pengelolaan air asam tambang, serta administrasi pasca-tambang yang diwajibkan oleh Dirjen Minerba ESDM. Berkas legal membuktikan solvabilitas tinggi PT Diva Kencana Borneo terhadap kewajiban pemulihan lingkungan ekologis.
+                      Total nilai jaminan berstatus aktif tercatat {formatIDR(totalGuaranteesValue)} dari {guaranteeMetrics.totalActiveAndRenewalCount} dokumen penempatan jaminan ({activeGuaranteesCount} dokumen Active dan {renewalGuaranteesCount} dokumen Renewal Needed). Kesesuaian nilai terhadap Rencana Reklamasi yang disetujui perlu diverifikasi terhadap dokumen RR dan penetapan nilai Jamrek yang diterbitkan oleh instansi terkait.
                     </p>
                   </div>
                   <div className="space-y-1.5 text-left">
@@ -1296,10 +1301,10 @@ export default function ReportsView({
                       Penjelasan Risiko Hukum Penjaminan:
                     </h5>
                     <p className="text-slate-500 text-[11px]">
-                      Jaminan keuangan ini berfungsi sebagai asuransi negara agar tidak terjadi pembiaran atas lahan terbengkalai. {renewalGuaranteesCount > 0 ? (
-                        <span className="text-amber-500 font-semibold block">Terdapat {renewalGuaranteesCount} dokumen jaminan mendekati batas kadaluarsa atau butuh perpanjangan perpajakan perbankan. Kelalaian perpanjangan dapat memicu sanksi pembekuan pengapalan batu bara (holding export clearances) oleh Syahbandar/ESDM.</span>
+                      Jaminan keuangan ini berfungsi sebagai pemenuhan kewajiban penempatan dana jaminan reklamasi dan pascatambang. {renewalGuaranteesCount > 0 ? (
+                        <span className="text-amber-500 font-semibold block">Terdapat {renewalGuaranteesCount} dokumen jaminan mendekati jatuh tempo atau berstatus butuh pembaruan yang perlu dikoordinasikan proses perpanjangannya untuk menjaga kepatuhan administrasi.</span>
                       ) : (
-                        <span className="text-emerald-600 font-semibold block">Seluruh dokumen legal jaminan berada dalam status aktif berjangka aman. Hal ini mereduksi potensi pelanggaran administratif ke tingkat nol dan menjaga peringkat kepatuhan (PROPER) berada pada sabuk hijau.</span>
+                        <span className="text-emerald-600 font-semibold block">Seluruh dokumen jaminan saat ini berstatus aktif ({activeGuaranteesCount} dokumen) dengan {guaranteeMetrics.expiringCount > 0 ? `${guaranteeMetrics.expiringCount} dokumen mendekati jatuh tempo dalam 90 hari` : 'masa berlaku yang terpantau aman'}. Monitoring masa berlaku dilakukan secara berkala.</span>
                       )}
                     </p>
                   </div>

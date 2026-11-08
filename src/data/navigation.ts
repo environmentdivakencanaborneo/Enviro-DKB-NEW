@@ -1,10 +1,10 @@
 import {
   LayoutDashboard,
   PieChart,
-  Droplet,
+  Waves,
   Sprout,
-  Trash2,
-  RefreshCw,
+  PackageCheck,
+  Recycle,
   Coins,
   FileText,
   FileLock,
@@ -13,7 +13,7 @@ import {
   Globe2,
   Award,
   AlertOctagon,
-  CheckSquare,
+  ClipboardCheck,
   Flame,
   UserCheck,
   Users,
@@ -39,15 +39,15 @@ export const APP_MENU_GROUPS: NavGroup[] = [
     items: [
       { id: 'dashboard', name: 'Dashboard Operasional', icon: LayoutDashboard },
       { id: 'executive', name: 'Dashboard Eksekutif', icon: PieChart },
-      { id: 'monitoring', name: 'Pemantauan Air', icon: Droplet },
+      { id: 'monitoring', name: 'Pemantauan Air', icon: Waves },
       { id: 'reclamation', name: 'Reklamasi', icon: Sprout },
     ]
   },
   {
     group: 'LIMBAH',
     items: [
-      { id: 'waste', name: 'Limbah B3 TPS', icon: Trash2 },
-      { id: 'solid_waste', name: 'Pengolahan Sampah', icon: RefreshCw },
+      { id: 'waste', name: 'Limbah B3 TPS', icon: PackageCheck },
+      { id: 'solid_waste', name: 'Pengolahan Sampah', icon: Recycle },
     ]
   },
   {
@@ -55,7 +55,7 @@ export const APP_MENU_GROUPS: NavGroup[] = [
     items: [
       { id: 'documents', name: 'Registrasi Perizinan', icon: FileLock },
       { id: 'regulatory_watch', name: 'Pemantau Regulasi', icon: BookOpen },
-      { id: 'compliance_matrix', name: 'Matriks RKL-RPL', icon: CheckSquare },
+      { id: 'compliance_matrix', name: 'Matriks RKL-RPL', icon: ClipboardCheck },
       { id: 'incidents', name: 'Insiden & Kedaruratan', icon: Flame },
       { id: 'findings', name: 'Temuan & CAPA', icon: AlertOctagon },
     ]

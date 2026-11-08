@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import ModalPortal from './ModalPortal';
 import NurseryStockOutForm from './NurseryStockOutForm';
 import { NurseryData, NurseryStockOut, ReclamationPlan, ReclamationGuarantee } from '../types';
 import { exportToExcel } from '../services/exportService';
 import { todayLocalISO } from '../utils/dateUtils';
+import { triggerToast } from '../utils/errorHandler';
 import { 
   Plus, 
   Search, 
@@ -26,8 +27,24 @@ import {
   DollarSign,
   Activity,
   Check,
-  Pencil
+  Pencil,
+  ArrowUpDown
 } from 'lucide-react';
+
+export const GUARANTEE_WARNING_DAYS = 90;
+
+export function getGuaranteeYear(g: ReclamationGuarantee): number | null {
+  if (typeof g.periodYear === 'number' && !isNaN(g.periodYear) && g.periodYear >= 2000 && g.periodYear <= 2100) {
+    return g.periodYear;
+  }
+  if (g.issuedDate && typeof g.issuedDate === 'string') {
+    const y = Number(g.issuedDate.slice(0, 4));
+    if (!isNaN(y) && y >= 2000 && y <= 2100) {
+      return y;
+    }
+  }
+  return null;
+}
 
 interface ReclamationViewProps {
   canEdit?: boolean;
@@ -136,16 +153,38 @@ export default function ReclamationView({
   const totalRealizedCost = plans.reduce((sum, p) => sum + (p.realizedCost || 0), 0);
   const sizeProgressPercent = totalPlannedSize > 0 ? (totalRealizedSize / totalPlannedSize) * 100 : 0;
 
+  // DELETE CONFIRMATION STATE
+  const [isProcessing, setIsProcessing] = useState(false);
+
   // GUARANTEES STATE
   const [showGuaranteeForm, setShowGuaranteeForm] = useState(false);
+  const [isSubmittingGuarantee, setIsSubmittingGuarantee] = useState(false);
   // Forms
   const [gNo, setGNo] = useState('');
+  const [gPeriodYear, setGPeriodYear] = useState<number | ''>(new Date().getFullYear());
   const [gType, setGType] = useState<'Bank Guarantee' | 'Time Deposit' | 'Environmental Bond'>('Bank Guarantee');
   const [gValue, setGValue] = useState(500000000);
   const [gInst, setGInst] = useState('PT Bank Mandiri (Persero) Tbk');
   const [gIssue, setGIssue] = useState(todayLocalISO());
   const [gDue, setGDue] = useState(todayLocalISO(Date.now() + 365 * 24 * 60 * 60 * 1000));
   const [gStatus, setGStatus] = useState<'Active' | 'Renewal Needed' | 'Claimed' | 'Released'>('Active');
+
+  // Guarantees Filter & Sort State
+  const [guaranteeSearch, setGuaranteeSearch] = useState('');
+  const [selectedYearFilter, setSelectedYearFilter] = useState<'all' | number>('all');
+  const [guaranteeSort, setGuaranteeSort] = useState<'year-desc' | 'year-asc' | 'due-asc' | 'value-desc'>('year-desc');
+
+  const resetGuaranteeForm = () => {
+    setEditingGuaranteeId(null);
+    setGNo('');
+    setGPeriodYear(new Date().getFullYear());
+    setGType('Bank Guarantee');
+    setGValue(500000000);
+    setGInst('PT Bank Mandiri (Persero) Tbk');
+    setGIssue(todayLocalISO());
+    setGDue(todayLocalISO(Date.now() + 365 * 24 * 60 * 60 * 1000));
+    setGStatus('Active');
+  };
 
   const startEditNursery = (item: NurseryData) => {
     setEditingNurseryId(item.id);
@@ -163,6 +202,7 @@ export default function ReclamationView({
   const startEditGuarantee = (item: ReclamationGuarantee) => {
     setEditingGuaranteeId(item.id);
     setGNo(item.guaranteeNo);
+    setGPeriodYear(item.periodYear ?? (Number(item.issuedDate?.slice(0, 4)) || new Date().getFullYear()));
     setGType(item.guaranteeType);
     setGValue(item.value);
     setGInst(item.issuingInstitution);
@@ -313,34 +353,166 @@ export default function ReclamationView({
   };
 
   // Submit Guarantee
-  const handleGuaranteeSubmit = (e: React.FormEvent) => {
+  const handleGuaranteeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gNo) {
-      alert("Masukkan nomor surat jaminan.");
+
+    const trimmedNo = gNo.trim();
+    if (!trimmedNo) {
+      triggerToast('Nomor jaminan wajib diisi.', 'error');
       return;
     }
-    const payload = {
-      guaranteeNo: gNo,
-      guaranteeType: gType,
-      value: Number(gValue),
-      issuingInstitution: gInst,
-      issuedDate: gIssue,
-      dueDate: gDue,
-      status: gStatus
-    };
 
-    if (editingGuaranteeId) {
-      if (onUpdateGuarantee) {
-        onUpdateGuarantee(editingGuaranteeId, payload);
-      }
-      setEditingGuaranteeId(null);
-    } else {
-      onAddGuarantee(payload);
+    const isDuplicateNo = guarantees.some(g =>
+      g.id !== editingGuaranteeId &&
+      g.guaranteeNo.trim().toLowerCase() === trimmedNo.toLowerCase()
+    );
+    if (isDuplicateNo) {
+      triggerToast('Nomor jaminan sudah terdaftar. Harap gunakan nomor yang berbeda.', 'error');
+      return;
     }
 
-    setGNo('');
-    setShowGuaranteeForm(false);
+    if (typeof gValue !== 'number' || isNaN(gValue) || gValue <= 0) {
+      triggerToast('Nilai jaminan finansial harus lebih besar dari 0.', 'error');
+      return;
+    }
+
+    const trimmedInst = gInst.trim();
+    if (trimmedInst.length < 2) {
+      triggerToast('Lembaga keuangan penerbit minimal 2 karakter.', 'error');
+      return;
+    }
+
+    if (gDue <= gIssue) {
+      triggerToast('Tanggal jatuh tempo harus setelah tanggal penerbitan.', 'error');
+      return;
+    }
+
+    const yearNum = Number(gPeriodYear);
+    if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
+      triggerToast('Tahun jaminan harus berada di antara tahun 2000 dan 2100.', 'error');
+      return;
+    }
+
+    try {
+      setIsSubmittingGuarantee(true);
+      const payload: Omit<ReclamationGuarantee, 'id'> = {
+        guaranteeNo: trimmedNo,
+        periodYear: yearNum,
+        guaranteeType: gType,
+        value: Number(gValue),
+        issuingInstitution: trimmedInst,
+        issuedDate: gIssue,
+        dueDate: gDue,
+        status: gStatus
+      };
+
+      if (editingGuaranteeId) {
+        if (onUpdateGuarantee) {
+          await onUpdateGuarantee(editingGuaranteeId, payload);
+        }
+      } else {
+        await onAddGuarantee(payload);
+      }
+
+      window.dispatchEvent(new CustomEvent('coal_monitor_toast', {
+        detail: {
+          message: editingGuaranteeId ? 'Data jaminan berhasil diperbarui.' : 'Data jaminan berhasil didaftarkan.',
+          type: 'success'
+        }
+      }));
+
+      resetGuaranteeForm();
+      setShowGuaranteeForm(false);
+    } catch {
+      // Form tetap terbuka dengan isian utuh bila gagal; toast error sudah ditampilkan handleGlobalError
+    } finally {
+      setIsSubmittingGuarantee(false);
+    }
   };
+
+  const uniqueGuaranteeYears = useMemo(() => {
+    const yearSet = new Set<number>();
+    guarantees.forEach(g => {
+      const y = getGuaranteeYear(g);
+      if (y !== null) yearSet.add(y);
+    });
+    return Array.from(yearSet).sort((a, b) => b - a);
+  }, [guarantees]);
+
+  const sortedAndFilteredGuarantees = useMemo(() => {
+    let list = [...guarantees];
+
+    // Filter Pencarian
+    if (guaranteeSearch.trim()) {
+      const q = guaranteeSearch.trim().toLowerCase();
+      list = list.filter(g =>
+        (g.guaranteeNo && g.guaranteeNo.toLowerCase().includes(q)) ||
+        (g.issuingInstitution && g.issuingInstitution.toLowerCase().includes(q))
+      );
+    }
+
+    // Filter Tahun
+    if (selectedYearFilter !== 'all') {
+      list = list.filter(g => getGuaranteeYear(g) === Number(selectedYearFilter));
+    }
+
+    // Urutkan
+    list.sort((a, b) => {
+      const yA = getGuaranteeYear(a);
+      const yB = getGuaranteeYear(b);
+
+      if (guaranteeSort === 'year-desc' || guaranteeSort === 'year-asc') {
+        if (yA === null && yB === null) return 0;
+        if (yA === null) return 1;
+        if (yB === null) return -1;
+
+        if (yA !== yB) {
+          return guaranteeSort === 'year-desc' ? yB - yA : yA - yB;
+        }
+        // Urutan sekunder: issuedDate menurun, lalu guaranteeNo A–Z
+        const dateA = a.issuedDate || '';
+        const dateB = b.issuedDate || '';
+        if (dateA !== dateB) {
+          return dateB.localeCompare(dateA);
+        }
+        return (a.guaranteeNo || '').localeCompare(b.guaranteeNo || '');
+      }
+
+      if (guaranteeSort === 'due-asc') {
+        const dueA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+        const dueB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+        if (dueA !== dueB) return dueA - dueB;
+        return (a.guaranteeNo || '').localeCompare(b.guaranteeNo || '');
+      }
+
+      if (guaranteeSort === 'value-desc') {
+        const vA = a.value || 0;
+        const vB = b.value || 0;
+        if (vA !== vB) return vB - vA;
+        return (a.guaranteeNo || '').localeCompare(b.guaranteeNo || '');
+      }
+
+      return 0;
+    });
+
+    return list;
+  }, [guarantees, guaranteeSearch, selectedYearFilter, guaranteeSort]);
+
+  const yearGroupStats = useMemo(() => {
+    const map = new Map<number | null, { count: number; totalValue: number }>();
+    sortedAndFilteredGuarantees.forEach(g => {
+      const y = getGuaranteeYear(g);
+      const stat = map.get(y) || { count: 0, totalValue: 0 };
+      stat.count += 1;
+      stat.totalValue += (g.value || 0);
+      map.set(y, stat);
+    });
+    return map;
+  }, [sortedAndFilteredGuarantees]);
+
+  const filteredTotalValue = useMemo(() => {
+    return sortedAndFilteredGuarantees.reduce((sum, g) => sum + (g.value || 0), 0);
+  }, [sortedAndFilteredGuarantees]);
 
   // Format IDR helper
   const formatIDR = (num: number) => {
@@ -1622,8 +1794,16 @@ export default function ReclamationView({
           <div className="flex justify-end mb-4">
             <button
               id="guarantees-add-btn"
-              onClick={() => setShowGuaranteeForm(!showGuaranteeForm)}
-              className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-teal-500 text-slate-950 font-bold rounded-xl text-xs shadow cursor-pointer"
+              onClick={() => {
+                if (!showGuaranteeForm) {
+                  resetGuaranteeForm();
+                  setShowGuaranteeForm(true);
+                } else {
+                  setShowGuaranteeForm(false);
+                  resetGuaranteeForm();
+                }
+              }}
+              className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-teal-500 text-slate-950 font-bold rounded-xl text-xs shadow cursor-pointer hover:bg-teal-400 transition-colors"
             >
               <Plus className="h-4 w-4" />
               Registrasi Jaminan Reklamasi (Escrow)
@@ -1692,7 +1872,23 @@ export default function ReclamationView({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">
+                    Tahun Jaminan (Pelaksanaan) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="guarantees-field-period-year"
+                    type="number"
+                    min={2000}
+                    max={2100}
+                    required
+                    value={gPeriodYear}
+                    onChange={(e) => setGPeriodYear(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="Contoh: 2026"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono"
+                  />
+                </div>
                 <div>
                   <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Tanggal Penerbitan</label>
                   <input
@@ -1723,7 +1919,7 @@ export default function ReclamationView({
                     onChange={(e) => setGStatus(e.target.value as any)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
                   >
-                    <option value="Active">🔴 Active & Valid</option>
+                    <option value="Active">✅ Active & Valid</option>
                     <option value="Renewal Needed">⚠️ Renewal Needed / Segera Habis</option>
                     <option value="Claimed">Claimed / Diambil Alih ESDM</option>
                     <option value="Released">Released (Selesai Pascatambang)</option>
@@ -1735,20 +1931,22 @@ export default function ReclamationView({
                 <button
                   id="guarantees-form-cancel"
                   type="button"
+                  disabled={isSubmittingGuarantee}
                   onClick={() => {
                     setShowGuaranteeForm(false);
-                    setEditingGuaranteeId(null);
+                    resetGuaranteeForm();
                   }}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Batal
                 </button>
                 <button
                   id="guarantees-form-submit"
                   type="submit"
-                  className="px-5 py-2.5 bg-teal-500 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer"
+                  disabled={isSubmittingGuarantee}
+                  className="px-5 py-2.5 bg-teal-500 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-teal-400 transition-colors"
                 >
-                  {editingGuaranteeId ? 'Update Jamrek' : 'Daftarkan Jamrek'}
+                  {isSubmittingGuarantee ? 'Menyimpan...' : (editingGuaranteeId ? 'Update Jamrek' : 'Daftarkan Jamrek')}
                 </button>
               </div>
             </form>
@@ -1759,11 +1957,78 @@ export default function ReclamationView({
             <div className="px-5 py-4 border-b border-slate-200">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Daftar Dokumen Penempatan Jaminan Pascatambang & Reklamasi</h4>
             </div>
+
+            {/* Toolbar filter & sort */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-slate-50 border-b border-slate-200">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Dropdown Filter Tahun */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="guarantees-year-filter" className="text-xs font-semibold text-slate-600">
+                    Filter Tahun:
+                  </label>
+                  <select
+                    id="guarantees-year-filter"
+                    value={selectedYearFilter}
+                    onChange={(e) => setSelectedYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                    className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                  >
+                    <option value="all">Semua Tahun</option>
+                    {uniqueGuaranteeYears.map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Dropdown Urutkan */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="guarantees-sort-select" className="text-xs font-semibold text-slate-600">
+                    Urutkan:
+                  </label>
+                  <select
+                    id="guarantees-sort-select"
+                    value={guaranteeSort}
+                    onChange={(e) => setGuaranteeSort(e.target.value as any)}
+                    className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                  >
+                    <option value="year-desc">Tahun Terbaru → Terlama</option>
+                    <option value="year-asc">Tahun Terlama → Terbaru</option>
+                    <option value="due-asc">Jatuh Tempo Terdekat</option>
+                    <option value="value-desc">Nilai Terbesar</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Search input */}
+              <div className="relative w-full md:w-64">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  id="guarantees-search-input"
+                  type="text"
+                  placeholder="Cari No Jaminan / Bank..."
+                  value={guaranteeSearch}
+                  onChange={(e) => setGuaranteeSearch(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-y border-slate-200 bg-slate-50 text-[10px] text-slate-600 font-mono tracking-wider uppercase">
                     <th className="p-3.5 pl-5">No Rekening / Jaminan</th>
+                    <th 
+                      className="p-3.5 cursor-pointer hover:bg-slate-100 transition-colors select-none group"
+                      onClick={() => {
+                        setGuaranteeSort(prev => prev === 'year-desc' ? 'year-asc' : 'year-desc');
+                      }}
+                      title="Klik untuk mengurutkan Tahun (Naik / Turun)"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Tahun</span>
+                        <ArrowUpDown className="w-3 h-3 text-slate-400 group-hover:text-teal-600 transition-colors" />
+                      </div>
+                    </th>
                     <th className="p-3.5">Instrumen Jaminan</th>
                     <th className="p-3.5 text-right">Nilai Jaminan Finansial</th>
                     <th className="p-3.5">Lembaga Keuangan Penerbit</th>
@@ -1776,76 +2041,149 @@ export default function ReclamationView({
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {guarantees.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-10 text-center text-slate-500">Belum ada jaminan finansial yang dicatatkan.</td>
+                      <td colSpan={9} className="p-10 text-center text-slate-500">
+                        Belum ada jaminan finansial yang dicatatkan.
+                      </td>
+                    </tr>
+                  ) : sortedAndFilteredGuarantees.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-10 text-center text-slate-500">
+                        Tidak ada data jaminan untuk filter yang dipilih.
+                      </td>
                     </tr>
                   ) : (
-                    guarantees.map(item => {
-                      const isWarn = item.status === 'Renewal Needed' || 
-                        (new Date(item.dueDate).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000);
-  return (
-                        <tr key={item.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
-                          <td className="p-3.5 pl-5 font-mono font-bold text-slate-700">
-                            <span className="text-slate-500 text-[9px] block mb-0.5">{item.id}</span>
-                            {item.guaranteeNo}
-                          </td>
-                          <td className="p-3.5">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] border bg-white border-slate-200 font-semibold text-slate-500">
-                              {item.guaranteeType}
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-right font-bold text-emerald-600 font-mono text-sm">
-                            {formatIDR(item.value)}
-                          </td>
-                          <td className="p-3.5 font-semibold text-slate-600">{item.issuingInstitution}</td>
-                          <td className="p-3.5 text-center text-slate-500">{item.issuedDate}</td>
-                          <td className="p-3.5 text-center font-mono">
-                            <span className={`font-bold ${isWarn ? 'text-red-600' : 'text-slate-600'}`}>
-                              {item.dueDate}
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-center">
-                            <span className={`text-[10px] px-2.5 py-1 rounded border font-bold uppercase ${
-                              item.status === 'Active' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
-                              item.status === 'Renewal Needed' ? 'bg-red-500/10 border-red-500/20 text-red-600 font-extrabold animate-pulse' :
-                              'bg-white border-slate-300 text-slate-500'
-                            }`}>
-                              {item.status === 'Active' ? 'Valid' :
-                               item.status === 'Renewal Needed' ? 'Renewal segera' : item.status}
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-center pr-5 flex items-center justify-center gap-1.5">
-                            <button
-                              id={`guarantees-edit-btn-${item.id}`}
-                              onClick={() => {
-                                if (!canEdit) return onUnauthorizedAction("Ubah Jaminan Reklamasi");
-                                startEditGuarantee(item);
-                              }}
-                              className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
-                              title="Edit jaminan"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              id={`guarantees-delete-btn-${item.id}`}
-                              onClick={() => {
-                                if (!canDelete) return onUnauthorizedAction("Hapus Jaminan Reklamasi");
-                                setDeleteConfirm({
-                                  id: item.id,
-                                  type: 'guarantee',
-                                  message: `Hapus records penjaminan ${item.guaranteeNo}?`
-                                });
-                              }}
-                              className="p-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg cursor-pointer transition-colors"
-                            >
-                              <Trash2 className="h-4.5 w-4.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
+                    (() => {
+                      const showSubtotalDividers = selectedYearFilter === 'all' && (guaranteeSort === 'year-desc' || guaranteeSort === 'year-asc');
+                      let lastYear: number | null | undefined = undefined;
+
+                      return sortedAndFilteredGuarantees.map((item) => {
+                        const itemYear = getGuaranteeYear(item);
+                        const shouldShowDivider = showSubtotalDividers && itemYear !== lastYear;
+                        if (showSubtotalDividers) {
+                          lastYear = itemYear;
+                        }
+
+                        const todayTime = new Date().setHours(0, 0, 0, 0);
+                        const dueTime = new Date(item.dueDate).setHours(0, 0, 0, 0);
+                        const diffDays = Math.ceil((dueTime - todayTime) / (1000 * 60 * 60 * 24));
+                        const isWarning = (item.status === 'Renewal Needed') || (item.status === 'Active' && diffDays <= GUARANTEE_WARNING_DAYS);
+                        const isExpiredActive = item.status === 'Active' && diffDays < 0;
+
+                        const stat = yearGroupStats.get(itemYear);
+
+                        return (
+                          <React.Fragment key={item.id}>
+                            {shouldShowDivider && stat && (
+                              <tr className="bg-slate-100/90 border-y border-slate-200">
+                                <td colSpan={9} className="py-2.5 px-5 font-bold text-xs text-slate-700">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="flex items-center gap-2">
+                                      <Calendar className="w-3.5 h-3.5 text-teal-600" />
+                                      Tahun Pelaksanaan {itemYear !== null ? itemYear : 'Tidak Ditentukan'}
+                                      <span className="text-[10px] font-normal text-slate-500">
+                                        ({stat.count} dokumen)
+                                      </span>
+                                    </span>
+                                    <span className="font-mono text-xs text-emerald-700 font-bold">
+                                      Subtotal Nilai: {formatIDR(stat.totalValue)}
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                            <tr className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
+                              <td className="p-3.5 pl-5 font-mono font-bold text-slate-700">
+                                <span className="text-slate-500 text-[9px] block mb-0.5">{item.id}</span>
+                                {item.guaranteeNo}
+                              </td>
+                              <td className="p-3.5 font-bold text-slate-700 font-mono">
+                                {itemYear !== null ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                                    {itemYear}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 text-xs italic">-</span>
+                                )}
+                              </td>
+                              <td className="p-3.5">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] border bg-white border-slate-200 font-semibold text-slate-500">
+                                  {item.guaranteeType}
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-right font-bold text-emerald-600 font-mono text-sm">
+                                {formatIDR(item.value)}
+                              </td>
+                              <td className="p-3.5 font-semibold text-slate-600">{item.issuingInstitution}</td>
+                              <td className="p-3.5 text-center text-slate-500">{item.issuedDate}</td>
+                              <td className="p-3.5 text-center font-mono">
+                                <span className={`font-bold ${isWarning ? 'text-red-600' : 'text-slate-600'}`}>
+                                  {item.dueDate}
+                                </span>
+                                {isExpiredActive && (
+                                  <span className="block text-[9px] text-red-600 font-bold mt-0.5">
+                                    Kedaluwarsa
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3.5 text-center">
+                                <span className={`text-[10px] px-2.5 py-1 rounded border font-bold uppercase ${
+                                  item.status === 'Released' || item.status === 'Claimed'
+                                    ? 'bg-slate-100 border-slate-300 text-slate-600'
+                                    : isWarning
+                                    ? 'bg-red-500/10 border-red-500/20 text-red-600 font-extrabold animate-pulse'
+                                    : 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                                }`}>
+                                  {item.status === 'Active' ? 'Valid' :
+                                   item.status === 'Renewal Needed' ? 'Renewal segera' : item.status}
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-center pr-5">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    id={`guarantees-edit-btn-${item.id}`}
+                                    title="Edit jaminan"
+                                    aria-label="Edit jaminan"
+                                    onClick={() => {
+                                      if (!canEdit) return onUnauthorizedAction("Ubah Jaminan Reklamasi");
+                                      startEditGuarantee(item);
+                                    }}
+                                    className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    id={`guarantees-delete-btn-${item.id}`}
+                                    title="Hapus jaminan"
+                                    aria-label="Hapus jaminan"
+                                    onClick={() => {
+                                      if (!canDelete) return onUnauthorizedAction("Hapus Jaminan Reklamasi");
+                                      setDeleteConfirm({
+                                        id: item.id,
+                                        type: 'guarantee',
+                                        message: `Hapus records penjaminan ${item.guaranteeNo}?`
+                                      });
+                                    }}
+                                    className="p-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg cursor-pointer transition-colors"
+                                  >
+                                    <Trash2 className="h-4.5 w-4.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        );
+                      });
+                    })()
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Bottom summary bar */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-600">
+              <div>
+                Menampilkan <strong className="text-slate-800">{sortedAndFilteredGuarantees.length}</strong> dari <strong className="text-slate-800">{guarantees.length}</strong> dokumen · Total nilai: <strong className="text-emerald-700 font-mono">{formatIDR(filteredTotalValue)}</strong>
+              </div>
             </div>
           </div>
         </div>
@@ -1962,22 +2300,33 @@ export default function ReclamationView({
               </p>
               <div className="flex justify-end gap-2 mt-5">
                 <button
+                  disabled={isProcessing}
                   onClick={() => setDeleteConfirm(null)}
-                  className="px-3.5 py-2 rounded-xl text-xs bg-white hover:bg-slate-100 text-slate-600 font-bold transition-colors cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl text-xs bg-white hover:bg-slate-100 text-slate-600 font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Batal
                 </button>
                 <button
+                  disabled={isProcessing}
                   onClick={async () => {
                     const { id, type } = deleteConfirm;
-                    setDeleteConfirm(null);
+                    const targetG = guarantees.find(g => g.id === id);
+                    const targetP = plans.find(p => p.id === id);
+
                     try {
+                      setIsProcessing(true);
                       if (type === 'nursery') {
                         await onDeleteNursery(id);
                       } else if (type === 'nurseryStockOut') {
                         await onDeleteNurseryStockOut(id);
                       } else if (type === 'plan') {
                         await onDeletePlan(id);
+                        window.dispatchEvent(new CustomEvent('coal_monitor_toast', {
+                          detail: {
+                            message: `Rencana reklamasi ${targetP?.areaName ? targetP.areaName + ' ' : ''}berhasil dihapus.`.trim(),
+                            type: 'success'
+                          }
+                        }));
                       } else if (type === 'reset-plan') {
                         await onUpdatePlan(id, {
                           realizedSizeHa: undefined,
@@ -1989,14 +2338,24 @@ export default function ReclamationView({
                         });
                       } else if (type === 'guarantee') {
                         await onDeleteGuarantee(id);
+                        window.dispatchEvent(new CustomEvent('coal_monitor_toast', {
+                          detail: {
+                            message: `Data jaminan ${targetG?.guaranteeNo || ''} berhasil dihapus.`.trim(),
+                            type: 'success'
+                          }
+                        }));
                       }
-                    } catch (err: any) {
-                      alert('Gagal mengeksekusi tindakan: ' + err.message);
+                      setDeleteConfirm(null);
+                    } catch {
+                      // Saat gagal: tutup modal, JANGAN memakai alert() (toast error sudah ditampilkan handleGlobalError)
+                      setDeleteConfirm(null);
+                    } finally {
+                      setIsProcessing(false);
                     }
                   }}
-                  className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-slate-900 font-bold transition-colors cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-white font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Konfirmasi
+                  {isProcessing ? 'Memproses...' : 'Konfirmasi'}
                 </button>
               </div>
             </div>

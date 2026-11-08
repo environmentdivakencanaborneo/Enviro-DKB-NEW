@@ -6,6 +6,7 @@ import {
   ReclamationGuarantee,
   IncidentData
 } from '../types';
+import { calculateGuaranteeMetrics } from '../utils/guaranteeMetrics';
 import { 
   CheckSquare, FileLock, ShieldAlert, DollarSign, 
   AlertOctagon, Flame, ArrowUpRight, Award, CalendarDays
@@ -55,12 +56,7 @@ export default function ExecutiveDashboardView({
     const openIncidents = incidents.filter(i => i.status !== 'Ditutup');
 
     // 5. Jaminan Reklamasi (Kewajiban Finansial Aktif vs Total)
-    const activeGuarantees = guarantees.filter(g => g.status === 'Active' || g.status === 'Renewal Needed');
-    const totalGuaranteeValue = activeGuarantees.reduce((acc, curr) => acc + curr.value, 0);
-    const expiringGuarantees = activeGuarantees.filter(g => {
-      const diff = Math.ceil((new Date(g.dueDate).getTime() - now) / (1000 * 60 * 60 * 24));
-      return diff <= 90;
-    });
+    const gMetrics = calculateGuaranteeMetrics(guarantees);
 
     return {
       score,
@@ -68,8 +64,8 @@ export default function ExecutiveDashboardView({
       openCapa: openCapa.length,
       overdueCapa: overdueCapa.length,
       openIncidents: openIncidents.length,
-      totalGuaranteeValue,
-      expiringGuarantees: expiringGuarantees.length
+      totalGuaranteeValue: gMetrics.totalActiveValue,
+      expiringGuarantees: gMetrics.expiringCount
     };
   }, [capa, compliance, documents, guarantees, incidents]);
 
@@ -185,7 +181,7 @@ export default function ExecutiveDashboardView({
                 <DollarSign className="h-6 w-6 stroke-[1.5]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Jaminan Reklamasi</p>
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Jaminan Reklamasi (Active + Renewal)</p>
                 <div className="flex items-baseline mt-1">
                   <span className="text-[32px] font-bold font-manrope text-text-primary tracking-tight leading-none">
                     Rp {(metrics.totalGuaranteeValue / 1000000000).toFixed(1)}M

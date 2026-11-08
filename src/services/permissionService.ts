@@ -68,7 +68,7 @@ export function canDelete(profile: UserProfileLike | null | undefined): boolean 
   if (!auth.currentUser || !isActiveApproved(profile)) {
     return false;
   }
-  return atLeast(effectiveRole(profile), 'Foreman'); // Foreman includes Supervisor, above Operator
+  return atLeast(effectiveRole(profile), 'Environment Superintendent');
 }
 
 export function canApprove(profile: UserProfileLike | null | undefined): boolean {
