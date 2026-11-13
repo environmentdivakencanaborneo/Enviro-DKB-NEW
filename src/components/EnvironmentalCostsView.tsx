@@ -52,6 +52,7 @@ export default function EnvironmentalCostsView({
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
 
   // Form Fields
+  const [cBudgetCode, setCBudgetCode] = useState<string>('');
   const [cYear, setCYear] = useState<number>(2026);
   const [cPeriod, setCPeriod] = useState<string>('Januari');
   const [cCategory, setCCategory] = useState<string>('Pemantauan Kualitas Lingkungan');
@@ -59,6 +60,19 @@ export default function EnvironmentalCostsView({
   const [cNominal, setCNominal] = useState<string>('');
   const [cNotes, setCNotes] = useState<string>('');
   const [cOfficer, setCOfficer] = useState<string>('');
+
+  const buildBudgetCode = (year: number, type: 'OPEX' | 'CAPEX', category: string) => {
+    const progMap: Record<string, string> = {
+      'Pemantauan Kualitas Lingkungan': 'MON',
+      'Reklamasi & Revegetasi': 'REC',
+      'Pengelolaan Limbah Terpadu': 'WST',
+      'Water Treatment (KPL)': 'KPL',
+      'Izin LH & Administrasi': 'PER',
+    };
+    const prog = progMap[category] || 'ENV';
+    const seq = String(costs.length + 1).padStart(3, '0');
+    return `DKB-ENV-${year}-${type}-${prog}-${seq}`;
+  };
 
   const categories = [
     "Pemantauan Kualitas Lingkungan",
@@ -93,13 +107,14 @@ export default function EnvironmentalCostsView({
 
   const startEditCost = (item: EnvironmentalCost) => {
     setEditingCostId(item.id);
+    setCBudgetCode(item.budgetCode || '');
     setCYear(item.year);
     setCPeriod(item.period);
     setCCategory(item.category);
     
-    // Check if it's planned or realized
-    const isPlanned = item.plannedOpex > 0 || item.plannedCapex > 0;
-    if (isPlanned) {
+    // Pilih tab yang paling relevan tanpa menghilangkan sisi lainnya saat submit
+    const hasPlanned = item.plannedOpex > 0 || item.plannedCapex > 0;
+    if (hasPlanned) {
       setFormTab('rencana');
       setCostType(item.plannedOpex > 0 ? 'OPEX' : 'CAPEX');
       setCNominal(String(item.plannedOpex > 0 ? item.plannedOpex : item.plannedCapex));
@@ -122,26 +137,33 @@ export default function EnvironmentalCostsView({
     }
 
     const valueNum = Number(cNominal) || 0;
+    const existingTarget = editingCostId
+      ? costs.find(x => x.id === editingCostId)
+      : costs.find(x => x.year === Number(cYear) && x.period === cPeriod && x.category === cCategory);
 
-    const payload = formTab === 'rencana' ? {
+    const resolvedBudgetCode = cBudgetCode.trim() || existingTarget?.budgetCode || buildBudgetCode(Number(cYear), costType, cCategory);
+
+    const payload: Omit<EnvironmentalCost, 'id'> = formTab === 'rencana' ? {
+      budgetCode: resolvedBudgetCode,
       year: Number(cYear),
       period: cPeriod,
       category: cCategory,
-      plannedOpex: costType === 'OPEX' ? valueNum : 0,
-      plannedCapex: costType === 'CAPEX' ? valueNum : 0,
-      realizedOpex: editingCostId ? (costs.find(x => x.id === editingCostId)?.realizedOpex || 0) : 0,
-      realizedCapex: editingCostId ? (costs.find(x => x.id === editingCostId)?.realizedCapex || 0) : 0,
-      notes: cNotes.trim() || undefined,
+      plannedOpex: costType === 'OPEX' ? valueNum : (existingTarget?.plannedOpex || 0),
+      plannedCapex: costType === 'CAPEX' ? valueNum : (existingTarget?.plannedCapex || 0),
+      realizedOpex: existingTarget?.realizedOpex || 0,
+      realizedCapex: existingTarget?.realizedCapex || 0,
+      notes: cNotes.trim() || existingTarget?.notes || undefined,
       officer: cOfficer.trim()
     } : {
+      budgetCode: resolvedBudgetCode,
       year: Number(cYear),
       period: cPeriod,
       category: cCategory,
-      plannedOpex: editingCostId ? (costs.find(x => x.id === editingCostId)?.plannedOpex || 0) : 0,
-      plannedCapex: editingCostId ? (costs.find(x => x.id === editingCostId)?.plannedCapex || 0) : 0,
-      realizedOpex: costType === 'OPEX' ? valueNum : 0,
-      realizedCapex: costType === 'CAPEX' ? valueNum : 0,
-      notes: cNotes.trim() || undefined,
+      plannedOpex: existingTarget?.plannedOpex || 0,
+      plannedCapex: existingTarget?.plannedCapex || 0,
+      realizedOpex: costType === 'OPEX' ? valueNum : (existingTarget?.realizedOpex || 0),
+      realizedCapex: costType === 'CAPEX' ? valueNum : (existingTarget?.realizedCapex || 0),
+      notes: cNotes.trim() || existingTarget?.notes || undefined,
       officer: cOfficer.trim()
     };
 
@@ -150,11 +172,15 @@ export default function EnvironmentalCostsView({
         onUpdateCost(editingCostId, payload);
       }
       setEditingCostId(null);
+    } else if (existingTarget && onUpdateCost) {
+      // Gabungkan ke record anggaran yang sama (tahun + periode + kategori) agar rencana & realisasi selaras
+      onUpdateCost(existingTarget.id, payload);
     } else {
       onAddCost(payload);
     }
 
     // Reset Form fields
+    setCBudgetCode('');
     setCNominal('');
     setCNotes('');
     setCOfficer('');
@@ -229,7 +255,13 @@ export default function EnvironmentalCostsView({
             <div className="flex p-1 bg-white rounded-xl border border-slate-200">
               <button
                 type="button"
-                onClick={() => setFormTab('rencana')}
+                onClick={() => {
+                  setFormTab('rencana');
+                  if (editingCostId) {
+                    const target = costs.find(x => x.id === editingCostId);
+                    if (target) setCNominal(String(costType === 'OPEX' ? target.plannedOpex : target.plannedCapex));
+                  }
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   formTab === 'rencana'
                     ? 'bg-emerald-600 text-white shadow-md'
@@ -240,7 +272,13 @@ export default function EnvironmentalCostsView({
               </button>
               <button
                 type="button"
-                onClick={() => setFormTab('realisasi')}
+                onClick={() => {
+                  setFormTab('realisasi');
+                  if (editingCostId) {
+                    const target = costs.find(x => x.id === editingCostId);
+                    if (target) setCNominal(String(costType === 'OPEX' ? target.realizedOpex : target.realizedCapex));
+                  }
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   formTab === 'realisasi'
                     ? 'bg-amber-500 text-slate-950 shadow-md'
@@ -346,8 +384,29 @@ export default function EnvironmentalCostsView({
                 />
               </div>
 
+              {/* Kode Anggaran field */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Kode Mata Anggaran</label>
+                  <button
+                    type="button"
+                    onClick={() => setCBudgetCode(buildBudgetCode(Number(cYear), costType, cCategory))}
+                    className="text-[10px] font-bold text-emerald-600 hover:underline cursor-pointer"
+                  >
+                    Auto-Generate
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={cBudgetCode}
+                  onChange={(e) => setCBudgetCode(e.target.value)}
+                  placeholder={`cth. ${buildBudgetCode(Number(cYear), costType, cCategory)}`}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:border-emerald-500 transition-colors"
+                />
+              </div>
+
               {/* Notes field */}
-              <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-2">
                 <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Keterangan Anggaran</label>
                 <input 
                   type="text"
@@ -635,6 +694,9 @@ export default function EnvironmentalCostsView({
                         <td className="py-2.5 px-3 whitespace-nowrap font-mono">
                           <span className="font-bold text-slate-700">{c.period}</span>
                           <span className="text-slate-500 ml-1">({c.year})</span>
+                          {c.budgetCode && (
+                            <span className="block text-[9.5px] text-emerald-700 font-semibold mt-0.5">{c.budgetCode}</span>
+                          )}
                         </td>
                         <td className="py-2.5 px-3">
                           <p className="font-semibold text-slate-700">{c.category}</p>

@@ -46,6 +46,7 @@ import {
 import { db } from '../utils/firebaseAuth';
 import { UserProfile, PermissionMatrixItem, RolePermissions } from '../types';
 import { useAuth } from '../services/authService';
+import { isAdmin as isAdminRole } from '../services/permissionService';
 import { auditService } from '../services/auditService';
 import { ROLES } from '../utils/roles';
 import { getTimeMs, formatTimestamp } from '../utils/dateUtils';
@@ -59,30 +60,50 @@ const AVAILABLE_ROLES = ROLES;
 const MODULE_PERMISSIONS = [
   { key: 'dashboard', label: 'Dashboard Operasional' },
   { key: 'executive', label: 'Executive Dashboard' },
-  { key: 'monitoring', label: 'Pemantauan Air' },
-  { key: 'reclamation', label: 'Reklamasi' },
+  { key: 'proper_rkab', label: 'PROPER & RKAB' },
+  { key: 'monitoring', label: 'Pemantauan Air & Hujan' },
+  { key: 'amd_treatment', label: 'Pengelolaan AAT (AMD)' },
+  { key: 'domestic_wastewater', label: 'Air Limbah Domestik' },
+  { key: 'air_emission', label: 'Udara Ambien & Emisi' },
+  { key: 'ghg_inventory', label: 'Inventarisasi Emisi GRK' },
+  { key: 'evidence', label: 'Evidence & Berita Acara' },
+  { key: 'reclamation', label: 'Reklamasi & Nursery' },
+  { key: 'reclamation_guarantee', label: 'Jaminan Reklamasi & Pascatambang' },
+  { key: 'topsoil_erosion', label: 'Topsoil & Erosi' },
+  { key: 'biodiversity', label: 'Keanekaragaman Hayati' },
+  { key: 'forestry_ppkh', label: 'Kewajiban Kehutanan (PPKH/DAS)' },
   { key: 'waste', label: 'Limbah B3 TPS' },
   { key: 'solid_waste', label: 'Pengolahan Sampah' },
-  { key: 'documents', label: 'Documents / Perizinan' },
+  { key: 'documents', label: 'Dokumen & Izin' },
+  { key: 'pertek_slo', label: 'Register Pertek & SLO' },
+  { key: 'compliance_matrix', label: 'Matriks Kepatuhan RKL/RPL' },
+  { key: 'reporting_calendar', label: 'Kalender Pelaporan Wajib' },
+  { key: 'iadl_risk', label: 'Register IADL (ISO 14001)' },
+  { key: 'supervision', label: 'Pengawasan Eksternal & Sanksi' },
+  { key: 'findings', label: 'Temuan & CAPA' },
+  { key: 'incidents', label: 'Insiden Lingkungan' },
   { key: 'regulatory_watch', label: 'Regulatory Watch' },
-  { key: 'compliance_matrix', label: 'Compliance (RKL-RPL)' },
-  { key: 'incidents', label: 'Incidents & Kedaruratan' },
-  { key: 'findings', label: 'CAPA Findings' },
-  { key: 'reports', label: 'Reports' },
-  { key: 'esg', label: 'ESG & GRI' },
-  { key: 'costs', label: 'Environmental Costs' },
+  { key: 'costs', label: 'Biaya Lingkungan' },
+  { key: 'reports', label: 'Laporan Tambang' },
   { key: 'export', label: 'Export Data' },
   { key: 'import', label: 'Import Data' },
   { key: 'user_management', label: 'User Management' },
   { key: 'role_management', label: 'Role Management' },
   { key: 'approval', label: 'Registration Approval' },
-  { key: 'settings', label: 'Settings' },
+  { key: 'standards_master', label: 'Master Baku Mutu & Konfigurasi' },
   { key: 'audit_log', label: 'Audit Log' },
 ];
 
 export default function AdminManagementView({ initialTab = 'approval' }: AdminManagementViewProps) {
   const { user: currentUser, profile: currentProfile, sendPasswordReset } = useAuth();
-  const [activeTab, setActiveTab] = useState<'approval' | 'users' | 'roles' | 'audit'>(initialTab);
+  const canManageUsers = isAdminRole(currentProfile);
+  const [activeTab, setActiveTab] = useState<'approval' | 'users' | 'roles' | 'audit'>(
+    canManageUsers ? initialTab : 'audit'
+  );
+
+  useEffect(() => {
+    setActiveTab(canManageUsers ? initialTab : 'audit');
+  }, [initialTab, canManageUsers]);
 
   // State pools
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
@@ -106,8 +127,13 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
   // Permission Matrix State
   const [permissionMatrix, setPermissionMatrix] = useState<Record<string, Record<string, boolean>>>({});
 
-  // Real-time listener for users
+  // Real-time listener for users (Admin only — menghindari permission-denied pada Auditor / read-only)
   useEffect(() => {
+    if (!canManageUsers) {
+      setUsersList([]);
+      setLoadingUsers(false);
+      return;
+    }
     setLoadingUsers(true);
     const q = query(collection(db, 'users'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -135,7 +161,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [canManageUsers]);
 
   // Real-time listener for audit logs
   useEffect(() => {
@@ -169,12 +195,23 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
         } else if (role === 'Environment Manager' || role === 'Environment Superintendent') {
           defaultMatrix[role][mod.key] = mod.key !== 'user_management' && mod.key !== 'role_management';
         } else if (role === 'Auditor') {
-          defaultMatrix[role][mod.key] = ['dashboard', 'executive', 'monitoring', 'reclamation', 'documents', 'compliance_matrix', 'reports', 'esg', 'audit_log'].includes(mod.key);
+          defaultMatrix[role][mod.key] = [
+            'dashboard', 'executive', 'proper_rkab', 'monitoring', 'amd_treatment', 'air_emission', 'evidence',
+            'reclamation', 'topsoil_erosion', 'biodiversity', 'documents', 'compliance_matrix',
+            'iadl_risk', 'findings', 'incidents', 'regulatory_watch', 'reports', 'audit_log'
+          ].includes(mod.key);
         } else if (role === 'Foreman' || role === 'Operator') {
-          defaultMatrix[role][mod.key] = ['dashboard', 'monitoring', 'reclamation', 'waste', 'solid_waste', 'incidents', 'findings'].includes(mod.key);
+          defaultMatrix[role][mod.key] = [
+            'dashboard', 'monitoring', 'amd_treatment', 'air_emission', 'evidence',
+            'reclamation', 'topsoil_erosion', 'biodiversity', 'waste', 'solid_waste',
+            'documents', 'compliance_matrix', 'iadl_risk', 'findings', 'incidents', 'reports'
+          ].includes(mod.key);
         } else {
           // Viewer
-          defaultMatrix[role][mod.key] = ['dashboard', 'monitoring', 'reports'].includes(mod.key);
+          defaultMatrix[role][mod.key] = [
+            'dashboard', 'monitoring', 'amd_treatment', 'air_emission', 'reclamation',
+            'topsoil_erosion', 'biodiversity', 'waste', 'solid_waste', 'reports'
+          ].includes(mod.key);
         }
       });
     });
@@ -458,59 +495,65 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
             </p>
           </div>
 
-          <div className="flex items-center gap-3 bg-amber-50/70 border border-amber-200 rounded-2xl p-3 shrink-0 shadow-sm">
-            <div className="text-right px-1">
-              <p className="text-[10px] text-amber-800 font-mono font-semibold uppercase">Pending Approval</p>
-              <p className="text-xl font-black text-amber-700 font-manrope">{pendingUsers.length} Permohonan</p>
+          {canManageUsers && (
+            <div className="flex items-center gap-3 bg-amber-50/70 border border-amber-200 rounded-2xl p-3 shrink-0 shadow-sm">
+              <div className="text-right px-1">
+                <p className="text-[10px] text-amber-800 font-mono font-semibold uppercase">Pending Approval</p>
+                <p className="text-xl font-black text-amber-700 font-manrope">{pendingUsers.length} Permohonan</p>
+              </div>
+              <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-sm">
+                <Clock className="w-5 h-5" />
+              </div>
             </div>
-            <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-sm">
-              <Clock className="w-5 h-5" />
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Tab Selection Navigation */}
         <div className="flex flex-wrap gap-2 pt-6 border-t border-slate-100 mt-6">
-          <button
-            onClick={() => setActiveTab('approval')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'approval'
-                ? 'bg-[#2E4B3D] text-white shadow-sm'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            <UserCheck className="w-4 h-4" />
-            Registration Approval
-            {pendingUsers.length > 0 && (
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-extrabold shadow-sm">
-                {pendingUsers.length}
-              </span>
-            )}
-          </button>
+          {canManageUsers && (
+            <>
+              <button
+                onClick={() => setActiveTab('approval')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'approval'
+                    ? 'bg-[#2E4B3D] text-white shadow-sm'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                Registration Approval
+                {pendingUsers.length > 0 && (
+                  <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-extrabold shadow-sm">
+                    {pendingUsers.length}
+                  </span>
+                )}
+              </button>
 
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'users'
-                ? 'bg-[#2E4B3D] text-white shadow-sm'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            User Management ({usersList.length})
-          </button>
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'users'
+                    ? 'bg-[#2E4B3D] text-white shadow-sm'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                User Management ({usersList.length})
+              </button>
 
-          <button
-            onClick={() => setActiveTab('roles')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'roles'
-                ? 'bg-[#2E4B3D] text-white shadow-sm'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            Role Management & Permission Matrix
-          </button>
+              <button
+                onClick={() => setActiveTab('roles')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'roles'
+                    ? 'bg-[#2E4B3D] text-white shadow-sm'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                Role Management & Permission Matrix
+              </button>
+            </>
+          )}
 
           <button
             onClick={() => setActiveTab('audit')}

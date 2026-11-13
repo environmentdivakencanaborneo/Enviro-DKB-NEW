@@ -1027,7 +1027,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 </span>
               </div>
               <span className="text-[10px] text-slate-500 font-semibold block">
-                Baku Mutu Permen LH 113/2003
+                Kepmen LH 113/2003 &amp; SK Pertek PT DKB
               </span>
             </div>
 

@@ -4,6 +4,7 @@
  */
 
 import { ReclamationGuarantee } from '../types';
+import { daysUntilLocal } from './dateUtils';
 
 export interface GuaranteeMetrics {
   totalActiveValue: number;
@@ -18,13 +19,9 @@ export interface GuaranteeMetrics {
  * - totalActiveValue: Jumlah nilai jaminan dengan status 'Active' + 'Renewal Needed'
  * - activeCount: Jumlah dokumen berstatus 'Active'
  * - renewalCount: Jumlah dokumen berstatus 'Renewal Needed'
- * - expiringCount: Jumlah dokumen berstatus 'Active' dengan sisa masa berlaku <= 90 hari
+ * - expiringCount: Jumlah dokumen berstatus 'Active' dengan sisa masa berlaku <= 90 hari (WITA)
  */
 export function calculateGuaranteeMetrics(guarantees: ReclamationGuarantee[] = []): GuaranteeMetrics {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const nowMs = now.getTime();
-
   let totalActiveValue = 0;
   let activeCount = 0;
   let renewalCount = 0;
@@ -39,9 +36,7 @@ export function calculateGuaranteeMetrics(guarantees: ReclamationGuarantee[] = [
     if (g.status === 'Active') {
       activeCount += 1;
       if (g.dueDate) {
-        const due = new Date(g.dueDate);
-        due.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((due.getTime() - nowMs) / (1000 * 60 * 60 * 24));
+        const diffDays = daysUntilLocal(g.dueDate);
         if (diffDays <= 90) {
           expiringCount += 1;
         }

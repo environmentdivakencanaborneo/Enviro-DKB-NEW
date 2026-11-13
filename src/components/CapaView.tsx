@@ -555,6 +555,7 @@ export default function CapaView({
                           <option value="Audit Eksternal">Audit Eksternal</option>
                           <option value="Audit Internal">Audit Internal ISO 14001</option>
                           <option value="Inspeksi DLH">Inspeksi DLH / ESDM</option>
+                          <option value="Pengawasan Eksternal">Pengawasan Eksternal (DLH/KLH/ESDM/Kehutanan)</option>
                           <option value="PROPER">Penilaian PROPER</option>
                           <option value="Inspeksi Internal">Inspeksi Internal</option>
                           <option value="Lainnya">Lainnya</option>

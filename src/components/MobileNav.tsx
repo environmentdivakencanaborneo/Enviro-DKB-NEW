@@ -7,12 +7,13 @@ import { useState } from 'react';
 import { 
   Menu, 
   X,
-  LogOut, 
+  LogOut,
+  Search
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { GoogleSyncConfig } from '../types';
 import DivaLogo from './DivaLogo';
-import { APP_TABS, MOBILE_PRIMARY_TABS, MOBILE_SECONDARY_TABS } from '../data/navigation';
+import { APP_MENU_GROUPS, APP_TABS, MOBILE_PRIMARY_TABS } from '../data/navigation';
 import { useAuth } from '../services/authService';
 import { canAccessModule } from '../services/permissionService';
 
@@ -24,6 +25,7 @@ interface MobileNavProps {
   setSyncModalOpen: (open: boolean) => void;
   setUserModalOpen: (open: boolean) => void;
   onLogout?: () => void;
+  onOpenSearch?: () => void;
 }
 
 export default function MobileNav({
@@ -33,13 +35,17 @@ export default function MobileNav({
   user,
   setSyncModalOpen,
   setUserModalOpen,
-  onLogout
+  onLogout,
+  onOpenSearch
 }: MobileNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { profile } = useAuth();
 
   const primaryTabs = APP_TABS.filter(t => MOBILE_PRIMARY_TABS.includes(t.id) && canAccessModule(profile, t.id));
-  const secondaryTabs = APP_TABS.filter(t => MOBILE_SECONDARY_TABS.includes(t.id) && canAccessModule(profile, t.id));
+  const groupedDrawerTabs = APP_MENU_GROUPS.map(g => ({
+    ...g,
+    items: g.items.filter(item => canAccessModule(profile, item.id))
+  })).filter(g => g.items.length > 0);
 
   const handleTabClick = (id: string) => {
     setCurrentTab(id);
@@ -60,12 +66,12 @@ export default function MobileNav({
             <motion.button whileTap={{ scale: 0.95 }}
               key={tab.id}
               onClick={() => handleTabClick(tab.id)}
-              className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all duration-300 cursor-pointer ${
+              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all duration-300 cursor-pointer ${
                 isActive ? 'text-emerald-600 font-bold scale-105' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               <Icon size={20} className={isActive ? 'text-emerald-600' : 'text-slate-500'} />
-              <span className="text-[10px] tracking-wide font-medium">{tab.name}</span>
+              <span className="text-[10px] tracking-wide font-medium max-w-[68px] truncate">{tab.name}</span>
             </motion.button>
           );
         })}
@@ -118,26 +124,56 @@ export default function MobileNav({
                 </motion.button>
               </div>
 
-              {/* Drawer Links */}
-              <div className="p-5 grid grid-cols-2 gap-3">
-                {secondaryTabs.map(tab => {
-                  const Icon = tab.icon;
-                  const isActive = currentTab === tab.id;
-                  return (
-                    <motion.button whileTap={{ scale: 0.95 }}
-                      key={tab.id}
-                      onClick={() => handleTabClick(tab.id)}
-                      className={`flex flex-col justify-center items-center gap-2.5 p-4 rounded-2xl border transition-all cursor-pointer ${
-                        isActive
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                          : 'bg-white border-[rgba(0,0,0,0.04)] hover:bg-[rgba(0,0,0,0.06)] text-slate-600'
-                      }`}
-                    >
-                      <Icon size={24} className={isActive ? 'text-emerald-600' : 'text-slate-500'} />
-                      <span className="text-[11px] font-semibold tracking-wide text-center leading-tight">{tab.name}</span>
-                    </motion.button>
-                  );
-                })}
+              {onOpenSearch && (
+                <div className="px-5 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onOpenSearch();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 font-medium cursor-pointer"
+                  >
+                    <Search className="w-4 h-4 text-[#4D7C5A]" />
+                    <span>Cari modul atau dasar regulasi...</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Grouped Drawer Links */}
+              <div className="p-5 space-y-5">
+                {groupedDrawerTabs.map(group => (
+                  <div key={group.group} className="space-y-2.5">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1">
+                      {group.group}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {group.items.map(tab => {
+                        const Icon = tab.icon;
+                        const isActive = currentTab === tab.id;
+                        return (
+                          <motion.button whileTap={{ scale: 0.95 }}
+                            key={tab.id}
+                            onClick={() => handleTabClick(tab.id)}
+                            className={`flex flex-col justify-center items-center gap-2 p-3.5 rounded-2xl border transition-all cursor-pointer relative ${
+                              isActive
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                                : 'bg-white border-slate-100 hover:bg-slate-50 text-slate-600'
+                            }`}
+                          >
+                            {tab.isNew && (
+                              <span className="absolute top-2 right-2 text-[8px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 uppercase">
+                                BARU
+                              </span>
+                            )}
+                            <Icon size={20} className={isActive ? 'text-emerald-600' : 'text-slate-500'} />
+                            <span className="text-[11px] font-semibold tracking-wide text-center leading-tight">{tab.name}</span>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Settings, Sync & Profile Panel */}

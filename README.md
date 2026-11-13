@@ -21,7 +21,7 @@ Sistem manajemen dan pemantauan lingkungan pertambangan batubara terintegrasi un
    - Pencatatan pengeluaran bibit (Stock-Out) dengan lokasi penanaman terperinci.
    - Perhitungan rasio kesehatan bibit tanaman ('Sehat' / 'Healthy').
    - Pemantauan rencana vs realisasi fisik penataan lahan (Ha) dan anggaran (IDR).
-   - Validasi dokumen dana jaminan reklamasi (garansi bank) sesuai ketentuan Ditjen Minerba ESDM.
+   - Validasi dokumen dana jaminan reklamasi & pascatambang (deposito berjangka pada Bank Pemerintah) sesuai Kepmen ESDM No. 344.K/MB.01/MEM.B/2025.
 
 4. **Kepatuhan Regulasi, Insiden & CAPA**
    - Kalender kewajiban pelaporan lingkungan (RKL-RPL, Simpel, Spph, Proper).

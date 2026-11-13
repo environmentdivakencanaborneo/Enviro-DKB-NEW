@@ -6,12 +6,14 @@
 import { useState, useEffect } from 'react';
 import { 
   Bell, 
+  BookOpen,
   RefreshCw, 
-  User 
+  Search
 } from 'lucide-react';
 import { AlertNotification } from '../types';
 import { BackupStatus } from '../services/backupService';
 import { formatTimestamp } from '../utils/dateUtils';
+import { APP_TAB_MAP } from '../data/navigation';
 
 import MiningEnvIcon, { MiningEnvIconType } from './MiningEnvIcon';
 
@@ -24,6 +26,8 @@ interface HeaderProps {
   currentTab: string;
   hasWriteAuthority: boolean;
   onSync: () => void;
+  onOpenRegulatory?: (searchKey: string) => void;
+  onOpenSearch?: () => void;
 }
 
 export default function Header({ 
@@ -34,7 +38,9 @@ export default function Header({
   setUserModalOpen,
   currentTab,
   hasWriteAuthority,
-  onSync
+  onSync,
+  onOpenRegulatory,
+  onOpenSearch
 }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
@@ -61,49 +67,32 @@ export default function Header({
   const getTabIconType = (tab: string): MiningEnvIconType => {
     switch (tab) {
       case 'dashboard': return 'emblem';
-      case 'monitoring': return 'water-kpl';
-      case 'reclamation': return 'reclamation';
+      case 'monitoring':
+      case 'amd_treatment':
+      case 'domestic_wastewater':
+        return 'water-kpl';
+      case 'air_emission':
+      case 'ghg_inventory':
+      case 'reports':
+        return 'surface-water';
+      case 'reclamation':
+      case 'reclamation_guarantee':
+      case 'topsoil_erosion':
+      case 'biodiversity':
+      case 'forestry_ppkh':
+      case 'costs':
+        return 'reclamation';
       case 'waste': return 'tps-b3';
       case 'solid_waste': return 'solid-waste';
-      case 'reports': return 'surface-water';
-      case 'costs': return 'reclamation';
-      case 'documents':
-      case 'regulatory_watch':
-      case 'compliance_matrix':
-      case 'incidents':
-      case 'findings':
-      case 'executive':
-      case 'notifications':
-      case 'registration_approval':
-      case 'user_management':
-      case 'role_management':
       default:
         return 'compliance';
     }
   };
 
-  const getPageTitle = (tab: string) => {
-    switch (tab) {
-      case 'dashboard': return 'Dashboard Lingkungan & Compliance';
-      case 'executive': return 'Dashboard Eksekutif & ESG Tambang';
-      case 'monitoring': return 'Pemantauan Air Limbah & Curah Hujan';
-      case 'reclamation': return 'Reklamasi & Nursery Management';
-      case 'waste': return 'Manajemen Limbah Bahan Berbahaya & Beracun (B3)';
-      case 'solid_waste': return 'Pengolahan Sampah Non-B3 — Permen LH 7/2025';
-      case 'documents': return 'Manajemen AMDAL, UKL-UPL & Perizinan';
-      case 'regulatory_watch': return 'Pemantau Regulasi Lingkungan Tambang';
-      case 'compliance_matrix': return 'Matriks Pemantauan RKL-RPL';
-      case 'incidents': return 'Insiden Lingkungan & Kedaruratan';
-      case 'findings': return 'Temuan Audit Lingkungan & CAPA';
-      case 'reports': return 'Generasi Laporan & Kinerja Kepatuhan';
-      case 'costs': return 'Anggaran & Realisasi Biaya Lingkungan Hidup';
-      case 'notifications': return 'Histori Notifikasi & Peringatan Dini';
-      case 'registration_approval': return 'Persetujuan Registrasi Karyawan';
-      case 'user_management': return 'Manajemen Pengguna & Akun Enterprise';
-      case 'role_management': return 'Matriks Otoritas & Peranan (RBAC)';
-      default: return 'Monitoring Lingkungan Pertambangan';
-    }
-  };
+  const tabMeta = APP_TAB_MAP[currentTab];
+  const pageTitle = tabMeta?.name || 'Monitoring Lingkungan Pertambangan';
+  const pageSubtitle = tabMeta?.subtitle || '';
+  const regulationBasis = tabMeta?.regulationBasis;
 
   const handleSyncClick = () => {
     onSync();
@@ -115,7 +104,7 @@ export default function Header({
       className="bg-white border-b border-[#E6ECE6] py-3.5 px-6 sm:px-8 flex items-center justify-between sticky top-0 z-30 select-none shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
     >
       {/* Title block & Breadcrumb */}
-      <div className="flex-1 min-w-0 pr-6">
+      <div className="flex-1 min-w-0 pr-4">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-[10px] font-medium text-[#6D7B73] tracking-wide font-sans">
             Konsesi Tambang
@@ -130,12 +119,15 @@ export default function Header({
           <div className="p-1.5 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200/80 shrink-0 shadow-sm">
             <MiningEnvIcon type={getTabIconType(currentTab)} size={28} />
           </div>
-          <div>
-            <h2 className="text-[17px] sm:text-[19px] font-bold tracking-tight text-[#23312B] font-heading leading-tight">
-              {getPageTitle(currentTab)}
+          <div className="min-w-0">
+            <h2 className="text-[16px] sm:text-[18px] font-bold tracking-tight text-[#23312B] font-heading leading-tight truncate">
+              {pageTitle}
             </h2>
+            {pageSubtitle && (
+              <p className="text-[11px] text-[#6D7B73] truncate mt-0.5">{pageSubtitle}</p>
+            )}
             
-            {/* Clean compact status pill bar */}
+            {/* Clean compact status & regulation bar */}
             <div className="flex flex-wrap items-center gap-2 mt-1">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#3FA66B]/10 border border-[#3FA66B]/25 text-[10px] text-[#2F5A46] font-bold">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#3FA66B] animate-pulse"></span>
@@ -156,9 +148,24 @@ export default function Header({
                 )}
               </div>
 
-              <span className="text-slate-300 text-[10px] hidden sm:inline">•</span>
+              {regulationBasis && (
+                <>
+                  <span className="text-slate-300 text-[10px] hidden sm:inline">•</span>
+                  <button
+                    type="button"
+                    onClick={() => onOpenRegulatory?.(tabMeta?.regulationSearchKey ?? '')}
+                    title="Lihat dasar regulasi terkait di Regulatory Watch"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 hover:bg-purple-100 border border-purple-200 text-[10px] text-purple-800 font-semibold transition-colors cursor-pointer max-w-xs truncate"
+                  >
+                    <BookOpen className="w-3 h-3 shrink-0" />
+                    <span className="truncate">Dasar Regulasi: {regulationBasis}</span>
+                  </button>
+                </>
+              )}
 
-              <div className="inline-flex items-center gap-1.5" title="Koneksi Sistem">
+              <span className="text-slate-300 text-[10px] hidden lg:inline">•</span>
+
+              <div className="hidden lg:inline-flex items-center gap-1.5" title="Koneksi Sistem">
                 <span className={`h-1.5 w-1.5 rounded-full ${serverOnline === true ? 'bg-[#3FA66B]' : serverOnline === false ? 'bg-[#E2A43B]' : 'bg-[#E6ECE6]'}`} />
                 <span className="text-[9px] text-[#6D7B73] font-manrope font-bold tracking-wider uppercase">
                   {serverOnline === true ? 'SYS LIVE' : serverOnline === false ? 'LOCAL' : 'CONNECTING...'}
@@ -170,12 +177,25 @@ export default function Header({
       </div>
 
       {/* Action buttons list */}
-      <div className="flex items-center gap-4 shrink-0">
+      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        {onOpenSearch && (
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            title="Cari Modul / Regulasi (Ctrl+K)"
+            className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl border border-[#E6ECE6] bg-white hover:bg-[#F5F6F2] text-xs font-medium text-[#6D7B73] cursor-pointer transition-colors"
+          >
+            <Search className="h-3.5 w-3.5 text-[#4D7C5A]" />
+            <span className="hidden lg:inline">Cari Menu</span>
+            <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">⌘K</kbd>
+          </button>
+        )}
+
         {/* Google Sync state connector */}
         <button
           id="header-sync-trigger"
           onClick={handleSyncClick}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-semibold cursor-pointer transition-all duration-200 ${
             backupStatus.status === 'synced' 
               ? 'bg-[#3FA66B]/8 border-[#3FA66B]/20 text-[#2F5A46] hover:bg-[#3FA66B]/15 hover:shadow-sm' 
               : backupStatus.status === 'syncing'

@@ -38,7 +38,9 @@ import {
   WasteIn, WasteOut, EnvironmentalDocument,
   ComplianceCalendarEvent, EnvironmentalCost, SolidWasteData,
   SurfaceWaterData, NurseryStockOut, CapaData,
-  ComplianceMatrixData, IncidentData, RegulatoryWatchData
+  ComplianceMatrixData, IncidentData, RegulatoryWatchData,
+  AmdTreatmentData, AirEmissionData, TopsoilErosionData,
+  BiodiversityData, IadlRiskData, ProperRkabData
 } from '../types';
 
 
@@ -273,8 +275,11 @@ export default function SettingsModals({
     setIsExportingXLSX(true);
     setXlsxExportStatus('idle');
     try {
-      // Ambil semua data langsung dari Firestore
-      const [wwSnap, rfSnap, nsSnap, rcSnap, wb3Snap, docSnap, costSnap, swSnap, surfSnap, nsoSnap, capaSnap, cmSnap, incSnap, regSnap] = await Promise.all([
+      // Ambil semua data langsung dari Firestore (23 koleksi/sheet)
+      const [
+        wwSnap, rfSnap, nsSnap, rcSnap, wb3Snap, docSnap, costSnap, swSnap, surfSnap, nsoSnap,
+        capaSnap, cmSnap, incSnap, regSnap, amdSnap, airSnap, topsoilSnap, bioSnap, iadlSnap, properSnap
+      ] = await Promise.all([
         getDocs(collection(db, 'wastewater')),
         getDocs(collection(db, 'rainfall')),
         getDocs(collection(db, 'nursery')),
@@ -289,26 +294,38 @@ export default function SettingsModals({
         getDocs(collection(db, 'compliance_matrix')),
         getDocs(collection(db, 'incidents')),
         getDocs(collection(db, 'regulatory')),
+        getDocs(collection(db, 'amd_treatment')),
+        getDocs(collection(db, 'air_emission')),
+        getDocs(collection(db, 'topsoil_erosion')),
+        getDocs(collection(db, 'biodiversity')),
+        getDocs(collection(db, 'iadl_risk')),
+        getDocs(collection(db, 'proper_rkab')),
       ]);
 
       exportAllDataToXLSX({
-        wastewater:           wwSnap.docs.map(d => d.data() as WastewaterData),
-        rainfall:             rfSnap.docs.map(d => d.data() as RainfallData),
-        nursery:              nsSnap.docs.map(d => d.data() as NurseryData),
-        reclamationPlans:     rcSnap.docs.filter(d => d.id.startsWith('RP-')).map(d => d.data() as ReclamationPlan),
-        reclamationGuarantees:rcSnap.docs.filter(d => d.id.startsWith('RG-')).map(d => d.data() as ReclamationGuarantee),
-        wasteIn:              wb3Snap.docs.filter(d => d.id.startsWith('WI-')).map(d => d.data() as WasteIn),
-        wasteOut:             wb3Snap.docs.filter(d => d.id.startsWith('WO-')).map(d => d.data() as WasteOut),
-        documents:            docSnap.docs.filter(d => d.id.startsWith('DOC-')).map(d => d.data() as EnvironmentalDocument),
-        calendarEvents:       docSnap.docs.filter(d => d.id.startsWith('EV-')).map(d => d.data() as ComplianceCalendarEvent),
-        environmentalCosts:   costSnap.docs.map(d => d.data() as EnvironmentalCost),
-        solidWaste:           swSnap.docs.map(d => d.data() as SolidWasteData),
-        surfaceWater:         surfSnap.docs.map(d => d.data() as SurfaceWaterData),
-        nurseryStockOut:      nsoSnap.docs.map(d => d.data() as NurseryStockOut),
-        capa:                 capaSnap.docs.map(d => d.data() as CapaData),
-        complianceMatrix:     cmSnap.docs.map(d => d.data() as ComplianceMatrixData),
-        incidents:            incSnap.docs.map(d => d.data() as IncidentData),
-        regulatory:           regSnap.docs.map(d => d.data() as RegulatoryWatchData),
+        wastewater:            wwSnap.docs.map(d => d.data() as WastewaterData),
+        rainfall:              rfSnap.docs.map(d => d.data() as RainfallData),
+        nursery:               nsSnap.docs.map(d => d.data() as NurseryData),
+        reclamationPlans:      rcSnap.docs.filter(d => d.id.startsWith('RP-')).map(d => d.data() as ReclamationPlan),
+        reclamationGuarantees: rcSnap.docs.filter(d => d.id.startsWith('RG-')).map(d => d.data() as ReclamationGuarantee),
+        wasteIn:               wb3Snap.docs.filter(d => d.id.startsWith('WI-')).map(d => d.data() as WasteIn),
+        wasteOut:              wb3Snap.docs.filter(d => d.id.startsWith('WO-')).map(d => d.data() as WasteOut),
+        documents:             docSnap.docs.filter(d => d.id.startsWith('DOC-')).map(d => d.data() as EnvironmentalDocument),
+        calendarEvents:        docSnap.docs.filter(d => d.id.startsWith('EV-')).map(d => d.data() as ComplianceCalendarEvent),
+        environmentalCosts:    costSnap.docs.map(d => d.data() as EnvironmentalCost),
+        solidWaste:            swSnap.docs.map(d => d.data() as SolidWasteData),
+        surfaceWater:          surfSnap.docs.map(d => d.data() as SurfaceWaterData),
+        nurseryStockOut:       nsoSnap.docs.map(d => d.data() as NurseryStockOut),
+        capa:                  capaSnap.docs.map(d => d.data() as CapaData),
+        complianceMatrix:      cmSnap.docs.map(d => d.data() as ComplianceMatrixData),
+        incidents:             incSnap.docs.map(d => d.data() as IncidentData),
+        regulatory:            regSnap.docs.map(d => d.data() as RegulatoryWatchData),
+        amdTreatments:         amdSnap.docs.map(d => d.data() as AmdTreatmentData),
+        airEmissions:          airSnap.docs.map(d => d.data() as AirEmissionData),
+        topsoilErosions:       topsoilSnap.docs.map(d => d.data() as TopsoilErosionData),
+        biodiversity:          bioSnap.docs.map(d => d.data() as BiodiversityData),
+        iadlRisks:             iadlSnap.docs.map(d => d.data() as IadlRiskData),
+        properRkab:            properSnap.docs.map(d => d.data() as ProperRkabData),
       }, user?.company);
 
       setXlsxExportStatus('success');
@@ -439,7 +456,7 @@ export default function SettingsModals({
                       <h4 className="font-bold text-slate-700">Buat Cadangan Baru</h4>
                     </div>
                     <p className="text-[11px] text-slate-500 leading-normal">
-                      Kirim seluruh data audit, kualitas air limah, curah hujan, nursery, dokumen, dan anggaran opex/capex ke Google Drive.
+                      Kirim seluruh 23 koleksi data (air limbah, AAT, udara/emisi, topsoil, kehati, limbah B3, sampah, IADL, CAPA, insiden, PROPER/RKAB, dokumen, dan anggaran) ke Google Drive.
                     </p>
                     
                     <div className="space-y-2">

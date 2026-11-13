@@ -26,19 +26,15 @@ import MobileNav from './components/MobileNav';
 import Header from './components/Header';
 import DashboardView from './components/DashboardView';
 import EnvironmentalCostsView from './components/EnvironmentalCostsView';
-import DocumentsView from './components/DocumentsView';
 import NotificationsView from './components/NotificationsView';
 import SettingsModals from './components/SettingsModals';
 import AuthView from './components/AuthView';
 import TableSkeleton from './components/TableSkeleton';
 import ModuleErrorBoundary from './components/ModuleErrorBoundary';
 import SolidWasteView from './components/SolidWasteView';
-import CapaView from './components/CapaView';
-import ComplianceMatrixView from './components/ComplianceMatrixView';
-import IncidentView from './components/IncidentView';
 import ExecutiveDashboardView from './components/ExecutiveDashboardView';
-import RegulatoryWatchView from './components/RegulatoryWatchView';
 import PublicVerifyView from './components/evidence/PublicVerifyView';
+import MenuSearchModal from './components/MenuSearchModal';
 
 // Code-split lazy views
 const MonitoringView = lazy(() => import('./components/MonitoringView'));
@@ -47,6 +43,25 @@ const WasteB3View = lazy(() => import('./components/WasteB3View'));
 const ReportsView = lazy(() => import('./components/ReportsView'));
 const AdminManagementView = lazy(() => import('./components/AdminManagementView'));
 const EvidenceHub = lazy(() => import('./components/evidence/EvidenceHub'));
+const DocumentsView = lazy(() => import('./components/DocumentsView'));
+const ComplianceMatrixView = lazy(() => import('./components/ComplianceMatrixView'));
+const CapaView = lazy(() => import('./components/CapaView'));
+const IncidentView = lazy(() => import('./components/IncidentView'));
+const RegulatoryWatchView = lazy(() => import('./components/RegulatoryWatchView'));
+const AmdTreatmentView = lazy(() => import('./components/AmdTreatmentView'));
+const AirEmissionView = lazy(() => import('./components/AirEmissionView'));
+const TopsoilErosionView = lazy(() => import('./components/TopsoilErosionView'));
+const BiodiversityView = lazy(() => import('./components/BiodiversityView'));
+const IadlRiskView = lazy(() => import('./components/IadlRiskView'));
+const ProperRkabView = lazy(() => import('./components/ProperRkabView'));
+const PertekSloView = lazy(() => import('./components/PertekSloView'));
+const ReportingCalendarView = lazy(() => import('./components/ReportingCalendarView'));
+const ExternalSupervisionView = lazy(() => import('./components/ExternalSupervisionView'));
+const DomesticWastewaterView = lazy(() => import('./components/DomesticWastewaterView'));
+const GhgInventoryView = lazy(() => import('./components/GhgInventoryView'));
+const ReclamationGuaranteeView = lazy(() => import('./components/ReclamationGuaranteeView'));
+const ForestryPpkhView = lazy(() => import('./components/ForestryPpkhView'));
+const StandardsMasterView = lazy(() => import('./components/StandardsMasterView'));
 
 import { useAuth } from './services/authService';
 import { canAccessModule, isAdmin, isSuperintendent, canDelete, isActiveApproved } from './services/permissionService';
@@ -112,6 +127,20 @@ export default function App() {
   // Modal Dialogs
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [regulatorySearchSeed, setRegulatorySearchSeed] = useState('');
+
+  // Global Ctrl/Cmd+K shortcut for Menu Search
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // Real-time local state pools loaded from custom useFirestoreData hook
   const {
@@ -133,6 +162,22 @@ export default function App() {
     complianceMatrix,
     incidents,
     regulatory,
+    amdTreatments,
+    airEmissions,
+    topsoilErosions,
+    biodiversity,
+    iadlRisks,
+    properRkab,
+    standards,
+    internalThresholds,
+    properCriteria,
+    pertekSlo,
+    reportingCalendar,
+    externalSupervisions,
+    domesticWastewater,
+    ghgFactors,
+    ghgActivities,
+    forestryPpkh,
     isLoadingWastewater,
     isLoadingSurfaceWater,
     isLoadingRainfall,
@@ -146,7 +191,19 @@ export default function App() {
     isLoadingCapa,
     isLoadingCompliance,
     isLoadingIncidents,
-    isLoadingRegulatory
+    isLoadingRegulatory,
+    isLoadingAmd,
+    isLoadingAirEmission,
+    isLoadingTopsoil,
+    isLoadingBiodiversity,
+    isLoadingIadl,
+    isLoadingProperRkab,
+    isLoadingPertekSlo,
+    isLoadingReportingCalendar,
+    isLoadingSupervisions,
+    isLoadingDomesticWastewater,
+    isLoadingGhgInventory,
+    isLoadingForestryPpkh
   } = useFirestoreData(activeTab);
   
   // Backup Sync and Retry State
@@ -245,6 +302,11 @@ export default function App() {
   const setTabAndHash = (tab: string) => {
     setActiveTab(tab);
     window.location.hash = tab;
+  };
+
+  const openRegulatoryWatch = (searchKey: string) => {
+    setRegulatorySearchSeed(searchKey);
+    setTabAndHash('regulatory_watch');
   };
 
   // Google Drive Backup trigger
@@ -588,31 +650,29 @@ export default function App() {
 
   const handleAddDocument = async (item: any) => {
     if (!isSuperintendent(profile)) {
-      showAuthorityWarning("Unggah Dokumen AMDAL/RKL-RPL");
+      showAuthorityWarning("Tambah Dokumen Lingkungan");
       return;
     }
     try {
       await documentService.addDoc(item);
     } catch (e: any) {
       handleGlobalError(e, "Tambah Dokumen Lingkungan");
-      throw e;
     }
   };
   const handleUpdateDocument = async (id: string, item: any) => {
     if (!isSuperintendent(profile)) {
-      showAuthorityWarning("Ubah Dokumen AMDAL/RKL-RPL");
+      showAuthorityWarning("Ubah Dokumen Lingkungan");
       return;
     }
     try {
       await documentService.updateDoc(id, item);
     } catch (e: any) {
       handleGlobalError(e, "Ubah Dokumen Lingkungan");
-      throw e;
     }
   };
   const handleDeleteDocument = async (id: string) => {
     if (!isAdmin(profile)) {
-      showAuthorityWarning("Hapus Dokumen AMDAL");
+      showAuthorityWarning("Hapus Dokumen Lingkungan");
       return;
     }
     try {
@@ -621,39 +681,37 @@ export default function App() {
       handleGlobalError(e, "Hapus Dokumen Lingkungan");
     }
   };
-
-  const handleAddCalendarEvent = async (item: any) => {
+  const handleAddEvent = async (item: any) => {
     if (!hasWriteAuthority) {
-      showAuthorityWarning("Tambah Kegiatan Agenda Kepatuhan");
+      showAuthorityWarning("Tambah Agenda Kepatuhan");
       return;
     }
     try {
       await documentService.addEvent(item);
     } catch (e: any) {
-      handleGlobalError(e, "Tambah Kegiatan Agenda");
-      throw e;
+      handleGlobalError(e, "Tambah Agenda Kepatuhan");
     }
   };
-  const handleDeleteCalendarEvent = async (id: string) => {
+  const handleUpdateEventStatus = async (id: string, data: any) => {
+    if (!hasWriteAuthority) {
+      showAuthorityWarning("Ubah Agenda Kepatuhan");
+      return;
+    }
+    try {
+      await documentService.updateEvent(id, data);
+    } catch (e: any) {
+      handleGlobalError(e, "Ubah Agenda Kepatuhan");
+    }
+  };
+  const handleDeleteEvent = async (id: string) => {
     if (!canDelete(profile)) {
-      showAuthorityWarning("Hapus Kegiatan Agenda Kepatuhan");
+      showAuthorityWarning("Hapus Agenda Kepatuhan");
       return;
     }
     try {
       await documentService.deleteEvent(id);
     } catch (e: any) {
-      handleGlobalError(e, "Hapus Kegiatan Agenda");
-    }
-  };
-  const handleUpdateCalendarStatus = async (id: string, status: any) => {
-    if (!hasWriteAuthority) {
-      showAuthorityWarning("Ubah Status Agenda");
-      return;
-    }
-    try {
-      await documentService.updateEvent(id, status);
-    } catch (e: any) {
-      handleGlobalError(e, "Ubah Status Agenda");
+      handleGlobalError(e, "Hapus Agenda Kepatuhan");
     }
   };
 
@@ -766,6 +824,7 @@ export default function App() {
               alerts={alerts}
               calendar={calendarEvents}
               environmentalCosts={environmentalCosts}
+              solidWasteTargetPct={internalThresholds.solidWasteTargetPct}
               setCurrentTab={setTabAndHash}
             />
           </ModuleErrorBoundary>
@@ -788,6 +847,9 @@ export default function App() {
                 surfaceWater={surfaceWater}
                 rainfall={rainfall}
                 userProfile={profile}
+                standards={standards}
+                internalThresholds={internalThresholds}
+                canManageStandards={isSuperintendent(profile)}
                 onAddWastewater={handleAddWastewater}
                 onUpdateWastewater={handleUpdateWastewater}
                 onDeleteWastewater={handleDeleteWastewater}
@@ -834,6 +896,25 @@ export default function App() {
                 canEdit={hasWriteAuthority}
                 canDelete={canDelete(profile)}
                 onUnauthorizedAction={showAuthorityWarning}
+                onOpenGuaranteesModule={() => setTabAndHash('reclamation_guarantee')}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'reclamation_guarantee':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Jaminan Reklamasi & Pascatambang">
+              <ReclamationGuaranteeView
+                guarantees={reclamationGuarantees}
+                isLoading={isLoadingReclamation}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onAddGuarantee={handleAddGuarantee}
+                onUpdateGuarantee={handleUpdateGuarantee}
+                onDeleteGuarantee={handleDeleteGuarantee}
+                onUnauthorizedAction={showAuthorityWarning}
               />
             </ModuleErrorBoundary>
           </Suspense>
@@ -878,51 +959,31 @@ export default function App() {
           );
         }
         return (
-          <ModuleErrorBoundary moduleName="Aspek Pengolahan Sampah Permen LH 7/2025">
+          <ModuleErrorBoundary moduleName="Pengolahan Sampah Non-B3 (UU 18/2008 & Permen LHK 19/2021)">
             <SolidWasteView 
               solidWasteList={solidWaste}
               onAdd={handleAddSolidWaste}
               onUpdate={handleUpdateSolidWaste}
               onDelete={handleDeleteSolidWaste}
+              targetPct={internalThresholds.solidWasteTargetPct}
             />
           </ModuleErrorBoundary>
         );
 
-      case 'findings':
-        return (
-          <CapaView
-            findings={capaFindings}
-            isLoading={isLoadingCapa}
-            userEmail={user?.email || undefined}
-            canEdit={hasWriteAuthority}
-            canDelete={canDelete(profile)}
-            onUnauthorizedAction={showAuthorityWarning}
-          />
-        );
-
-      case 'compliance_matrix':
-        return (
-          <ComplianceMatrixView
-            data={complianceMatrix}
-            isLoading={isLoadingCompliance}
-            canEdit={hasWriteAuthority}
-            canDelete={canDelete(profile)}
-            onUnauthorizedAction={showAuthorityWarning}
-          />
-        );
-
-      case 'incidents':
-        return (
-          <IncidentView
-            incidents={incidents}
-            isLoading={isLoadingIncidents}
-            canEdit={hasWriteAuthority}
-            canDelete={canDelete(profile)}
-            onUnauthorizedAction={showAuthorityWarning}
-          />
-        );
-
       case 'executive':
+        if (!canAccessModule(profile, 'executive')) {
+          return (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Dashboard Eksekutif hanya dapat diakses oleh Environment Superintendent, Environment Manager, atau Administrator.
+              </p>
+            </div>
+          );
+        }
         return (
           <ExecutiveDashboardView
             capa={capaFindings}
@@ -934,16 +995,342 @@ export default function App() {
           />
         );
 
-      case 'regulatory_watch':
+      case 'proper_rkab':
+        if (!canAccessModule(profile, 'proper_rkab')) {
+          return (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Modul PROPER & RKAB hanya dapat diakses oleh Environment Superintendent ke atas.
+              </p>
+            </div>
+          );
+        }
         return (
-          <RegulatoryWatchView
-            data={regulatory}
-            isLoading={isLoadingRegulatory}
-            canEdit={isSuperintendent(profile)}
-            canDelete={isAdmin(profile)}
-            onUnauthorizedAction={showAuthorityWarning}
-          />
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Evaluasi PROPER & RKAB">
+              <ProperRkabView
+                data={properRkab}
+                isLoading={isLoadingProperRkab}
+                canEdit={isSuperintendent(profile)}
+                canDelete={canDelete(profile)}
+                properCriteria={properCriteria}
+                canManageCriteria={isSuperintendent(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
         );
+
+      case 'amd_treatment':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Pengelolaan Air Asam Tambang (AMD / AAT)">
+              <AmdTreatmentView
+                data={amdTreatments}
+                isLoading={isLoadingAmd}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'air_emission':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Kualitas Udara, Emisi & Kebisingan">
+              <AirEmissionView
+                data={airEmissions}
+                isLoading={isLoadingAirEmission}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'topsoil_erosion':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Manajemen Topsoil & Pengendalian Erosi">
+              <TopsoilErosionView
+                data={topsoilErosions}
+                isLoading={isLoadingTopsoil}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'biodiversity':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Keanekaragaman Hayati">
+              <BiodiversityView
+                data={biodiversity}
+                isLoading={isLoadingBiodiversity}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'documents':
+        if (isLoadingDocuments) {
+          return (
+            <div className="bg-white border border-slate-200/50 rounded-xl p-6">
+              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT DOKUMEN & AGENDA KEPATUHAN...</h3>
+              <TableSkeleton columns={6} rows={4} />
+            </div>
+          );
+        }
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Dokumen Lingkungan & Perizinan">
+              <DocumentsView
+                documents={documents}
+                calendar={calendarEvents}
+                onAddDocument={handleAddDocument}
+                onUpdateDocument={handleUpdateDocument}
+                onDeleteDocument={handleDeleteDocument}
+                onAddEvent={handleAddEvent}
+                onUpdateEventStatus={handleUpdateEventStatus}
+                onDeleteEvent={handleDeleteEvent}
+                canEdit={isSuperintendent(profile)}
+                canDelete={isAdmin(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'compliance_matrix':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Matriks Kepatuhan RKL-RPL">
+              <ComplianceMatrixView
+                data={complianceMatrix}
+                isLoading={isLoadingCompliance}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'iadl_risk':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Register Aspek & Dampak Lingkungan (IADL)">
+              <IadlRiskView
+                data={iadlRisks}
+                isLoading={isLoadingIadl}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'findings':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Temuan Audit & CAPA">
+              <CapaView
+                findings={capaFindings}
+                isLoading={isLoadingCapa}
+                userEmail={profile?.email}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'incidents':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Pelaporan Insiden Lingkungan">
+              <IncidentView
+                incidents={incidents}
+                isLoading={isLoadingIncidents}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'regulatory_watch':
+        if (!canAccessModule(profile, 'regulatory_watch')) {
+          return (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Modul Regulatory Watch hanya dapat diakses oleh Environment Superintendent ke atas.
+              </p>
+            </div>
+          );
+        }
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Regulatory Watch">
+              <RegulatoryWatchView
+                data={regulatory}
+                isLoading={isLoadingRegulatory}
+                canEdit={isSuperintendent(profile)}
+                canDelete={isAdmin(profile)}
+                canSeed={isSuperintendent(profile)}
+                initialSearch={regulatorySearchSeed}
+                onClearInitialSearch={() => setRegulatorySearchSeed('')}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'pertek_slo':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Register Pertek & SLO">
+              <PertekSloView
+                data={pertekSlo}
+                isLoading={isLoadingPertekSlo}
+                canEdit={isSuperintendent(profile)}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'reporting_calendar':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Kalender Pelaporan Wajib">
+              <ReportingCalendarView
+                data={reportingCalendar}
+                isLoading={isLoadingReportingCalendar}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'supervision':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Pengawasan Eksternal & Sanksi Administratif">
+              <ExternalSupervisionView
+                data={externalSupervisions}
+                capaFindings={capaFindings}
+                isLoading={isLoadingSupervisions}
+                canEdit={isSuperintendent(profile)}
+                canDelete={canDelete(profile)}
+                userEmail={profile?.email}
+                onOpenFindings={() => setTabAndHash('findings')}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'domestic_wastewater':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Air Limbah Domestik (IPAL Camp & Kantor)">
+              <DomesticWastewaterView
+                data={domesticWastewater}
+                standards={standards}
+                internalThresholds={internalThresholds}
+                isLoading={isLoadingDomesticWastewater}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                canOpenStandardsMaster={isSuperintendent(profile)}
+                onOpenStandardsMaster={() => setTabAndHash('standards_master')}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'ghg_inventory':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Inventarisasi Emisi GRK">
+              <GhgInventoryView
+                factors={ghgFactors}
+                activities={ghgActivities}
+                isLoading={isLoadingGhgInventory}
+                canEdit={hasWriteAuthority}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'forestry_ppkh':
+        return (
+          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Kewajiban Kehutanan (PPKH & Rehabilitasi DAS)">
+              <ForestryPpkhView
+                data={forestryPpkh}
+                isLoading={isLoadingForestryPpkh}
+                canEdit={isSuperintendent(profile)}
+                canDelete={canDelete(profile)}
+                onUnauthorizedAction={showAuthorityWarning}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
+      case 'standards_master':
+        if (!canAccessModule(profile, 'standards_master')) {
+          return (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Modul Master Baku Mutu &amp; Konfigurasi hanya dapat diakses oleh Environment Superintendent ke atas.
+              </p>
+            </div>
+          );
+        }
+        return (
+          <Suspense fallback={<TableSkeleton columns={5} rows={5} />}>
+            <ModuleErrorBoundary moduleName="Master Baku Mutu & Konfigurasi">
+              <StandardsMasterView
+                standards={standards}
+                internalThresholds={internalThresholds}
+                canManage={isSuperintendent(profile)}
+                canDelete={isAdmin(profile)}
+              />
+            </ModuleErrorBoundary>
+          </Suspense>
+        );
+
       case 'reports':
         return (
           <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
@@ -962,6 +1349,16 @@ export default function App() {
                 calendarEvents={calendarEvents}
                 environmentalCosts={environmentalCosts}
                 solidWaste={solidWaste}
+                capaFindings={capaFindings}
+                complianceMatrix={complianceMatrix}
+                incidents={incidents}
+                regulatory={regulatory}
+                amdTreatments={amdTreatments}
+                airEmissions={airEmissions}
+                topsoilErosions={topsoilErosions}
+                biodiversity={biodiversity}
+                iadlRisks={iadlRisks}
+                properRkab={properRkab}
                 user={profile}
               />
             </ModuleErrorBoundary>
@@ -977,33 +1374,20 @@ export default function App() {
           </Suspense>
         );
 
-      case 'documents':
-        if (isLoadingDocuments) {
+      case 'costs':
+        if (!canAccessModule(profile, 'costs')) {
           return (
-            <div className="bg-white border border-slate-200/50 rounded-xl p-6">
-              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT DOKUMEN & JADWAL KEPATUHAN...</h3>
-              <TableSkeleton columns={5} rows={4} />
+            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Modul Biaya Lingkungan hanya dapat diakses oleh Environment Superintendent ke atas.
+              </p>
             </div>
           );
         }
-        return (
-          <ModuleErrorBoundary moduleName="Dokumen Lingkungan & Kepatuhan">
-            <DocumentsView 
-              documents={documents}
-              calendar={calendarEvents}
-              onAddDocument={handleAddDocument}
-              onUpdateDocument={handleUpdateDocument}
-              onDeleteDocument={handleDeleteDocument}
-              onAddEvent={handleAddCalendarEvent}
-              onDeleteEvent={handleDeleteCalendarEvent}
-              onUpdateEventStatus={handleUpdateCalendarStatus}
-              canEdit={hasWriteAuthority}
-              canDelete={canDelete(profile)}
-              onUnauthorizedAction={showAuthorityWarning}
-            />
-          </ModuleErrorBoundary>
-        );
-      case 'costs':
         if (isLoadingCosts) {
           return (
             <div className="bg-white border border-slate-200/50 rounded-xl p-6">
@@ -1049,7 +1433,8 @@ export default function App() {
 
       case 'registration_approval':
       case 'user_management':
-      case 'role_management': {
+      case 'role_management':
+      case 'audit_log': {
         if (!canAccessModule(profile, activeTab)) {
           return (
             <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
@@ -1058,16 +1443,19 @@ export default function App() {
               </div>
               <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Modul administrasi ini hanya dapat diakses oleh Environment Manager atau Administrator sistem.
+                {activeTab === 'audit_log'
+                  ? 'Modul Audit Trail Sistem hanya dapat diakses oleh Environment Superintendent ke atas.'
+                  : 'Modul administrasi ini hanya dapat diakses oleh Environment Manager atau Administrator sistem.'}
               </p>
             </div>
           );
         }
 
-        const adminTabMap: Record<string, 'approval' | 'users' | 'roles'> = {
+        const adminTabMap: Record<string, 'approval' | 'users' | 'roles' | 'audit'> = {
           registration_approval: 'approval',
           user_management: 'users',
-          role_management: 'roles'
+          role_management: 'roles',
+          audit_log: 'audit'
         };
 
         return (
@@ -1128,6 +1516,7 @@ export default function App() {
         user={profile}
         setSyncModalOpen={setSyncModalOpen}
         onLogout={logout}
+        onOpenSearch={() => setSearchModalOpen(true)}
       />
 
       {/* Floating Bottom Nav Bar for Mobile Viewports */}
@@ -1139,6 +1528,7 @@ export default function App() {
         setSyncModalOpen={setSyncModalOpen}
         setUserModalOpen={setUserModalOpen}
         onLogout={logout}
+        onOpenSearch={() => setSearchModalOpen(true)}
       />
 
       {/* Main viewport frame */}
@@ -1153,6 +1543,8 @@ export default function App() {
           currentTab={activeTab}
           hasWriteAuthority={hasWriteAuthority}
           onSync={handleGoogleSync}
+          onOpenRegulatory={openRegulatoryWatch}
+          onOpenSearch={() => setSearchModalOpen(true)}
         />
 
         {/* Scrollable Content Views */}
@@ -1160,6 +1552,15 @@ export default function App() {
           {renderCurrentView()}
         </main>
       </div>
+
+      {/* Global Menu & Regulation Command Palette (Ctrl/Cmd+K) */}
+      <MenuSearchModal
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        onSelectTab={setTabAndHash}
+        profile={profile}
+        currentTab={activeTab}
+      />
 
       {/* Settings Modal Configurator */}
       <SettingsModals 

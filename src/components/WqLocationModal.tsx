@@ -30,6 +30,7 @@ export default function WqLocationModal({
   const [name, setName] = useState('');
   const [defaultSource, setDefaultSource] = useState('Settling Pond Outlet');
   const [docSuffix, setDocSuffix] = useState('');
+  const [kelasAir, setKelasAir] = useState<'I' | 'II' | 'III' | 'IV'>('II');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,6 +38,7 @@ export default function WqLocationModal({
   const [editName, setEditName] = useState('');
   const [editSource, setEditSource] = useState('');
   const [editDocSuffix, setEditDocSuffix] = useState('');
+  const [editKelasAir, setEditKelasAir] = useState<'I' | 'II' | 'III' | 'IV'>('II');
 
   if (!isOpen) return null;
 
@@ -45,6 +47,7 @@ export default function WqLocationModal({
     setEditName(loc.name);
     setEditSource(loc.defaultSource);
     setEditDocSuffix(loc.docSuffix || '');
+    setEditKelasAir(loc.kelasAir || 'II');
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -54,6 +57,7 @@ export default function WqLocationModal({
         name: editName.trim(),
         defaultSource: editSource.trim(),
         docSuffix: editDocSuffix.trim(),
+        kelasAir: editKelasAir,
       });
       setEditingId(null);
     } catch (err: any) {
@@ -95,6 +99,7 @@ export default function WqLocationModal({
         name: name.trim(),
         defaultSource: defaultSource.trim(),
         docSuffix: docSuffix.trim(),
+        kelasAir,
         isActive: true,
       });
 
@@ -103,6 +108,7 @@ export default function WqLocationModal({
       setName('');
       setDefaultSource('Settling Pond Outlet');
       setDocSuffix('');
+      setKelasAir('II');
       setShowAddForm(false);
     } catch (err: any) {
       setErrorMsg(err.message || 'Gagal menambahkan titik sampling.');
@@ -240,6 +246,22 @@ export default function WqLocationModal({
                       className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 outline-none"
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                      Kelas Air (PP 22/2021 Lampiran VI)
+                    </label>
+                    <select
+                      value={kelasAir}
+                      onChange={(e) => setKelasAir(e.target.value as any)}
+                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 outline-none"
+                    >
+                      <option value="I">Kelas I</option>
+                      <option value="II">Kelas II (Default)</option>
+                      <option value="III">Kelas III</option>
+                      <option value="IV">Kelas IV</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
@@ -280,7 +302,7 @@ export default function WqLocationModal({
                     >
                       {isEditingThis ? (
                         <div className="space-y-2">
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                             <div>
                               <label className="text-[10px] text-slate-500 font-bold block">
                                 Nama Titik
@@ -314,6 +336,21 @@ export default function WqLocationModal({
                                 className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs"
                               />
                             </div>
+                            <div>
+                              <label className="text-[10px] text-slate-500 font-bold block">
+                                Kelas Air
+                              </label>
+                              <select
+                                value={editKelasAir}
+                                onChange={(e) => setEditKelasAir(e.target.value as any)}
+                                className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs"
+                              >
+                                <option value="I">Kelas I</option>
+                                <option value="II">Kelas II</option>
+                                <option value="III">Kelas III</option>
+                                <option value="IV">Kelas IV</option>
+                              </select>
+                            </div>
                           </div>
                           <div className="flex justify-end gap-2 pt-1">
                             <button
@@ -342,6 +379,9 @@ export default function WqLocationModal({
                               </span>
                               <span className="font-semibold text-xs text-slate-800 truncate">
                                 {loc.name}
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-sky-50 text-sky-700 border border-sky-200">
+                                Kelas {loc.kelasAir || 'II'}
                               </span>
                               <span
                                 className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${

@@ -8,8 +8,10 @@ import ModalPortal from './ModalPortal';
 import NurseryStockOutForm from './NurseryStockOutForm';
 import { NurseryData, NurseryStockOut, ReclamationPlan, ReclamationGuarantee } from '../types';
 import { exportToExcel } from '../services/exportService';
-import { todayLocalISO } from '../utils/dateUtils';
+import { todayLocalISO, daysUntilLocal } from '../utils/dateUtils';
+import { calculateGuaranteeMetrics } from '../utils/guaranteeMetrics';
 import { triggerToast } from '../utils/errorHandler';
+import { Landmark } from 'lucide-react';
 import { 
   Plus, 
   Search, 
@@ -66,6 +68,7 @@ interface ReclamationViewProps {
   onAddGuarantee: (item: any) => void;
   onUpdateGuarantee?: (id: string, item: any) => void;
   onDeleteGuarantee: (id: string) => void;
+  onOpenGuaranteesModule?: () => void;
 }
 
 export default function ReclamationView({
@@ -88,7 +91,8 @@ export default function ReclamationView({
   onDeletePlan,
   onAddGuarantee,
   onUpdateGuarantee,
-  onDeleteGuarantee
+  onDeleteGuarantee,
+  onOpenGuaranteesModule
 }: ReclamationViewProps) {
   const [activeTab, setActiveTab] = useState<'nursery' | 'plans' | 'guarantees'>('nursery');
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -162,7 +166,9 @@ export default function ReclamationView({
   // Forms
   const [gNo, setGNo] = useState('');
   const [gPeriodYear, setGPeriodYear] = useState<number | ''>(new Date().getFullYear());
-  const [gType, setGType] = useState<'Bank Guarantee' | 'Time Deposit' | 'Environmental Bond'>('Bank Guarantee');
+  const [gType, setGType] = useState<'Bank Guarantee' | 'Time Deposit' | 'Environmental Bond'>('Time Deposit');
+  const [gBankType, setGBankType] = useState<'Bank Pemerintah' | 'Lainnya'>('Bank Pemerintah');
+  const [gCategory, setGCategory] = useState<'Jaminan Reklamasi' | 'Jaminan Pascatambang'>('Jaminan Reklamasi');
   const [gValue, setGValue] = useState(500000000);
   const [gInst, setGInst] = useState('PT Bank Mandiri (Persero) Tbk');
   const [gIssue, setGIssue] = useState(todayLocalISO());
@@ -178,7 +184,9 @@ export default function ReclamationView({
     setEditingGuaranteeId(null);
     setGNo('');
     setGPeriodYear(new Date().getFullYear());
-    setGType('Bank Guarantee');
+    setGType('Time Deposit');
+    setGBankType('Bank Pemerintah');
+    setGCategory('Jaminan Reklamasi');
     setGValue(500000000);
     setGInst('PT Bank Mandiri (Persero) Tbk');
     setGIssue(todayLocalISO());
@@ -204,6 +212,8 @@ export default function ReclamationView({
     setGNo(item.guaranteeNo);
     setGPeriodYear(item.periodYear ?? (Number(item.issuedDate?.slice(0, 4)) || new Date().getFullYear()));
     setGType(item.guaranteeType);
+    setGBankType(item.bankType || 'Bank Pemerintah');
+    setGCategory(item.guaranteeCategory || 'Jaminan Reklamasi');
     setGValue(item.value);
     setGInst(item.issuingInstitution);
     setGIssue(item.issuedDate);
@@ -398,7 +408,9 @@ export default function ReclamationView({
       const payload: Omit<ReclamationGuarantee, 'id'> = {
         guaranteeNo: trimmedNo,
         periodYear: yearNum,
-        guaranteeType: gType,
+        guaranteeType: editingGuaranteeId ? gType : 'Time Deposit',
+        bankType: gBankType,
+        guaranteeCategory: gCategory,
         value: Number(gValue),
         issuingInstitution: trimmedInst,
         issuedDate: gIssue,
@@ -588,6 +600,39 @@ export default function ReclamationView({
 
   return (
     <div id="reclamation-view-wrapper" className="space-y-6 text-slate-700">
+      {/* Ringkasan Jaminan Reklamasi & Tautan ke Modul Terdedikasi */}
+      {(() => {
+        const gMetrics = calculateGuaranteeMetrics(guarantees);
+        return (
+          <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+                <Landmark className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-emerald-950">
+                  Ringkasan Jaminan Reklamasi &amp; Pascatambang ({gMetrics.totalActiveAndRenewalCount} dokumen aktif/renewal · {formatIDR(gMetrics.totalActiveValue)})
+                </div>
+                <div className="text-[11px] text-emerald-800/80 mt-0.5">
+                  {gMetrics.expiringCount > 0
+                    ? `${gMetrics.expiringCount} dokumen akan jatuh tempo dalam ≤ 90 hari. Kelola penuh pada modul Jaminan Reklamasi & Pascatambang.`
+                    : 'Pengelolaan rinci Deposito Berjangka Bank Pemerintah & pemantauan jatuh tempo berada pada modul Jaminan Reklamasi & Pascatambang.'}
+                </div>
+              </div>
+            </div>
+            {onOpenGuaranteesModule && (
+              <button
+                type="button"
+                onClick={onOpenGuaranteesModule}
+                className="px-4 py-2 bg-[#4D7C5A] hover:bg-[#3e6449] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shrink-0 cursor-pointer"
+              >
+                Buka Modul Jaminan <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Upper tabs selectors */}
       <div className="flex border-b border-slate-200">
         <button
@@ -612,13 +657,19 @@ export default function ReclamationView({
         </button>
         <button
           id="reclamation-tab-guarantees"
-          onClick={() => setActiveTab('guarantees')}
+          onClick={() => {
+            if (onOpenGuaranteesModule) {
+              onOpenGuaranteesModule();
+            } else {
+              setActiveTab('guarantees');
+            }
+          }}
           className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
             activeTab === 'guarantees' ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
           <FileCheck2 className="h-4 w-4" />
-          Jaminan Reklamasi (Escrow Mandate)
+          Jaminan Reklamasi &amp; Pascatambang
         </button>
       </div>
 
@@ -1581,7 +1632,8 @@ export default function ReclamationView({
                     <th className="p-3.5">Sasaran Rencana (Rencana)</th>
                     <th className="p-3.5">Realisasi Lapangan (Realisasi)</th>
                     <th className="p-3.5 text-center">Tahun Fisik</th>
-                    <th className="p-3.5 text-center">Progres Ha (Fisik)</th>\n                    <th className="p-3.5 text-center">Bibit Ditanam</th>
+                    <th className="p-3.5 text-center">Progres Ha (Fisik)</th>
+                    <th className="p-3.5 text-center">Bibit Ditanam</th>
                     <th className="p-3.5 text-right">Perbandingan Anggaran</th>
                     <th className="p-3.5 text-center">Status</th>
                     <th className="p-3.5 text-center pr-5">Aksi</th>
@@ -1783,9 +1835,11 @@ export default function ReclamationView({
           <div className="bg-[#b91c1c]/10 border border-red-500/30 p-4.5 rounded-2xl flex items-start gap-4 mb-3 text-left">
             <ShieldAlert className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-red-600">Perhatian Regulasi ESDM</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-red-600">
+                Ketentuan Kepmen ESDM No. 344.K/MB.01/MEM.B/2025 (Berlaku 23 Oktober 2025)
+              </h4>
               <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                Setiap badan usaha pemegang IUP OP wajib menempatkan Jaminan Reklamasi (Jamrek) dan Jaminan Pascatambang (JamPT) secara tepat waktu sebelum memasuki tahun pelaksanaan rencana. Keterlambatan renewal dokumen Jamrek dapat berimbas pada penghentian sementara operasional izin produksi batubara.
+                Setiap pemegang IUP OP wajib menempatkan Jaminan Reklamasi dan Jaminan Pascatambang tepat waktu. Berdasarkan <strong>Kepmen ESDM No. 344.K/MB.01/MEM.B/2025</strong>, penempatan jaminan baru wajib dalam bentuk <strong>Deposito Berjangka (Time Deposit) pada Bank Pemerintah</strong>. Dokumen lama berbentuk Bank Guarantee / Environmental Bond tetap dapat dipantau namun memerlukan penyesuaian ke deposito berjangka.
               </p>
             </div>
           </div>
@@ -1821,18 +1875,30 @@ export default function ReclamationView({
                 {editingGuaranteeId ? 'Edit Data Penempatan Jaminan Finansial Reklamasi' : 'Data Penempatan Jaminan Finansial Reklamasi Tambang'}
               </h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Nomor Surat Jaminan / Deposit</label>
                   <input
                     id="guarantees-field-no"
                     type="text"
                     required
-                    placeholder="JAMREK-2026-PTKBB-XXX"
+                    placeholder="JAMREK-2026-PTDKB-XXX"
                     value={gNo}
                     onChange={(e) => setGNo(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
                   />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Kategori Jaminan</label>
+                  <select
+                    id="guarantees-field-category"
+                    value={gCategory}
+                    onChange={(e) => setGCategory(e.target.value as 'Jaminan Reklamasi' | 'Jaminan Pascatambang')}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                  >
+                    <option value="Jaminan Reklamasi">Jaminan Reklamasi (Jamrek)</option>
+                    <option value="Jaminan Pascatambang">Jaminan Pascatambang (JamPT)</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Tipe Jaminan Finansial</label>
@@ -1842,10 +1908,43 @@ export default function ReclamationView({
                     onChange={(e) => setGType(e.target.value as any)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
                   >
-                    <option value="Bank Guarantee">Bank Guarantee / Jaminan Bank</option>
-                    <option value="Time Deposit">Time Deposit / Deposito Berjangka</option>
-                    <option value="Environmental Bond">Environmental Bond / Asuransi Lingkungan</option>
+                    <option value="Time Deposit">Time Deposit / Deposito Berjangka (Kepmen ESDM 344.K/2025)</option>
+                    {editingGuaranteeId && gType === 'Bank Guarantee' && (
+                      <option value="Bank Guarantee">Bank Guarantee / Jaminan Bank (Bentuk Lama)</option>
+                    )}
+                    {editingGuaranteeId && gType === 'Environmental Bond' && (
+                      <option value="Environmental Bond">Environmental Bond / Asuransi (Bentuk Lama)</option>
+                    )}
                   </select>
+                  {gType !== 'Time Deposit' && (
+                    <span className="text-[10px] text-amber-700 font-medium block mt-1">
+                      Bentuk lama — perlu penyesuaian ke deposito berjangka.
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Jenis Bank Penerbit</label>
+                  <select
+                    id="guarantees-field-bank-type"
+                    value={gBankType}
+                    onChange={(e) => setGBankType(e.target.value as 'Bank Pemerintah' | 'Lainnya')}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                  >
+                    <option value="Bank Pemerintah">Bank Pemerintah (Mandiri / BRI / BNI / BTN)</option>
+                    <option value="Lainnya">Lainnya (Perlu verifikasi Kepmen 344.K/2025)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Lembaga Keuangan Penerbit</label>
+                  <input
+                    id="guarantees-field-institution"
+                    type="text"
+                    required
+                    placeholder="Contoh: PT Bank Mandiri (Persero) Tbk"
+                    value={gInst}
+                    onChange={(e) => setGInst(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                  />
                 </div>
                 <div>
                   <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Nilai Jaminan Finansial (IDR)</label>
@@ -1856,18 +1955,6 @@ export default function ReclamationView({
                     value={gValue}
                     onChange={(e) => setGValue(Number(e.target.value))}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 text-emerald-600 font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Lembaga Keuangan Penerbit</label>
-                  <input
-                    id="guarantees-field-institution"
-                    type="text"
-                    required
-                    placeholder="Contoh: PT Bank Mandiri Tbk"
-                    value={gInst}
-                    onChange={(e) => setGInst(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
                   />
                 </div>
               </div>
@@ -2063,9 +2150,7 @@ export default function ReclamationView({
                           lastYear = itemYear;
                         }
 
-                        const todayTime = new Date().setHours(0, 0, 0, 0);
-                        const dueTime = new Date(item.dueDate).setHours(0, 0, 0, 0);
-                        const diffDays = Math.ceil((dueTime - todayTime) / (1000 * 60 * 60 * 24));
+                        const diffDays = daysUntilLocal(item.dueDate);
                         const isWarning = (item.status === 'Renewal Needed') || (item.status === 'Active' && diffDays <= GUARANTEE_WARNING_DAYS);
                         const isExpiredActive = item.status === 'Active' && diffDays < 0;
 
@@ -2106,14 +2191,33 @@ export default function ReclamationView({
                                 )}
                               </td>
                               <td className="p-3.5">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] border bg-white border-slate-200 font-semibold text-slate-500">
-                                  {item.guaranteeType}
-                                </span>
+                                <div className="flex flex-col items-start gap-1">
+                                  {item.guaranteeCategory && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 font-bold">
+                                      {item.guaranteeCategory}
+                                    </span>
+                                  )}
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] border bg-white border-slate-200 font-semibold text-slate-600">
+                                    {item.guaranteeType === 'Time Deposit' ? 'Deposito Berjangka (Time Deposit)' : item.guaranteeType}
+                                  </span>
+                                  {(item.guaranteeType === 'Bank Guarantee' || item.guaranteeType === 'Environmental Bond') && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                                      Bentuk lama — perlu penyesuaian ke deposito berjangka
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="p-3.5 text-right font-bold text-emerald-600 font-mono text-sm">
                                 {formatIDR(item.value)}
                               </td>
-                              <td className="p-3.5 font-semibold text-slate-600">{item.issuingInstitution}</td>
+                              <td className="p-3.5 font-semibold text-slate-600">
+                                <span>{item.issuingInstitution}</span>
+                                {item.bankType && (
+                                  <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
+                                    {item.bankType}
+                                  </span>
+                                )}
+                              </td>
                               <td className="p-3.5 text-center text-slate-500">{item.issuedDate}</td>
                               <td className="p-3.5 text-center font-mono">
                                 <span className={`font-bold ${isWarning ? 'text-red-600' : 'text-slate-600'}`}>

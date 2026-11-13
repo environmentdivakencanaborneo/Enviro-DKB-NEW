@@ -16,7 +16,17 @@ import {
   ComplianceCalendarEvent,
   EnvironmentalCost,
   SolidWasteData,
-  SurfaceWaterData
+  SurfaceWaterData,
+  CapaData,
+  ComplianceMatrixData,
+  IncidentData,
+  RegulatoryWatchData,
+  AmdTreatmentData,
+  AirEmissionData,
+  TopsoilErosionData,
+  BiodiversityData,
+  IadlRiskData,
+  ProperRkabData
 } from '../types';
 import { exportAllDataToXLSX } from '../services/exportService';
 import TableSkeleton from './TableSkeleton';
@@ -68,6 +78,16 @@ interface ReportsViewProps {
   environmentalCosts: EnvironmentalCost[];
   solidWaste?: SolidWasteData[];
   surfaceWater?: SurfaceWaterData[];
+  capaFindings?: CapaData[];
+  complianceMatrix?: ComplianceMatrixData[];
+  incidents?: IncidentData[];
+  regulatory?: RegulatoryWatchData[];
+  amdTreatments?: AmdTreatmentData[];
+  airEmissions?: AirEmissionData[];
+  topsoilErosions?: TopsoilErosionData[];
+  biodiversity?: BiodiversityData[];
+  iadlRisks?: IadlRiskData[];
+  properRkab?: ProperRkabData[];
   user: any;
 }
 
@@ -85,6 +105,16 @@ export default function ReportsView({
   environmentalCosts,
   solidWaste = [],
   surfaceWater = [],
+  capaFindings = [],
+  complianceMatrix = [],
+  incidents = [],
+  regulatory = [],
+  amdTreatments = [],
+  airEmissions = [],
+  topsoilErosions = [],
+  biodiversity = [],
+  iadlRisks = [],
+  properRkab = [],
   user
 }: ReportsViewProps) {
   const [mainTab, setMainTab] = useState<'integrated' | 'evidence'>('integrated');
@@ -365,7 +395,17 @@ export default function ReportsView({
                   reclamationGuarantees: guarantees,
                   wasteIn, wasteOut,
                   documents, calendarEvents, environmentalCosts,
-                  solidWaste
+                  solidWaste,
+                  capa: capaFindings,
+                  complianceMatrix,
+                  incidents,
+                  regulatory,
+                  amdTreatments,
+                  airEmissions,
+                  topsoilErosions,
+                  biodiversity,
+                  iadlRisks,
+                  properRkab
                 }, user?.company)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl
                   bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white
@@ -982,7 +1022,7 @@ export default function ReportsView({
                       Kepatuhan Aturan Hukum (Turnover Law):
                     </h5>
                     <p className="text-slate-500 text-[11px]">
-                      Berdasarkan Peraturan Pemerintah No. 22 Tahun 2021 dan Peraturan Menteri LHK No. 6 Tahun 2021, penyimpanan limbah B3 di TPS berizin dibatasi maksimal selama 90 hingga 180 hari sebelum diserahkan ke pihak recycler atau pemusnah akhir berlisensi KLHK. {b3NetDifference > 2000 ? (
+                      Berdasarkan Peraturan Pemerintah No. 22 Tahun 2021 dan Peraturan Menteri LHK No. 6 Tahun 2021, penyimpanan limbah B3 di TPS berizin dibatasi maksimal selama 90 hingga 180 hari sebelum diserahkan ke pihak recycler atau pemusnah akhir berlisensi KLH/BPLH. {b3NetDifference > 2000 ? (
                         <span className="text-red-600/90 font-semibold block mt-1">Peringatan: Stok sisa besar meningkatkan risiko bencana kebakaran material flammable. Jadwalkan pengangkutan transporter sesegera mungkin!</span>
                       ) : (
                         <span className="text-emerald-600/90 font-semibold block mt-1">Status gudang aman. Kecepatan sirkulasi limbah (turnover rate) terkendali di bawah garis ambang bahaya lingkungan tambang.</span>
@@ -993,7 +1033,7 @@ export default function ReportsView({
                 <div className="pt-2 border-t border-slate-200/60 mt-1 flex items-start gap-2 text-[11px] text-slate-500 text-left">
                   <Shield className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-700">Rekomendasi Operasional TPS:</strong> Mengharuskan pencatatan segel log book secara digital terintegrasi Festronik KLHK, melakukan inspeksi harian terhadap unit secondary containment (tanggul batas tampung tumpahan) cairan oli bekas berkapasitas 110% dari volume tangki penyimpanan, guna memitigasi pencemaran tanah tambang.
+                    <strong className="text-slate-700">Rekomendasi Operasional TPS:</strong> Mengharuskan pencatatan segel log book secara digital terintegrasi Festronik KLH/BPLH, melakukan inspeksi harian terhadap unit secondary containment (tanggul batas tampung tumpahan) cairan oli bekas berkapasitas 110% dari volume tangki penyimpanan, guna memitigasi pencemaran tanah tambang.
                   </div>
                 </div>
               </div>
@@ -1231,9 +1271,9 @@ export default function ReportsView({
                   <span className="text-[8px] text-slate-500 mt-1 block">Tercatat di Kementerian ESDM</span>
                 </div>
                 <div className="p-3.5 bg-white rounded-xl border border-teal-500/25">
-                  <span className="text-[10px] text-[#2dd4bf] font-mono tracking-wider uppercase font-bold block">GARANSI BANK AKTIF</span>
+                  <span className="text-[10px] text-[#2dd4bf] font-mono tracking-wider uppercase font-bold block">DOKUMEN JAMINAN AKTIF</span>
                   <p className="text-base font-bold text-teal-600 font-mono mt-1">{activeGuaranteesCount} Dokumen Aktif</p>
-                  <span className="text-[8px] text-[#2dd4bf]/75 mt-1 block">Aman & Terverifikasi</span>
+                  <span className="text-[8px] text-[#2dd4bf]/75 mt-1 block">Kepmen ESDM 344.K/2025</span>
                 </div>
                 <div className="p-3.5 bg-white/80 rounded-xl border border-slate-200/85">
                   <span className="text-[10px] text-slate-600 font-mono tracking-wider uppercase font-bold block">STATUS PERPANJANGAN</span>
@@ -1312,7 +1352,7 @@ export default function ReportsView({
                 <div className="pt-2 border-t border-slate-200/60 mt-1 flex items-start gap-2 text-[11px] text-slate-500 text-left">
                   <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-700">Rekomendasi Penjaminan:</strong> Melakukan koordinasi berkala minimal 3 bulan sebelum masa jatuh tempo deposit (dueDate) guna perpanjangan garansi bank, serta melampirkan berkas kemajuan fisik reklamasi terbaru yang diverifikasi konsultan independen untuk pengajuan peninjauan de-eskalasi penarikan jaminan progresif di ESDM.
+                    <strong className="text-slate-700">Rekomendasi Penjaminan:</strong> Melakukan koordinasi berkala minimal 3 bulan sebelum masa jatuh tempo (dueDate) guna perpanjangan deposito berjangka pada Bank Pemerintah (atau penyesuaian bentuk lama ke deposito berjangka sesuai Kepmen ESDM 344.K/2025), serta melampirkan berkas kemajuan fisik reklamasi terbaru yang diverifikasi konsultan independen untuk pengajuan peninjauan de-eskalasi penarikan jaminan progresif di ESDM.
                   </div>
                 </div>
               </div>

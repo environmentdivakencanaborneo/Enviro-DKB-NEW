@@ -141,8 +141,10 @@ export default function DocumentsView({
             <FileLock className="h-6 w-6 stroke-[1.75]" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-text-primary">Registrasi Perizinan & Kepatuhan</h2>
-            <p className="text-xs text-text-secondary">Register terpusat persetujuan lingkungan, perizinan, dan pemantauan masa berlaku.</p>
+            <h2 className="text-lg font-bold text-text-primary">Registrasi Perizinan &amp; Kepatuhan</h2>
+            <p className="text-xs text-text-secondary">
+              Register terpusat persetujuan lingkungan &amp; Pertek — mengacu PP No. 28 Tahun 2025 (menggantikan PP No. 5/2021, berlaku 5 Juni 2025) &amp; Permen LH/BPLH No. 22 Tahun 2025.
+            </p>
           </div>
         </div>
         <div className="flex bg-forest-50 p-1 rounded-xl border border-border-custom shrink-0">
@@ -391,7 +393,7 @@ export default function DocumentsView({
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">INSTANSI PENERBIT</label>
-                    <input type="text" value={issuer} onChange={e => setIssuer(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="Kementerian LHK / DLH Provinsi" />
+                    <input type="text" value={issuer} onChange={e => setIssuer(e.target.value)} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#4D7C5A]" placeholder="KLH/BPLH / Kementerian Kehutanan / DLH Provinsi" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TANGGAL TERBIT</label>

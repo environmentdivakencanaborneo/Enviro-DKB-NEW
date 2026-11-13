@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   LogOut,
-  RefreshCw
+  RefreshCw,
+  Search
 } from 'lucide-react';
 import { GoogleSyncConfig } from '../types';
 import DivaLogo from './DivaLogo';
@@ -12,6 +14,7 @@ import MiningEnvIcon from './MiningEnvIcon';
 import { APP_MENU_GROUPS } from '../data/navigation';
 import { useAuth } from '../services/authService';
 import { canAccessModule } from '../services/permissionService';
+import { getScopedKey } from '../utils/googleSync';
 
 interface SidebarProps {
   currentTab: string;
@@ -20,6 +23,7 @@ interface SidebarProps {
   user: any;
   setSyncModalOpen: (open: boolean) => void;
   onLogout?: () => void;
+  onOpenSearch?: () => void;
 }
 
 export default function Sidebar({ 
@@ -28,10 +32,53 @@ export default function Sidebar({
   syncConfig, 
   user,
   setSyncModalOpen,
-  onLogout
+  onLogout,
+  onOpenSearch
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { profile } = useAuth();
+  const storageKey = getScopedKey('dem_sidebar_groups');
+
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // ignore storage errors
+    }
+    return {
+      'RINGKASAN & KINERJA': true,
+      'PERSETUJUAN & KEPATUHAN': true,
+    };
+  });
+
+  // Auto-expand the group containing the active tab
+  useEffect(() => {
+    const activeGroup = APP_MENU_GROUPS.find((g) => g.items.some((i) => i.id === currentTab));
+    if (activeGroup && !expandedGroups[activeGroup.group]) {
+      setExpandedGroups((prev) => {
+        const next = { ...prev, [activeGroup.group]: true };
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+  }, [currentTab, storageKey]);
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups((prev) => {
+      const next = { ...prev, [groupName]: !prev[groupName] };
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   const filteredGroups = APP_MENU_GROUPS.map(group => ({
     ...group,
@@ -76,50 +123,97 @@ export default function Sidebar({
           </motion.button>
         </div>
 
+        {/* Quick Search Trigger */}
+        {onOpenSearch && (
+          <div className="px-4 pt-3">
+            {!collapsed ? (
+              <button
+                type="button"
+                onClick={onOpenSearch}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white/85 text-xs transition-colors cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <Search className="w-3.5 h-3.5 text-[#A8B9A5]" />
+                  <span>Cari modul / regulasi...</span>
+                </span>
+                <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/20 text-white/75">⌘K</kbd>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenSearch}
+                title="Cari Modul / Regulasi (Ctrl+K)"
+                className="w-full flex items-center justify-center py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/85 cursor-pointer"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Navigation Items */}
-        <nav className="p-4 space-y-6 mt-4 flex-1 pb-4">
-          {filteredGroups.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-1.5">
-              {!collapsed && (
-                <div className="px-3 pb-2 pt-1 text-[10px] font-bold tracking-widest text-[#A8B9A5]/80 uppercase font-sans">
-                  {group.group}
-                </div>
-              )}
-              {group.items.map(item => {
-                const IconComponent = item.icon;
-                const isActive = currentTab === item.id;
-                return (
-                  <motion.button whileTap={{ scale: 0.97 }}
-                    id={`sidebar-link-${item.id}`}
-                    key={item.id}
-                    onClick={() => setCurrentTab(item.id)}
-                    title={collapsed ? item.name : undefined}
-                    className={`w-full flex items-center ${collapsed ? 'justify-center' : 'justify-start'} gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-left cursor-pointer relative overflow-hidden ${
-                      isActive 
-                        ? 'bg-[#4D7C5A] text-white font-semibold shadow-[0_4px_16px_rgba(77,124,90,0.25)]' 
-                        : 'text-white/80 hover:bg-[#365645] hover:text-white'
-                    }`}
+        <nav className="p-4 space-y-3 mt-1 flex-1 pb-4">
+          {filteredGroups.map((group) => {
+            const isExpanded = collapsed || !!expandedGroups[group.group];
+            return (
+              <div key={group.group} className="space-y-1">
+                {!collapsed && (
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.group)}
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-[10px] font-bold tracking-widest text-[#A8B9A5]/90 hover:text-white uppercase font-sans cursor-pointer rounded-lg hover:bg-white/5 transition-colors"
                   >
-                    <div className="relative flex items-center justify-center shrink-0">
-                      <IconComponent className={`h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-105 stroke-[1.5] ${
-                        isActive ? 'text-white' : 'text-white/80 group-hover:text-white'
-                      }`} />
-                      
-                      {item.hasBadge && (
-                        <div className="absolute -top-1 -right-1 h-2 w-2 bg-[#D95C5C] rounded-full shadow-[0_0_6px_rgba(217,92,92,0.6)]"></div>
-                      )}
-                    </div>
-                    
-                    {!collapsed && (
-                      <span className={`text-[13.5px] tracking-wide font-sans whitespace-nowrap ${isActive ? 'font-semibold text-white' : 'font-medium text-white/80'}`}>
-                        {item.name}
-                      </span>
+                    <span className="truncate text-left">{group.group}</span>
+                    {isExpanded ? (
+                      <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-75" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 shrink-0 opacity-75" />
                     )}
-                  </motion.button>
-                );
-              })}
-            </div>
-          ))}
+                  </button>
+                )}
+                {isExpanded && group.items.map(item => {
+                  const IconComponent = item.icon;
+                  const isActive = currentTab === item.id;
+                  return (
+                    <motion.button whileTap={{ scale: 0.97 }}
+                      id={`sidebar-link-${item.id}`}
+                      key={item.id}
+                      onClick={() => setCurrentTab(item.id)}
+                      title={collapsed ? item.name : item.subtitle}
+                      className={`w-full flex items-center ${collapsed ? 'justify-center' : 'justify-start'} gap-2.5 px-3 py-2 rounded-xl transition-all duration-200 group text-left cursor-pointer relative overflow-hidden ${
+                        isActive 
+                          ? 'bg-[#4D7C5A] text-white font-semibold shadow-[0_4px_16px_rgba(77,124,90,0.25)]' 
+                          : 'text-white/80 hover:bg-[#365645] hover:text-white'
+                      }`}
+                    >
+                      <div className="relative flex items-center justify-center shrink-0">
+                        <IconComponent className={`h-[17px] w-[17px] transition-transform duration-200 group-hover:scale-105 stroke-[1.5] ${
+                          isActive ? 'text-white' : 'text-white/80 group-hover:text-white'
+                        }`} />
+                        
+                        {item.hasBadge && (
+                          <div className="absolute -top-1 -right-1 h-2 w-2 bg-[#D95C5C] rounded-full shadow-[0_0_6px_rgba(217,92,92,0.6)]"></div>
+                        )}
+                      </div>
+                      
+                      {!collapsed && (
+                        <>
+                          <span className={`text-[12.5px] leading-snug tracking-wide font-sans flex-1 ${isActive ? 'font-semibold text-white' : 'font-medium text-white/85'}`}>
+                            {item.name}
+                          </span>
+                          {item.isNew && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-200 border border-emerald-300/25 uppercase shrink-0">
+                              BARU
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            );
+          })}
         </nav>
       </div>
 

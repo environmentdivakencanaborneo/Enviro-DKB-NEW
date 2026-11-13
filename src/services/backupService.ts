@@ -155,6 +155,27 @@ export const backupService = {
       const regSnap = await getDocs(collection(db, 'regulatory'));
       const regulatory = regSnap.docs.map(d => d.data());
 
+      const amdSnap = await getDocs(collection(db, 'amd_treatment'));
+      const amd_treatment = amdSnap.docs.map(d => d.data());
+
+      const airSnap = await getDocs(collection(db, 'air_emission'));
+      const air_emission = airSnap.docs.map(d => d.data());
+
+      const topsoilSnap = await getDocs(collection(db, 'topsoil_erosion'));
+      const topsoil_erosion = topsoilSnap.docs.map(d => d.data());
+
+      const bioSnap = await getDocs(collection(db, 'biodiversity'));
+      const biodiversity = bioSnap.docs.map(d => d.data());
+
+      const iadlSnap = await getDocs(collection(db, 'iadl_risk'));
+      const iadl_risk = iadlSnap.docs.map(d => d.data());
+
+      const properSnap = await getDocs(collection(db, 'proper_rkab'));
+      const proper_rkab = properSnap.docs.map(d => d.data());
+
+      const standardsSnap = await getDocs(collection(db, 'standards'));
+      const standards = standardsSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+
       if (onStatusChange) onStatusChange({ status: 'syncing', lastSynced: null, message: "Menghubungi Google Drive..." });
 
       // 2. Dapatkan folder ID
@@ -182,7 +203,14 @@ export const backupService = {
           capa,
           compliance_matrix,
           incidents,
-          regulatory
+          regulatory,
+          amd_treatment,
+          air_emission,
+          topsoil_erosion,
+          biodiversity,
+          iadl_risk,
+          proper_rkab,
+          standards
         }
       };
 
@@ -437,6 +465,55 @@ export const backupService = {
       if (Array.isArray(data.regulatory)) {
         for (const item of data.regulatory) {
           if (item.id) await setDoc(doc(db, 'regulatory', item.id), item);
+        }
+      }
+
+      // 18. AMD Treatment
+      if (Array.isArray(data.amd_treatment)) {
+        for (const item of data.amd_treatment) {
+          if (item.id) await setDoc(doc(db, 'amd_treatment', item.id), item);
+        }
+      }
+
+      // 19. Air Emission
+      if (Array.isArray(data.air_emission)) {
+        for (const item of data.air_emission) {
+          if (item.id) await setDoc(doc(db, 'air_emission', item.id), item);
+        }
+      }
+
+      // 20. Topsoil & Erosion
+      if (Array.isArray(data.topsoil_erosion)) {
+        for (const item of data.topsoil_erosion) {
+          if (item.id) await setDoc(doc(db, 'topsoil_erosion', item.id), item);
+        }
+      }
+
+      // 21. Biodiversity
+      if (Array.isArray(data.biodiversity)) {
+        for (const item of data.biodiversity) {
+          if (item.id) await setDoc(doc(db, 'biodiversity', item.id), item);
+        }
+      }
+
+      // 22. IADL Risk
+      if (Array.isArray(data.iadl_risk)) {
+        for (const item of data.iadl_risk) {
+          if (item.id) await setDoc(doc(db, 'iadl_risk', item.id), item);
+        }
+      }
+
+      // 23. PROPER & RKAB
+      if (Array.isArray(data.proper_rkab)) {
+        for (const item of data.proper_rkab) {
+          if (item.id) await setDoc(doc(db, 'proper_rkab', item.id), item);
+        }
+      }
+
+      // 24. Standards
+      if (Array.isArray(data.standards)) {
+        for (const item of data.standards) {
+          if (item.id) await setDoc(doc(db, 'standards', item.id), item);
         }
       }
 

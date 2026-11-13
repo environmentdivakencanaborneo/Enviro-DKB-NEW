@@ -5,6 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Sistem monitoring lingkungan pertambangan batubara sesuai regulasi Indonesia." />
     <title>DEM System – Diva Enviro Monitor | Pemantauan Lingkungan Batubara</title>
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem('dem_theme_pref_default') || 'dark';
+          var resolved = pref === 'system'
+            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+            : (pref === 'light' ? 'light' : 'dark');
+          document.documentElement.setAttribute('data-theme', resolved);
+          if (resolved === 'dark') document.documentElement.classList.add('dark');
+          else document.documentElement.classList.remove('dark');
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

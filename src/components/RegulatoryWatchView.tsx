@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ModalPortal from './ModalPortal';
 import { RegulatoryWatchData } from '../types';
 import { regulatoryService } from '../services/dbService';
@@ -16,30 +16,54 @@ interface RegulatoryWatchViewProps {
   isLoading: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
+  canSeed?: boolean;
+  initialSearch?: string;
+  onClearInitialSearch?: () => void;
   onUnauthorizedAction: (action: string) => void;
 }
+
+const STANDARD_SOURCES = [
+  'KLH/BPLH',
+  'Kementerian Kehutanan',
+  'Kementerian ESDM',
+  'Pemerintah Pusat',
+  'Pemprov Kaltim',
+  'Pemkab/Pemkot',
+  'Lainnya'
+];
 
 export default function RegulatoryWatchView({ 
   data, 
   isLoading, 
   canEdit = false, 
   canDelete,
+  canSeed = false,
+  initialSearch = '',
+  onClearInitialSearch,
   onUnauthorizedAction 
 }: RegulatoryWatchViewProps) {
   const allowedDelete = canDelete ?? false;
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState('All');
+
+  useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSearchQuery(initialSearch);
+    }
+  }, [initialSearch]);
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [seedInfo, setSeedInfo] = useState<string | null>(null);
   
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Partial<RegulatoryWatchData>>({
-    source: 'KLHK',
+    source: 'KLH/BPLH',
     regulationNo: '',
     about: '',
     issueDate: todayLocalISO(),
     implication: '',
-    status: 'Draft',
+    status: 'Perlu Kajian',
     link: ''
   });
 
@@ -80,8 +104,22 @@ export default function RegulatoryWatchView({
     }
   };
 
+  const handleSeedRegulations = async () => {
+    if (!canSeed) return onUnauthorizedAction("Muat 15 Regulasi Referensi 2024–2026");
+    setIsSeeding(true);
+    setSeedInfo(null);
+    try {
+      const res = await regulatoryService.seedLatestRegulations();
+      setSeedInfo(`Seed selesai: ${res.inserted} regulasi baru ditambahkan (status Perlu Kajian), ${res.skipped} sudah tersedia.`);
+    } catch (err: any) {
+      setSeedInfo(`Gagal memuat seed regulasi: ${err?.message || 'Terjadi kesalahan.'}`);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   const handleExport = () => {
-    exportToExcel(filteredData, "Pemantau_Regulasi_LHK_ESDM");
+    exportToExcel(filteredData, "Pemantau_Regulasi_LH_ESDM");
   };
 
   return (
@@ -96,10 +134,35 @@ export default function RegulatoryWatchView({
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-800">Pemantau Regulasi (Regulatory Watch)</h2>
-              <p className="text-xs text-slate-500">Pemantauan peraturan terbaru LHK & ESDM beserta dampaknya.</p>
+              <p className="text-xs text-slate-500">Pemantauan peraturan terbaru KLH/BPLH, Kementerian Kehutanan &amp; ESDM beserta dampaknya.</p>
+              {searchQuery && (
+                <div className="mt-1.5 inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-[11px] text-purple-800">
+                  <span>Filter aktif: <strong>{searchQuery}</strong></span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      onClearInitialSearch?.();
+                    }}
+                    className="font-bold underline cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {canSeed && (
+              <button
+                onClick={handleSeedRegulations}
+                disabled={isSeeding}
+                className="flex items-center gap-2 px-3.5 py-2 border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <CheckCircle size={14} />
+                {isSeeding ? 'Memuat Seed...' : 'Muat 15 Regulasi Terbaru (2024–2026)'}
+              </button>
+            )}
             <button 
               onClick={handleExport}
               className="flex items-center gap-2 px-3.5 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl transition-colors cursor-pointer"
@@ -111,12 +174,12 @@ export default function RegulatoryWatchView({
                 if (!canEdit) return onUnauthorizedAction("Tambah Pemantauan Regulasi");
                 setEditingId(null);
                 setFormData({
-                  source: 'KLHK',
+                  source: 'KLH/BPLH',
                   regulationNo: '',
                   about: '',
                   issueDate: todayLocalISO(),
                   implication: '',
-                  status: 'Draft',
+                  status: 'Perlu Kajian',
                   link: ''
                 });
                 setFormOpen(true);
@@ -127,6 +190,13 @@ export default function RegulatoryWatchView({
             </button>
           </div>
         </div>
+
+        {seedInfo && (
+          <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 text-xs text-purple-800 flex items-center justify-between">
+            <span>{seedInfo}</span>
+            <button onClick={() => setSeedInfo(null)} className="text-purple-600 hover:underline font-bold">Tutup</button>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-col md:flex-row gap-3">
@@ -147,8 +217,9 @@ export default function RegulatoryWatchView({
               className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-purple-500 cursor-pointer"
             >
               <option value="All">Semua Status</option>
-              <option value="Draft">Draft</option>
+              <option value="Perlu Kajian">Perlu Kajian</option>
               <option value="Berlaku">Berlaku</option>
+              <option value="Draft">Draft</option>
               <option value="Dicabut">Dicabut</option>
             </select>
           </div>
@@ -172,6 +243,7 @@ export default function RegulatoryWatchView({
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
                         item.status === 'Berlaku' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
+                        item.status === 'Perlu Kajian' ? 'bg-purple-50 border-purple-200 text-purple-700' :
                         item.status === 'Draft' ? 'bg-amber-50 border-amber-200 text-amber-600' :
                         'bg-slate-100 border-slate-300 text-slate-500'
                       }`}>
@@ -257,7 +329,18 @@ export default function RegulatoryWatchView({
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 mb-1">SUMBER INSTITUSI</label>
-                      <input type="text" value={formData.source} onChange={e => setFormData({...formData, source: e.target.value})} className="w-full p-2 text-sm border rounded-lg" placeholder="KLHK / ESDM / Pemda" />
+                      <select
+                        value={formData.source || 'KLH/BPLH'}
+                        onChange={e => setFormData({...formData, source: e.target.value})}
+                        className="w-full p-2 text-sm border rounded-lg bg-white"
+                      >
+                        {STANDARD_SOURCES.map(src => (
+                          <option key={src} value={src}>{src}</option>
+                        ))}
+                        {formData.source && !STANDARD_SOURCES.includes(formData.source) && (
+                          <option value={formData.source}>{formData.source} (Data Lama)</option>
+                        )}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 mb-1">TANGGAL TERBIT / DRAFT</label>
@@ -265,13 +348,14 @@ export default function RegulatoryWatchView({
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 mb-1">NOMOR PERATURAN</label>
-                      <input type="text" value={formData.regulationNo} onChange={e => setFormData({...formData, regulationNo: e.target.value})} className="w-full p-2 text-sm border rounded-lg" placeholder="Permen LHK No 5 Tahun 2021" />
+                      <input type="text" value={formData.regulationNo} onChange={e => setFormData({...formData, regulationNo: e.target.value})} className="w-full p-2 text-sm border rounded-lg" placeholder="Permen LH/BPLH No. 7 Tahun 2025" />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 mb-1">STATUS</label>
                       <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2 text-sm border rounded-lg">
-                        <option value="Draft">Draft</option>
+                        <option value="Perlu Kajian">Perlu Kajian</option>
                         <option value="Berlaku">Berlaku</option>
+                        <option value="Draft">Draft</option>
                         <option value="Dicabut">Dicabut</option>
                       </select>
                     </div>

@@ -47,13 +47,15 @@ interface SolidWasteViewProps {
   onAdd: (item: any) => Promise<any>;
   onUpdate?: (id: string, item: any) => Promise<any>;
   onDelete: (id: string) => Promise<void>;
+  targetPct?: number;
 }
 
 export default function SolidWasteView({
   solidWasteList,
   onAdd,
   onUpdate,
-  onDelete
+  onDelete,
+  targetPct = 30
 }: SolidWasteViewProps) {
   const [showForm, setShowForm] = useState(false);
   const [formType, setFormType] = useState<'generation' | 'processing'>('generation');
@@ -66,11 +68,11 @@ export default function SolidWasteView({
   // FORM STATES
   const [itemDate, setItemDate] = useState(todayLocalISO());
   const [itemSource, setItemSource] = useState('Kantor Utama');
-  const [itemOrganic, setItemOrganic] = useState<number>(120);
-  const [itemInorganic, setItemInorganic] = useState<number>(80);
-  const [itemResidue, setItemResidue] = useState<number>(50);
-  const [itemComposted, setItemComposted] = useState<number>(100);
-  const [itemRecycled, setItemRecycled] = useState<number>(60);
+  const [itemOrganic, setItemOrganic] = useState<number>(0);
+  const [itemInorganic, setItemInorganic] = useState<number>(0);
+  const [itemResidue, setItemResidue] = useState<number>(0);
+  const [itemComposted, setItemComposted] = useState<number>(0);
+  const [itemRecycled, setItemRecycled] = useState<number>(0);
   const [itemOfficer, setItemOfficer] = useState('');
   const [itemTransporterVehicle, setItemTransporterVehicle] = useState('');
   const [itemFinalDestination, setItemFinalDestination] = useState('');
@@ -267,12 +269,12 @@ export default function SolidWasteView({
       setItemTransporterVehicle('');
       setItemFinalDestination('');
       setItemNotes('');
-      // Reset values back to defaults on successful submission
-      setItemOrganic(120);
-      setItemInorganic(80);
-      setItemResidue(50);
-      setItemComposted(100);
-      setItemRecycled(60);
+      // Reset values back to 0 on successful submission
+      setItemOrganic(0);
+      setItemInorganic(0);
+      setItemResidue(0);
+      setItemComposted(0);
+      setItemRecycled(0);
       setShowForm(false);
     } catch (err: any) {
       setErrorMsg(err.message || 'Gagal menyimpan data.');
@@ -298,7 +300,7 @@ export default function SolidWasteView({
             Pengelolaan Sampah Domestik &amp; Sejenis
           </div>
           <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight mt-1">
-            Aspek Pengolahan Sampah <span className="text-emerald-500 text-sm font-mono font-medium block md:inline md:ml-2">(Permen LH No. 7 Tahun 2025)</span>
+            Aspek Pengolahan Sampah <span className="text-emerald-600 text-sm font-mono font-medium block md:inline md:ml-2">(UU No. 18 Tahun 2008; PP No. 81 Tahun 2012; Permen LHK No. 19 Tahun 2021)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1 md:max-w-xl">
             Sistem pengawasan dan pelaporan timbulan sampah, optimalisasi pemilahan dari sumber, pengomposan organik, dan penanganan residu menuju zero waste PT Diva Kencana Borneo.
@@ -400,17 +402,20 @@ export default function SolidWasteView({
             <div className="w-full bg-black/5 h-1.5 rounded-full overflow-hidden">
               <div 
                 className={`h-full rounded-full transition-all duration-500 ${
-                  stats.recoveryRate >= 30 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-amber-500'
+                  stats.recoveryRate >= targetPct ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-amber-500'
                 }`}
                 style={{ width: `${Math.min(stats.recoveryRate, 100)}%` }}
               />
             </div>
-            <div className="flex justify-between items-center text-[9px] text-slate-500 mt-1">
-              <span>Target Permen LH: min 30%</span>
-              <span className={`font-bold ${stats.recoveryRate >= 30 ? 'text-emerald-600' : 'text-amber-500'}`}>
-                {stats.recoveryRate >= 30 ? 'Tercapai' : 'Di bawah standar'}
+            <div className="flex justify-between items-center text-[9px] text-slate-500 mt-1" title="Target internal perusahaan (mengacu arah Jakstranas; perlu penetapan manajemen)">
+              <span>Target internal: min {targetPct}%</span>
+              <span className={`font-bold ${stats.recoveryRate >= targetPct ? 'text-emerald-600' : 'text-amber-500'}`}>
+                {stats.recoveryRate >= targetPct ? 'Tercapai' : 'Di bawah target internal'}
               </span>
             </div>
+            <p className="text-[9px] text-slate-400 mt-0.5 leading-tight">
+              Target internal perusahaan (mengacu arah Jakstranas; perlu penetapan manajemen).
+            </p>
           </div>
         </div>
       </div>

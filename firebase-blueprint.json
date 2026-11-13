@@ -32,9 +32,35 @@
         "weather": { "type": "string", "enum": ["Cerah", "Berawan", "Hujan Ringan", "Hujan Lebat"] },
         "wastewaterSource": { "type": "string" },
         "locationCode": { "type": "string" },
-        "hasPhoto": { "type": "boolean" }
+        "hasPhoto": { "type": "boolean" },
+        "standardId": { "type": "string" },
+        "standardSnapshot": { "type": "object" }
       },
       "required": ["id", "date", "location", "officer", "ph", "tss", "debit", "fe", "mn", "status"]
+    },
+    "SurfaceWater": {
+      "title": "Surface Water Monitoring Entry",
+      "description": "Surface water quality monitoring under PP No. 22 Tahun 2021 Lampiran VI Kelas I-IV",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "location": { "type": "string" },
+        "officer": { "type": "string" },
+        "ph": { "type": "number" },
+        "tss": { "type": "number" },
+        "doVal": { "type": "number" },
+        "bod": { "type": "number" },
+        "cod": { "type": "number" },
+        "fe": { "type": "number" },
+        "mn": { "type": "number" },
+        "status": { "type": "string", "enum": ["Safe", "Warning", "Exceeded"] },
+        "monitoringType": { "type": "string", "enum": ["Harian", "Bulanan"] },
+        "kelasAir": { "type": "string", "enum": ["I", "II", "III", "IV"] },
+        "standardId": { "type": "string" },
+        "standardSnapshot": { "type": "object" }
+      },
+      "required": ["id", "date", "location", "officer", "ph", "tss", "doVal", "bod", "cod", "fe", "mn", "status"]
     },
     "WqLocation": {
       "title": "Water Quality Sampling Master Location",
@@ -46,6 +72,7 @@
         "name": { "type": "string" },
         "defaultSource": { "type": "string" },
         "docSuffix": { "type": "string" },
+        "kelasAir": { "type": "string", "enum": ["I", "II", "III", "IV"] },
         "isActive": { "type": "boolean" }
       },
       "required": ["id", "code", "name", "defaultSource", "isActive"]
@@ -168,13 +195,16 @@
       "required": ["id", "areaName", "sizeHa", "targetYear", "plantType", "method", "estimatedCost", "status", "pic"]
     },
     "ReclamationGuarantee": {
-      "title": "Reclamation Bond Guarantee",
-      "description": "Financial guarantees submitted to authorities",
+      "title": "Reclamation & Post-Mining Guarantee",
+      "description": "Financial guarantees placed under Kepmen ESDM No. 344.K/MB.01/MEM.B/2025 (Time Deposit at Bank Pemerintah)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "guaranteeNo": { "type": "string" },
+        "periodYear": { "type": "number" },
         "guaranteeType": { "type": "string", "enum": ["Bank Guarantee", "Time Deposit", "Environmental Bond"] },
+        "bankType": { "type": "string", "enum": ["Bank Pemerintah", "Lainnya"] },
+        "guaranteeCategory": { "type": "string", "enum": ["Jaminan Reklamasi", "Jaminan Pascatambang"] },
         "value": { "type": "number" },
         "issuingInstitution": { "type": "string" },
         "issuedDate": { "type": "string", "format": "date" },
@@ -273,6 +303,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "budgetCode": { "type": "string" },
         "year": { "type": "number" },
         "period": { "type": "string" },
         "category": { "type": "string" },
@@ -302,7 +333,7 @@
     },
     "SolidWaste": {
       "title": "Solid Waste Processing Entry",
-      "description": "Solid waste sorting and reduction tracking under Permen LH No 7 Tahun 2025",
+      "description": "Solid waste sorting and reduction tracking under UU No. 18 Tahun 2008, PP No. 81 Tahun 2012, and Permen LHK No. 19 Tahun 2021",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -319,6 +350,278 @@
         "notes": { "type": "string" }
       },
       "required": ["id", "date", "source", "organicKg", "inorganicKg", "residueKg", "compostedKg", "recycledKg", "officer"]
+    },
+    "AmdTreatment": {
+      "title": "Acid Mine Drainage (AAT) Treatment Entry",
+      "description": "Inflow/outflow pH, flowrate, lime/alum dosing, and compliance logs for settling ponds",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "location": { "type": "string" },
+        "treatmentZone": { "type": "string" },
+        "inflowPh": { "type": "number" },
+        "outflowPh": { "type": "number" },
+        "inflowDebitM3s": { "type": "number" },
+        "outflowDebitM3s": { "type": "number" },
+        "limeKg": { "type": "number" },
+        "alumKg": { "type": "number" },
+        "activeLimeStockKg": { "type": "number" },
+        "complianceStatus": { "type": "string", "enum": ["Memenuhi", "Warning", "Tidak Memenuhi"] },
+        "officer": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "date", "location", "treatmentZone", "inflowPh", "outflowPh", "inflowDebitM3s", "outflowDebitM3s", "limeKg", "alumKg", "complianceStatus", "officer"]
+    },
+    "AirEmission": {
+      "title": "Ambient Air Quality, Stack Emission & Noise Entry",
+      "description": "PM10, PM2.5, TSP, SO2, NO2, CO, and noise dBA monitoring entries",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "monitoringCategory": { "type": "string", "enum": ["Udara Ambien", "Emisi Genset", "Emisi Alat Berat", "Kebisingan"] },
+        "location": { "type": "string" },
+        "pm10": { "type": "number" },
+        "pm25": { "type": "number" },
+        "tsp": { "type": "number" },
+        "so2": { "type": "number" },
+        "no2": { "type": "number" },
+        "co": { "type": "number" },
+        "noiseDb": { "type": "number" },
+        "status": { "type": "string", "enum": ["Safe", "Warning", "Exceeded"] },
+        "officer": { "type": "string" },
+        "labRef": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "date", "monitoringCategory", "location", "pm10", "pm25", "tsp", "so2", "no2", "co", "noiseDb", "status", "officer"]
+    },
+    "TopsoilErosion": {
+      "title": "Topsoil Balance & Erosion Control Entry",
+      "description": "Topsoil stripping, spreading balance, cover crop area, and erosion mitigation logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "blockLocation": { "type": "string" },
+        "topsoilVolumeM3": { "type": "number" },
+        "stockpileUsedM3": { "type": "number" },
+        "cumulativeBalanceM3": { "type": "number" },
+        "thicknessCm": { "type": "number" },
+        "coverCropAreaHa": { "type": "number" },
+        "erosionSeverity": { "type": "string", "enum": ["Rendah", "Sedang", "Tinggi", "Kritis"] },
+        "mitigationAction": { "type": "string" },
+        "officer": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "date", "blockLocation", "topsoilVolumeM3", "stockpileUsedM3", "cumulativeBalanceM3", "thicknessCm", "coverCropAreaHa", "erosionSeverity", "mitigationAction", "officer"]
+    },
+    "Biodiversity": {
+      "title": "Biodiversity Flora & Fauna Monitoring Entry",
+      "description": "Flora, fauna, and wildlife corridor species observations and conservation status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "zone": { "type": "string" },
+        "category": { "type": "string", "enum": ["Flora", "Fauna", "Koridor Satwa"] },
+        "speciesName": { "type": "string" },
+        "scientificName": { "type": "string" },
+        "conservationStatus": { "type": "string", "enum": ["Dilindungi (Permen LHK P.106/2018)", "Dilindungi (PP 106/2018)", "Endemik", "IUCN Threatened", "Umum"] },
+        "count": { "type": "number" },
+        "observationMethod": { "type": "string" },
+        "condition": { "type": "string", "enum": ["Sehat", "Terancam", "Bermigrasi"] },
+        "officer": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "date", "zone", "category", "speciesName", "scientificName", "conservationStatus", "count", "observationMethod", "condition", "officer"]
+    },
+    "IadlRisk": {
+      "title": "ISO 14001 Environmental Aspect & Impact Register",
+      "description": "IADL risk scoring (Severity x Likelihood) and control measures",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "activity": { "type": "string" },
+        "aspect": { "type": "string" },
+        "impact": { "type": "string" },
+        "environmentalCondition": { "type": "string", "enum": ["Normal", "Abnormal", "Darurat"] },
+        "severityScore": { "type": "number" },
+        "likelihoodScore": { "type": "number" },
+        "riskScore": { "type": "number" },
+        "riskLevel": { "type": "string", "enum": ["Rendah", "Sedang", "Tinggi", "Signifikan/Kritis"] },
+        "controlMeasure": { "type": "string" },
+        "legalRef": { "type": "string" },
+        "pic": { "type": "string" },
+        "status": { "type": "string", "enum": ["Aktif Terkendali", "Perlu Mitigasi", "Selesai"] },
+        "targetDate": { "type": "string" }
+      },
+      "required": ["id", "code", "activity", "aspect", "impact", "environmentalCondition", "severityScore", "likelihoodScore", "riskScore", "riskLevel", "controlMeasure", "legalRef", "pic", "status"]
+    },
+    "ProperRkab": {
+      "title": "PROPER & RKAB Performance Evaluation",
+      "description": "KLH/BPLH PROPER (Permen LH/BPLH No. 7/2025) self-assessment and ESDM RKAB (Permen ESDM No. 17/2025 jo. 6/2026) environmental target tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "year": { "type": "number" },
+        "period": { "type": "string" },
+        "recordType": { "type": "string", "enum": ["PROPER", "RKAB"] },
+        "category": { "type": "string" },
+        "indicatorName": { "type": "string" },
+        "targetValue": { "type": "string" },
+        "realizedValue": { "type": "string" },
+        "scoreWeight": { "type": "number" },
+        "selfScore": { "type": "number" },
+        "targetProperRating": { "type": "string", "enum": ["Emas", "Hijau", "Biru", "Merah"] },
+        "actualProperRating": { "type": "string", "enum": ["Emas", "Hijau", "Biru", "Merah", "Hitam"] },
+        "status": { "type": "string", "enum": ["Terpenuhi", "Proses Pemenuhan", "Gap Terdeteksi"] },
+        "evidenceUrl": { "type": "string" },
+        "pic": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "year", "period", "recordType", "category", "indicatorName", "targetValue", "realizedValue", "scoreWeight", "selfScore", "targetProperRating", "status", "pic"]
+    },
+    "EnvironmentalStandard": {
+      "title": "Environmental Quality Standard Master",
+      "description": "Dynamic environmental regulatory standard threshold entry with verification status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "media": { "type": "string", "enum": ["air_limbah", "air_limbah_domestik", "air_permukaan", "udara", "kebisingan", "lainnya"] },
+        "parameterKey": { "type": "string" },
+        "parameterLabel": { "type": "string" },
+        "unit": { "type": "string" },
+        "minLimit": { "type": "number" },
+        "maxLimit": { "type": "number" },
+        "basisRegulasi": { "type": "string" },
+        "effectiveFrom": { "type": "string" },
+        "locationCode": { "type": "string" },
+        "kelasAir": { "type": "string", "enum": ["I", "II", "III", "IV"] },
+        "isActive": { "type": "boolean" },
+        "verificationStatus": { "type": "string", "enum": ["Terverifikasi", "Perlu verifikasi"] },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "media", "parameterKey", "parameterLabel", "unit", "basisRegulasi", "isActive", "verificationStatus"]
+    },
+    "PertekSlo": {
+      "title": "Pertek & SLO Register",
+      "description": "Register Persetujuan Teknis dan Surat Kelayakan Operasional (Permen LHK 5/2021)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "docKind": { "type": "string", "enum": ["Pertek", "SLO"] },
+        "category": { "type": "string" },
+        "permitNumber": { "type": "string" },
+        "title": { "type": "string" },
+        "issuingAuthority": { "type": "string" },
+        "issuedDate": { "type": "string" },
+        "expiryDate": { "type": "string" },
+        "compliancePoint": { "type": "string" },
+        "reportingObligation": { "type": "string" },
+        "status": { "type": "string" },
+        "pic": { "type": "string" }
+      },
+      "required": ["id", "docKind", "category", "permitNumber", "title", "issuingAuthority", "issuedDate", "expiryDate", "compliancePoint", "reportingObligation", "status", "pic"]
+    },
+    "ReportingCalendar": {
+      "title": "Mandatory Environmental Reporting Calendar",
+      "description": "Jadwal pelaporan wajib lingkungan beserta tanda terima",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reportType": { "type": "string" },
+        "periodLabel": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "targetAgency": { "type": "string" },
+        "pic": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "reportType", "periodLabel", "dueDate", "targetAgency", "pic", "status"]
+    },
+    "ExternalSupervision": {
+      "title": "External Supervision & Administrative Sanctions",
+      "description": "Catatan pengawasan eksternal & sanksi administratif (Permen LH/BPLH 6/2026)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "inspectionDate": { "type": "string" },
+        "agency": { "type": "string" },
+        "officialDocNo": { "type": "string" },
+        "sanctionCategory": { "type": "string" },
+        "followUpDeadline": { "type": "string" },
+        "resolutionStatus": { "type": "string" },
+        "linkedCapaId": { "type": "string" }
+      },
+      "required": ["id", "inspectionDate", "agency", "officialDocNo", "sanctionCategory", "followUpDeadline", "resolutionStatus"]
+    },
+    "DomesticWastewater": {
+      "title": "Domestic Wastewater IPAL Monitoring",
+      "description": "Pemantauan IPAL domestik camp/kantor mengacu master baku mutu (Permen LH/BPLH 11/2025)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "facilityName": { "type": "string" },
+        "ph": { "type": "number" },
+        "bod": { "type": "number" },
+        "cod": { "type": "number" },
+        "tss": { "type": "number" },
+        "oilGrease": { "type": "number" },
+        "ammonia": { "type": "number" },
+        "totalColiform": { "type": "number" },
+        "debitM3Day": { "type": "number" },
+        "complianceStatus": { "type": "string" }
+      },
+      "required": ["id", "date", "facilityName", "ph", "bod", "cod", "tss", "oilGrease", "ammonia", "totalColiform", "debitM3Day", "complianceStatus"]
+    },
+    "GhgEmissionFactor": {
+      "title": "GHG Emission Factor Master",
+      "description": "Faktor emisi GRK yang dikelola pengguna beserta sumber referensi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "activityCategory": { "type": "string" },
+        "factorName": { "type": "string" },
+        "unit": { "type": "string" },
+        "factorKgCo2ePerUnit": { "type": "number" },
+        "gasScope": { "type": "string" },
+        "referenceSource": { "type": "string" },
+        "effectiveYear": { "type": "number" }
+      },
+      "required": ["id", "activityCategory", "factorName", "unit", "factorKgCo2ePerUnit", "gasScope", "referenceSource", "effectiveYear"]
+    },
+    "GhgActivity": {
+      "title": "GHG Emission Activity Log",
+      "description": "Log aktivitas sumber emisi GRK (Perpres 110/2025 & Permen LH/BPLH 7/2026)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "reportingYear": { "type": "number" },
+        "monthPeriod": { "type": "string" },
+        "activityCategory": { "type": "string" },
+        "quantity": { "type": "number" },
+        "emissionsTco2e": { "type": "number" }
+      },
+      "required": ["id", "date", "reportingYear", "monthPeriod", "activityCategory", "quantity", "emissionsTco2e"]
+    },
+    "ForestryPpkh": {
+      "title": "Forestry Obligation (PPKH & Rehabilitasi DAS)",
+      "description": "Register PPKH & Rehabilitasi DAS di bawah Kementerian Kehutanan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "docType": { "type": "string" },
+        "decreeNumber": { "type": "string" },
+        "title": { "type": "string" },
+        "approvedAreaHa": { "type": "number" },
+        "realizedAreaHa": { "type": "number" },
+        "legalBasis": { "type": "string" },
+        "authorityLabel": { "type": "string" }
+      },
+      "required": ["id", "docType", "decreeNumber", "title", "approvedAreaHa", "realizedAreaHa", "legalBasis", "authorityLabel"]
     }
   },
   "firestore": {
@@ -333,6 +636,10 @@
     "wastewater/{wastewaterId}": {
       "schema": "Wastewater",
       "description": "Wastewater quality log entries"
+    },
+    "surfacewater/{surfacewaterId}": {
+      "schema": "SurfaceWater",
+      "description": "Surface water quality log entries"
     },
     "rainfall/{rainfallId}": {
       "schema": "Rainfall",
@@ -381,6 +688,62 @@
     "evidence_verify/{token}": {
       "schema": "EvidenceVerification",
       "description": "Public verification payload for QR code validation"
+    },
+    "amd_treatment/{docId}": {
+      "schema": "AmdTreatment",
+      "description": "Acid Mine Drainage (AAT) treatment logs and chemical dosing"
+    },
+    "air_emission/{docId}": {
+      "schema": "AirEmission",
+      "description": "Ambient air, stack emission, and noise monitoring records"
+    },
+    "topsoil_erosion/{docId}": {
+      "schema": "TopsoilErosion",
+      "description": "Topsoil management balance and erosion mitigation logs"
+    },
+    "biodiversity/{docId}": {
+      "schema": "Biodiversity",
+      "description": "Flora and fauna biodiversity monitoring entries"
+    },
+    "iadl_risk/{docId}": {
+      "schema": "IadlRisk",
+      "description": "ISO 14001 Environmental Aspect and Impact Register"
+    },
+    "proper_rkab/{docId}": {
+      "schema": "ProperRkab",
+      "description": "PROPER evaluation and RKAB environmental compliance targets"
+    },
+    "standards/{stdId}": {
+      "schema": "EnvironmentalStandard",
+      "description": "Dynamic environmental regulatory standards and verification metadata"
+    },
+    "pertek_slo/{docId}": {
+      "schema": "PertekSlo",
+      "description": "Register Pertek & SLO records"
+    },
+    "reporting_calendar/{docId}": {
+      "schema": "ReportingCalendar",
+      "description": "Mandatory environmental reporting schedule & receipt tracking"
+    },
+    "external_supervisions/{docId}": {
+      "schema": "ExternalSupervision",
+      "description": "External agency supervision & administrative sanction logs"
+    },
+    "domestic_wastewater/{docId}": {
+      "schema": "DomesticWastewater",
+      "description": "Domestic camp & office IPAL wastewater monitoring logs"
+    },
+    "ghg_factors/{docId}": {
+      "schema": "GhgEmissionFactor",
+      "description": "User-managed GHG emission factor master entries"
+    },
+    "ghg_activities/{docId}": {
+      "schema": "GhgActivity",
+      "description": "GHG activity logs and calculated tCO2e inventory"
+    },
+    "forestry_ppkh/{docId}": {
+      "schema": "ForestryPpkh",
+      "description": "Forestry PPKH & Rehabilitasi DAS obligations"
     }
   }
 }

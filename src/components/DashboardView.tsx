@@ -180,6 +180,7 @@ interface DashboardViewProps {
   wasteStocks: WasteStock[];
   calendar: ComplianceCalendarEvent[];
   environmentalCosts?: EnvironmentalCost[];
+  solidWasteTargetPct?: number;
   setCurrentTab: (tab: string) => void;
 }
 
@@ -196,6 +197,7 @@ export default function DashboardView({
   wasteStocks,
   calendar,
   environmentalCosts = [],
+  solidWasteTargetPct = 30,
   setCurrentTab
 }: DashboardViewProps) {
   const { user } = useAuth();
@@ -619,9 +621,9 @@ export default function DashboardView({
           </div>
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              ✓ {activeGuaranteesCount} Bank Garansi
+              ✓ {activeGuaranteesCount} Dokumen Jaminan
             </span>
-            <span className="text-[10px] text-slate-400 font-mono">Tervalidasi ESDM</span>
+            <span className="text-[10px] text-slate-400 font-mono">Kepmen ESDM 344.K/2025</span>
           </div>
         </motion.div>
 
@@ -681,7 +683,9 @@ export default function DashboardView({
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
               {totalSolidWasteRecycled.toLocaleString('id-ID')} Kg Daur Ulang
             </span>
-            <span className="text-[10px] text-slate-400 font-mono">Permen LH 7/2025</span>
+            <span className="text-[10px] text-slate-400 font-mono" title="Target internal perusahaan (mengacu arah Jakstranas; perlu penetapan manajemen)">
+              Target Internal {solidWasteTargetPct}% • UU 18/2008
+            </span>
           </div>
         </motion.div>
 
@@ -692,7 +696,7 @@ export default function DashboardView({
           className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer text-left group"
           whileHover={{ scale: 1.01 }}
           transition={{ duration: 0.15 }}
-          title="Klik untuk buka Registrasi Perizinan & AMDAL"
+          title="Klik untuk buka Modul Dokumen & Izin Lingkungan"
         >
           <div className="flex items-start gap-3.5">
             <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/70 border border-emerald-100 group-hover:scale-105 transition-transform duration-200 shrink-0">
@@ -759,13 +763,6 @@ export default function DashboardView({
             </h4>
             <p className="text-xs text-text-secondary mt-0.5">Pemantauan progres penugasan agenda kepatuhan kepada anggota tim</p>
           </div>
-          <button
-            onClick={() => setCurrentTab('documents')}
-            className="flex items-center gap-1.5 text-xs text-[#2F5A46] font-bold hover:bg-[#DCE5DA] transition-all bg-forest-50 px-4 py-2 rounded-xl border border-border-custom cursor-pointer"
-          >
-            Lihat Semua Agenda
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {calendar.filter(c => c.assignedTo && c.status !== 'Completed').length > 0 ? (
@@ -1072,12 +1069,22 @@ export default function DashboardView({
 
         {/* Dynamic Indonesian Environmental Legislation Matcher */}
         <div id="compliance-regulatory-widget" className="bg-white p-8 rounded-[20px] border border-border-custom shadow-custom text-left flex flex-col justify-between">
-          <div>
-            <h4 className="text-[15px] font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-[#4D7C5A] stroke-[1.75]" />
-              Status Regulasi (ESD)
-            </h4>
-            <p className="text-xs text-text-secondary mt-0.5">Parameter baku mutu terintegrasi UU & Permen RI</p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h4 className="text-[15px] font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-[#4D7C5A] stroke-[1.75]" />
+                Status Regulasi (ESD)
+              </h4>
+              <p className="text-xs text-text-secondary mt-0.5">Parameter baku mutu terintegrasi UU &amp; Permen RI</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCurrentTab('compliance_matrix')}
+              className="text-[11px] font-bold text-[#2E4B3D] hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
+            >
+              Matriks
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </button>
           </div>
 
           <div className="space-y-3.5 my-5 overflow-y-auto max-h-72 pr-1">
@@ -1104,14 +1111,6 @@ export default function DashboardView({
               </div>
             ))}
           </div>
-
-          <button
-            id="regulatory-all-link"
-            onClick={() => setCurrentTab('documents')}
-            className="w-full py-3 rounded-xl bg-forest-50 hover:bg-[#DCE5DA] text-center text-xs font-bold text-[#2F5A46] transition-colors border border-border-custom cursor-pointer mt-2"
-          >
-            Sertifikasi & Kalender Compliance →
-          </button>
         </div>
       </div>
 
@@ -1245,7 +1244,14 @@ export default function DashboardView({
             <CalendarDays className="h-5 w-5 text-[#4D7C5A] stroke-[1.75]" />
             <h4 className="text-[15px] font-bold uppercase tracking-wider text-text-primary">Jadwal Pelaporan & Audit Kepatuhan Lingkungan</h4>
           </div>
-          <span className="text-xs text-text-secondary font-manrope font-bold uppercase tracking-wider">Semester 1</span>
+          <button
+            type="button"
+            onClick={() => setCurrentTab('documents')}
+            className="text-xs text-[#2E4B3D] hover:underline font-manrope font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+          >
+            Kelola Dokumen &amp; Jadwal
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">

@@ -4,10 +4,28 @@ rules_version = '2';
 // FIRESTORE SECURITY RULES - DEM (DIVA ENVIRO MONITOR)
 // ============================================================================
 //  Aplikasi : Diva Enviro Monitor (DEM) - Sistem Manajemen Lingkungan Tambang
-//  Revisi   : 03
+//  Revisi   : 05
 //  Tanggal  : 2026
 //  Fokus    : Hardened ABAC Security Rules with Strict Field Validation,
 //             Break-Glass Admin Isolation, and Least-Privilege Access
+// ============================================================================
+//  CATATAN PERUBAHAN REVISI 05 (FASE 3 - STRUKTUR MENU & MODUL BARU):
+//  - Penambahan 7 koleksi operasional baru + validator ketat:
+//    pertek_slo, reporting_calendar, external_supervisions,
+//    domestic_wastewater, ghg_factors, ghg_activities, forestry_ppkh.
+//  - vEnvironmentalStandard: dukung media 'air_limbah_domestik' (Permen LH/BPLH 11/2025).
+//  - vAmdTreatment: dukung treatmentMethod ('Pengapuran Aktif', 'Lahan Basah Buatan', 'Hibrida').
+// ============================================================================
+//  CATATAN PERUBAHAN REVISI 04 (FASE 2 - PEMUTAKHIRAN REGULASI):
+//  - Penambahan koleksi /standards/{docId} & validator vEnvironmentalStandard()
+//    (Superintendent+ create/update, Admin delete) untuk master baku mutu dinamis.
+//  - /app_meta/{metaId}: izinkan Superintendent+ menulis dokumen 'env_thresholds'
+//    dan 'proper_criteria' (Permen LH/BPLH 7/2025 & ambang internal).
+//  - vWastewater & vSurfaceWater: dukung standardId, standardSnapshot, dan kelasAir.
+//  - vReclamationGuarantee: dukung bankType & guaranteeCategory (Kepmen ESDM 344.K/2025).
+//  - vRegulatory: dukung status 'Perlu Kajian'.
+//  - vBiodiversity: dukung 'Dilindungi (Permen LHK P.106/2018)' & kompatibilitas data lama.
+//  - vProperRkab: dukung actualProperRating termasuk peringkat 'Hitam'.
 // ============================================================================
 //  CATATAN PERUBAHAN REVISI 03:
 //  1. [SR-01] audit_logs create hardening:
@@ -172,7 +190,7 @@ service cloud.firestore {
         && shapeOk(12)
         && isValidDocId(d.id)
         && d.type in ['Critical', 'Warning', 'Info']
-        && d.category in ['Wastewater', 'B3 Waste', 'Permit', 'Guarantee', 'SurfaceWater', 'Solid Waste']
+        && d.category in ['Wastewater', 'B3 Waste', 'Permit', 'Guarantee', 'SurfaceWater', 'Solid Waste', 'Air & Emission', 'AMD Treatment', 'Biodiversity', 'Incident']
         && isText(d.title, 200)
         && isText(d.message, 1000)
         && d.read is bool
@@ -185,7 +203,7 @@ service cloud.firestore {
     function vWastewater() {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','location','officer','ph','tss','debit','fe','mn','status'])
-        && shapeOk(25)
+        && shapeOk(28)
         && isValidDocId(d.id)
         && isText(d.date, 20)
         && isText(d.location, 150)
@@ -202,6 +220,8 @@ service cloud.firestore {
         && isOptText(d.get('wastewaterSource', null), 150)
         && isOptText(d.get('locationCode', null), 50)
         && (d.get('hasPhoto', null) == null || d.hasPhoto is bool)
+        && isOptText(d.get('standardId', null), 128)
+        && (d.get('standardSnapshot', null) == null || d.standardSnapshot is map)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
     }
@@ -210,7 +230,7 @@ service cloud.firestore {
     function vSurfaceWater() {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','location','officer','ph','tss','doVal','bod','cod','fe','mn','status'])
-        && shapeOk(18)
+        && shapeOk(24)
         && isValidDocId(d.id)
         && isText(d.date, 50)
         && isText(d.location, 150)
@@ -224,6 +244,9 @@ service cloud.firestore {
         && d.mn is number && d.mn >= 0
         && d.status in ['Safe', 'Warning', 'Exceeded']
         && (d.get('monitoringType', null) == null || d.monitoringType in ['Harian', 'Bulanan'])
+        && (d.get('kelasAir', null) == null || d.kelasAir in ['I', 'II', 'III', 'IV'])
+        && isOptText(d.get('standardId', null), 128)
+        && (d.get('standardSnapshot', null) == null || d.standardSnapshot is map)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
     }
@@ -325,11 +348,13 @@ service cloud.firestore {
     function vReclamationGuarantee() {
       let d = request.resource.data;
       return d.keys().hasAll(['id','guaranteeNo','guaranteeType','value','issuingInstitution','issuedDate','dueDate','status'])
-        && shapeOk(18)
+        && shapeOk(22)
         && isValidDocId(d.id)
         && isText(d.guaranteeNo, 100)
         && (d.get('periodYear', null) == null || (d.periodYear is number && d.periodYear >= 2000 && d.periodYear <= 2100))
         && d.guaranteeType in ['Bank Guarantee', 'Time Deposit', 'Environmental Bond']
+        && (d.get('bankType', null) == null || d.bankType in ['Bank Pemerintah', 'Lainnya'])
+        && (d.get('guaranteeCategory', null) == null || d.guaranteeCategory in ['Jaminan Reklamasi', 'Jaminan Pascatambang'])
         && d.value is number && d.value >= 0
         && isText(d.issuingInstitution, 200)
         && isText(d.issuedDate, 50)
@@ -404,8 +429,9 @@ service cloud.firestore {
     function vCost() {
       let d = request.resource.data;
       return d.keys().hasAll(['id','year','period','category','plannedOpex','plannedCapex','realizedOpex','realizedCapex','officer'])
-        && shapeOk(15)
+        && shapeOk(18)
         && isValidDocId(d.id)
+        && isOptText(d.get('budgetCode', null), 80)
         && d.year is number && d.year >= 2000 && d.year <= 2100
         && isText(d.period, 50)
         && isText(d.category, 100)
@@ -463,7 +489,7 @@ service cloud.firestore {
     function vComplianceEvent() {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','title','type','description','status'])
-        && shapeOk(12)
+        && shapeOk(14)
         && isValidDocId(d.id)
         && isText(d.date, 20)
         && isText(d.title, 300)
@@ -511,16 +537,17 @@ service cloud.firestore {
     function vRegulatory() {
       let d = request.resource.data;
       return d.keys().hasAll(['id','source','regulationNo','about','issueDate','implication','status'])
-        && shapeOk(15)
+        && shapeOk(18)
         && isValidDocId(d.id)
         && isText(d.source, 200)
         && isText(d.regulationNo, 100)
         && isText(d.about, 2000)
         && isText(d.issueDate, 50)
         && isText(d.implication, 4000)
-        && d.status in ['Draft', 'Berlaku', 'Dicabut']
+        && d.status in ['Draft', 'Berlaku', 'Dicabut', 'Perlu Kajian']
         && isOptText(d.get('link', null), 2000)
-        && isOptText(d.get('createdBy', null), 100);
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
     }
 
     // [HIGH-03] Pengamanan Dokumen Verifikasi QR Publik
@@ -536,6 +563,327 @@ service cloud.firestore {
         && d.status in ['Draft', 'Disiapkan', 'Diperiksa', 'Disetujui', 'Dibatalkan']
         && d.overall in ['MEMENUHI', 'TIDAK MEMENUHI', 'BELUM ADA DATA']
         && isText(d.hashPrefix, 64);
+    }
+
+    // AMD / AAT Treatment Validator
+    function vAmdTreatment() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','date','location','treatmentZone','inflowPh','outflowPh','inflowDebitM3s','outflowDebitM3s','limeKg','alumKg','complianceStatus','officer'])
+        && shapeOk(22)
+        && isValidDocId(d.id)
+        && isText(d.date, 20)
+        && isText(d.location, 150)
+        && isText(d.treatmentZone, 150)
+        && (d.get('treatmentMethod', null) == null || d.treatmentMethod in ['Pengapuran Aktif', 'Lahan Basah Buatan', 'Hibrida'])
+        && d.inflowPh is number && d.inflowPh >= 0 && d.inflowPh <= 14
+        && d.outflowPh is number && d.outflowPh >= 0 && d.outflowPh <= 14
+        && d.inflowDebitM3s is number && d.inflowDebitM3s >= 0
+        && d.outflowDebitM3s is number && d.outflowDebitM3s >= 0
+        && d.limeKg is number && d.limeKg >= 0
+        && d.alumKg is number && d.alumKg >= 0
+        && (d.get('activeLimeStockKg', null) == null || (d.activeLimeStockKg is number && d.activeLimeStockKg >= 0))
+        && d.complianceStatus in ['Memenuhi', 'Warning', 'Tidak Memenuhi']
+        && isText(d.officer, 100)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Air Quality, Emission & Noise Validator
+    function vAirEmission() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','date','monitoringCategory','location','pm10','pm25','tsp','so2','no2','co','noiseDb','status','officer'])
+        && shapeOk(20)
+        && isValidDocId(d.id)
+        && isText(d.date, 20)
+        && d.monitoringCategory in ['Udara Ambien', 'Emisi Genset', 'Emisi Alat Berat', 'Kebisingan']
+        && isText(d.location, 150)
+        && d.pm10 is number && d.pm10 >= 0
+        && d.pm25 is number && d.pm25 >= 0
+        && d.tsp is number && d.tsp >= 0
+        && d.so2 is number && d.so2 >= 0
+        && d.no2 is number && d.no2 >= 0
+        && d.co is number && d.co >= 0
+        && d.noiseDb is number && d.noiseDb >= 0
+        && d.status in ['Safe', 'Warning', 'Exceeded']
+        && isText(d.officer, 100)
+        && isOptText(d.get('labRef', null), 150)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Topsoil & Erosion Control Validator
+    function vTopsoilErosion() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','date','blockLocation','topsoilVolumeM3','stockpileUsedM3','cumulativeBalanceM3','thicknessCm','coverCropAreaHa','erosionSeverity','mitigationAction','officer'])
+        && shapeOk(18)
+        && isValidDocId(d.id)
+        && isText(d.date, 20)
+        && isText(d.blockLocation, 150)
+        && d.topsoilVolumeM3 is number && d.topsoilVolumeM3 >= 0
+        && d.stockpileUsedM3 is number && d.stockpileUsedM3 >= 0
+        && d.cumulativeBalanceM3 is number && d.cumulativeBalanceM3 >= 0
+        && d.thicknessCm is number && d.thicknessCm >= 0
+        && d.coverCropAreaHa is number && d.coverCropAreaHa >= 0
+        && d.erosionSeverity in ['Rendah', 'Sedang', 'Tinggi', 'Kritis']
+        && isText(d.mitigationAction, 400)
+        && isText(d.officer, 100)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Biodiversity Monitoring Validator
+    function vBiodiversity() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','date','zone','category','speciesName','scientificName','conservationStatus','count','observationMethod','condition','officer'])
+        && shapeOk(18)
+        && isValidDocId(d.id)
+        && isText(d.date, 20)
+        && isText(d.zone, 150)
+        && d.category in ['Flora', 'Fauna', 'Koridor Satwa']
+        && isText(d.speciesName, 150)
+        && isText(d.scientificName, 150)
+        && d.conservationStatus in ['Dilindungi (Permen LHK P.106/2018)', 'Dilindungi (PP 106/2018)', 'Endemik', 'IUCN Threatened', 'Umum']
+        && d.count is number && d.count >= 0
+        && isText(d.observationMethod, 150)
+        && d.condition in ['Sehat', 'Terancam', 'Bermigrasi']
+        && isText(d.officer, 100)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // IADL ISO 14001 Risk Register Validator
+    function vIadlRisk() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','code','activity','aspect','impact','environmentalCondition','severityScore','likelihoodScore','riskScore','riskLevel','controlMeasure','legalRef','pic','status'])
+        && shapeOk(20)
+        && isValidDocId(d.id)
+        && isText(d.code, 50)
+        && isText(d.activity, 250)
+        && isText(d.aspect, 250)
+        && isText(d.impact, 350)
+        && d.environmentalCondition in ['Normal', 'Abnormal', 'Darurat']
+        && d.severityScore is number && d.severityScore >= 1 && d.severityScore <= 5
+        && d.likelihoodScore is number && d.likelihoodScore >= 1 && d.likelihoodScore <= 5
+        && d.riskScore is number && d.riskScore >= 1 && d.riskScore <= 25
+        && d.riskLevel in ['Rendah', 'Sedang', 'Tinggi', 'Signifikan/Kritis']
+        && isText(d.controlMeasure, 600)
+        && isText(d.legalRef, 250)
+        && isText(d.pic, 100)
+        && d.status in ['Aktif Terkendali', 'Perlu Mitigasi', 'Selesai']
+        && isOptText(d.get('targetDate', null), 30)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // PROPER & RKAB Evaluation Validator
+    function vProperRkab() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','year','period','recordType','category','indicatorName','targetValue','realizedValue','scoreWeight','selfScore','targetProperRating','status','pic'])
+        && shapeOk(24)
+        && isValidDocId(d.id)
+        && d.year is number && d.year >= 2000 && d.year <= 2100
+        && isText(d.period, 50)
+        && d.recordType in ['PROPER', 'RKAB']
+        && isText(d.category, 150)
+        && isText(d.indicatorName, 300)
+        && isText(d.targetValue, 250)
+        && isText(d.realizedValue, 250)
+        && d.scoreWeight is number && d.scoreWeight >= 0 && d.scoreWeight <= 100
+        && d.selfScore is number && d.selfScore >= 0 && d.selfScore <= 100
+        && d.targetProperRating in ['Emas', 'Hijau', 'Biru', 'Merah']
+        && (d.get('actualProperRating', null) == null || d.actualProperRating in ['Emas', 'Hijau', 'Biru', 'Merah', 'Hitam'])
+        && d.status in ['Terpenuhi', 'Proses Pemenuhan', 'Gap Terdeteksi']
+        && isOptText(d.get('evidenceUrl', null), 1200)
+        && isText(d.pic, 100)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Master Baku Mutu Lingkungan Validator (/standards/{docId})
+    function vEnvironmentalStandard() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','media','parameterKey','parameterLabel','unit','basisRegulasi','isActive','verificationStatus'])
+        && shapeOk(20)
+        && isValidDocId(d.id)
+        && d.media in ['air_limbah', 'air_limbah_domestik', 'air_permukaan', 'udara', 'kebisingan', 'lainnya']
+        && isText(d.parameterKey, 60)
+        && isText(d.parameterLabel, 120)
+        && isText(d.unit, 40)
+        && (d.get('minLimit', null) == null || d.minLimit is number)
+        && (d.get('maxLimit', null) == null || d.maxLimit is number)
+        && isText(d.basisRegulasi, 300)
+        && isOptText(d.get('effectiveFrom', null), 30)
+        && isOptText(d.get('locationCode', null), 50)
+        && (d.get('kelasAir', null) == null || d.kelasAir in ['I', 'II', 'III', 'IV'])
+        && d.isActive is bool
+        && d.verificationStatus in ['Terverifikasi', 'Perlu verifikasi']
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Register Pertek & SLO Validator
+    function vPertekSlo() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','docKind','category','permitNumber','title','issuingAuthority','issuedDate','expiryDate','compliancePoint','reportingObligation','status','pic'])
+        && shapeOk(20)
+        && isValidDocId(d.id)
+        && d.docKind in ['Pertek', 'SLO']
+        && d.category in ['Pembuangan Air Limbah', 'Pemanfaatan Air Limbah', 'Emisi Udara', 'Penyimpanan LB3', 'Lainnya']
+        && isText(d.permitNumber, 150)
+        && isText(d.title, 300)
+        && isText(d.issuingAuthority, 200)
+        && isText(d.issuedDate, 30)
+        && isText(d.expiryDate, 30)
+        && isText(d.compliancePoint, 200)
+        && isText(d.reportingObligation, 350)
+        && d.status in ['Aktif', 'Segera Berakhir', 'Kedaluwarsa', 'Proses Perpanjangan']
+        && isOptText(d.get('documentUrl', null), 1500)
+        && isText(d.pic, 100)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Kalender Pelaporan Wajib Validator
+    function vReportingCalendar() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','reportType','periodLabel','dueDate','targetAgency','pic','status'])
+        && shapeOk(18)
+        && isValidDocId(d.id)
+        && d.reportType in ['RKL-RPL Semester', 'Laporan Pertek', 'Neraca & Logbook LB3', 'Laporan GRK Tahunan (Maret)', 'RKAB Lingkungan', 'Laporan Reklamasi & Pascatambang']
+        && isText(d.periodLabel, 120)
+        && isText(d.dueDate, 30)
+        && isText(d.targetAgency, 180)
+        && isText(d.pic, 100)
+        && d.status in ['Terjadwal', 'Proses', 'Terkirim', 'Terlambat']
+        && isOptText(d.get('submittedDate', null), 30)
+        && isOptText(d.get('receiptNumber', null), 150)
+        && isOptText(d.get('receiptUrl', null), 1500)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Pengawasan Eksternal & Sanksi Administratif Validator
+    function vExternalSupervision() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','inspectionDate','agency','officialDocNo','inspectionScope','findingsSummary','sanctionCategory','followUpDeadline','resolutionStatus','pic'])
+        && shapeOk(20)
+        && isValidDocId(d.id)
+        && isText(d.inspectionDate, 30)
+        && d.agency in ['DLH Provinsi/Kab', 'KLH/BPLH', 'Inspektur Tambang ESDM', 'Kementerian Kehutanan']
+        && isText(d.officialDocNo, 150)
+        && isText(d.inspectionScope, 300)
+        && isText(d.findingsSummary, 2200)
+        && d.sanctionCategory in ['Tidak Ada', 'Teguran Tertulis', 'Paksaan Pemerintah', 'Pembekuan Izin', 'Pencabutan Izin']
+        && isText(d.followUpDeadline, 30)
+        && d.resolutionStatus in ['Terbuka', 'Dalam Tindak Lanjut', 'Selesai Diverifikasi']
+        && isOptText(d.get('linkedCapaId', null), 128)
+        && isText(d.pic, 100)
+        && isOptText(d.get('evidenceUrl', null), 1500)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Air Limbah Domestik Validator
+    function vDomesticWastewater() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','date','facilityName','ph','bod','cod','tss','oilGrease','ammonia','totalColiform','debitM3Day','complianceStatus','officer'])
+        && shapeOk(24)
+        && isValidDocId(d.id)
+        && isText(d.date, 30)
+        && isText(d.facilityName, 180)
+        && isOptText(d.get('locationCode', null), 60)
+        && d.ph is number && d.ph >= 0 && d.ph <= 14
+        && d.bod is number && d.bod >= 0
+        && d.cod is number && d.cod >= 0
+        && d.tss is number && d.tss >= 0
+        && d.oilGrease is number && d.oilGrease >= 0
+        && d.ammonia is number && d.ammonia >= 0
+        && d.totalColiform is number && d.totalColiform >= 0
+        && d.debitM3Day is number && d.debitM3Day >= 0
+        && d.complianceStatus in ['Memenuhi', 'Warning', 'Tidak Memenuhi', 'Belum Ada Baku Mutu']
+        && isOptText(d.get('standardId', null), 128)
+        && isOptText(d.get('standardBasis', null), 350)
+        && isText(d.officer, 100)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Faktor Emisi GRK Master Validator
+    function vGhgFactor() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','activityCategory','factorName','unit','factorKgCo2ePerUnit','gasScope','referenceSource','effectiveYear'])
+        && shapeOk(16)
+        && isValidDocId(d.id)
+        && d.activityCategory in ['Solar Alat Berat & Hauling', 'Solar Genset & Pembangkit', 'Listrik PLN / Non-Tambang', 'Bahan Peledak (ANFO/Emulsi)', 'Perubahan Lahan Terbuka', 'Lainnya']
+        && isText(d.factorName, 180)
+        && isText(d.unit, 40)
+        && d.factorKgCo2ePerUnit is number && d.factorKgCo2ePerUnit >= 0
+        && d.gasScope in ['Scope 1 (Emisi Langsung)', 'Scope 2 (Energi Tidak Langsung)', 'Scope 3 / Lahan']
+        && isText(d.referenceSource, 300)
+        && d.effectiveYear is number && d.effectiveYear >= 2000 && d.effectiveYear <= 2100
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Log Aktivitas Emisi GRK Validator
+    function vGhgActivity() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','date','reportingYear','monthPeriod','activityCategory','sourceLocation','quantity','unit','emissionsTco2e','officer'])
+        && shapeOk(22)
+        && isValidDocId(d.id)
+        && isText(d.date, 30)
+        && d.reportingYear is number && d.reportingYear >= 2000 && d.reportingYear <= 2100
+        && isText(d.monthPeriod, 12)
+        && d.activityCategory in ['Solar Alat Berat & Hauling', 'Solar Genset & Pembangkit', 'Listrik PLN / Non-Tambang', 'Bahan Peledak (ANFO/Emulsi)', 'Perubahan Lahan Terbuka', 'Lainnya']
+        && isText(d.sourceLocation, 180)
+        && d.quantity is number && d.quantity >= 0
+        && isText(d.unit, 40)
+        && isOptText(d.get('factorId', null), 128)
+        && isOptText(d.get('factorNameSnapshot', null), 180)
+        && (d.get('factorValueSnapshot', null) == null || d.factorValueSnapshot is number)
+        && isOptText(d.get('referenceSourceSnapshot', null), 300)
+        && d.emissionsTco2e is number && d.emissionsTco2e >= 0
+        && isText(d.officer, 100)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
+    }
+
+    // Kewajiban Kehutanan (PPKH & Rehabilitasi DAS) Validator
+    function vForestryPpkh() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id','docType','decreeNumber','title','areaLocation','approvedAreaHa','realizedAreaHa','progressPct','legalBasis','authorityLabel','issuedDate','expiryDate','obligationSummary','status','pic'])
+        && shapeOk(24)
+        && isValidDocId(d.id)
+        && d.docType in ['PPKH', 'Rehabilitasi DAS', 'Kompensasi Lahan / Lainnya']
+        && isText(d.decreeNumber, 180)
+        && isText(d.title, 300)
+        && isText(d.areaLocation, 180)
+        && d.approvedAreaHa is number && d.approvedAreaHa >= 0
+        && d.realizedAreaHa is number && d.realizedAreaHa >= 0
+        && d.progressPct is number && d.progressPct >= 0 && d.progressPct <= 100
+        && isText(d.legalBasis, 350)
+        && d.authorityLabel == 'Kementerian Kehutanan'
+        && isText(d.issuedDate, 30)
+        && isText(d.expiryDate, 30)
+        && isText(d.obligationSummary, 2200)
+        && d.status in ['Aktif', 'Dalam Pelaksanaan', 'Selesai', 'Perlu Tindak Lanjut']
+        && isText(d.pic, 100)
+        && isOptText(d.get('documentUrl', null), 1500)
+        && isOptText(d.get('notes', null), 1000)
+        && isOptText(d.get('createdBy', null), 100)
+        && isOptText(d.get('updatedBy', null), 100);
     }
 
     // --- COLLECTION MATCHES ---
@@ -572,7 +920,14 @@ service cloud.firestore {
     // --- COLLECTION: app_meta ---
     match /app_meta/{metaId} {
       allow read: if isVerifiedUser();
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (isActiveMember() && isSuperintendent() && metaId in ['env_thresholds', 'proper_criteria']);
+    }
+
+    // --- COLLECTION: standards (Master Baku Mutu Lingkungan Dinamis) ---
+    match /standards/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isSuperintendent() && vEnvironmentalStandard();
+      allow delete: if isAdmin();
     }
 
     // --- DOMAIN DATA COLLECTIONS ---
@@ -757,6 +1112,84 @@ service cloud.firestore {
       allow read: if isVerifiedUser();
       allow create, update: if isActiveMember() && isSuperintendent() && vCost();
       allow delete: if isAdmin();
+    }
+
+    match /amd_treatment/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vAmdTreatment();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /air_emission/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vAirEmission();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /topsoil_erosion/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vTopsoilErosion();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /biodiversity/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vBiodiversity();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /iadl_risk/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vIadlRisk();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /proper_rkab/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isSuperintendent() && vProperRkab();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /pertek_slo/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vPertekSlo();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /reporting_calendar/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vReportingCalendar();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /external_supervisions/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vExternalSupervision();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /domestic_wastewater/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vDomesticWastewater();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /ghg_factors/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vGhgFactor();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /ghg_activities/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vGhgActivity();
+      allow delete: if isAdmin() || isSuperintendent();
+    }
+
+    match /forestry_ppkh/{docId} {
+      allow read: if isVerifiedUser();
+      allow create, update: if isActiveMember() && isOperator() && vForestryPpkh();
+      allow delete: if isAdmin() || isSuperintendent();
     }
   }
 }

@@ -95,34 +95,58 @@ export const MODULE_MIN_ROLE: Record<string, Role> = {
   registration_approval: 'Environment Manager',
   user_management: 'Environment Manager',
   role_management: 'Admin',
+  standards_master: 'Environment Superintendent',
   executive: 'Environment Superintendent',
+  proper_rkab: 'Environment Superintendent',
+  regulatory_watch: 'Environment Superintendent',
   costs: 'Environment Superintendent',
   audit_log: 'Environment Superintendent',
   dashboard: 'Viewer',
   monitoring: 'Viewer',
+  amd_treatment: 'Viewer',
+  domestic_wastewater: 'Viewer',
+  air_emission: 'Viewer',
+  ghg_inventory: 'Viewer',
   surfacewater: 'Viewer',
   rainfall: 'Viewer',
+  evidence: 'Viewer',
   reclamation: 'Viewer',
+  reclamation_guarantee: 'Viewer',
+  topsoil_erosion: 'Viewer',
+  biodiversity: 'Viewer',
+  forestry_ppkh: 'Viewer',
   nursery: 'Viewer',
   waste: 'Viewer',
   solid_waste: 'Viewer',
-  capa: 'Viewer',
+  documents: 'Viewer',
+  pertek_slo: 'Viewer',
+  compliance_matrix: 'Viewer',
+  reporting_calendar: 'Viewer',
+  iadl_risk: 'Viewer',
+  supervision: 'Viewer',
   findings: 'Viewer',
   incidents: 'Viewer',
-  documents: 'Viewer',
-  compliance: 'Viewer',
-  compliance_matrix: 'Viewer',
-  regulatory: 'Viewer',
-  regulatory_watch: 'Viewer',
   notifications: 'Viewer',
-  evidence: 'Viewer',
   reports: 'Viewer'
 };
+
+export const AUDITOR_READONLY_MODULES = new Set<string>([
+  'audit_log',
+  'compliance_matrix',
+  'regulatory_watch',
+  'proper_rkab',
+  'costs',
+]);
 
 export function canAccessModule(profile: UserProfileLike | null | undefined, moduleKey: string): boolean {
   if (!isActiveApproved(profile)) {
     return false;
   }
+  const role = effectiveRole(profile);
+  if (role === 'Auditor' && AUDITOR_READONLY_MODULES.has(moduleKey)) {
+    return true;
+  }
   const requiredRole = MODULE_MIN_ROLE[moduleKey] ?? 'Admin'; // Fail-closed for unregistered modules
-  return atLeast(effectiveRole(profile), requiredRole);
+  return atLeast(role, requiredRole);
 }
+

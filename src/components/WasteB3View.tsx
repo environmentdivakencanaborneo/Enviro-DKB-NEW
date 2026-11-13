@@ -515,7 +515,7 @@ export default function WasteB3View({
                 <span className="text-lg font-bold font-mono text-slate-800 mt-0.5 block">
                   {totalOutAllTps.toLocaleString('id-ID')} Kg
                 </span>
-                <span className="text-[10px] text-slate-400">Transporter berizin KLHK</span>
+                <span className="text-[10px] text-slate-400">Transporter berizin KLH/BPLH</span>
               </div>
               <div className="bg-teal-50/70 border border-teal-200 rounded-xl p-3 text-left">
                 <span className="text-[10px] font-mono uppercase text-teal-800 block font-bold">Sisa Stok di TPS Saat Ini</span>
@@ -1232,7 +1232,7 @@ export default function WasteB3View({
                 <h3 className="text-sm font-bold uppercase tracking-wider text-teal-700">
                   {editingOutId ? `Edit Manifest Pengiriman Keluar (${editingOutId})` : 'Pencatatan Manifest Pengiriman Keluar TPS B3'}
                 </h3>
-                <span className="text-[11px] text-slate-400 font-mono">Transporter Berizin KLHK</span>
+                <span className="text-[11px] text-slate-400 font-mono">Transporter Berizin KLH/BPLH</span>
               </div>
 
               {/* Datalist rekomendasi histori */}
@@ -1351,7 +1351,7 @@ export default function WasteB3View({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Nomor Manifest Resmi KLHK</label>
+                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Nomor Manifest Resmi KLH/BPLH</label>
                   <input
                     id="waste-out-manifest"
                     type="text"

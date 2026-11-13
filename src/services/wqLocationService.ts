@@ -26,6 +26,7 @@ const DEFAULT_WQ_LOCATION: Omit<WqLocation, 'id'> = {
   name: 'KPL Tambang Blok Utara',
   defaultSource: 'Settling Pond Outlet',
   docSuffix: '',
+  kelasAir: 'II',
   isActive: true,
 };
 
@@ -94,6 +95,7 @@ export const wqLocationService = {
       name: item.name.trim(),
       defaultSource: item.defaultSource.trim(),
       docSuffix: item.docSuffix?.trim() || '',
+      kelasAir: item.kelasAir ?? 'II',
       isActive: item.isActive ?? true,
       createdAt: serverTimestamp(),
       createdBy: userEmail,

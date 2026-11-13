@@ -21,10 +21,17 @@ import {
   CapaData,
   ComplianceMatrixData,
   IncidentData,
-  RegulatoryWatchData
+  RegulatoryWatchData,
+  AmdTreatmentData,
+  AirEmissionData,
+  TopsoilErosionData,
+  BiodiversityData,
+  IadlRiskData,
+  ProperRkabData
 } from '../types';
 import { formatWasteSource } from '../constants/wasteSources';
 import { todayLocalISO } from '../utils/dateUtils';
+import { formatConservationStatus } from '../data/regulations';
 
 // Helper format angka rupiah
 function formatIDR(num: number): string {
@@ -57,6 +64,7 @@ function mapSurfaceWater(data: SurfaceWaterData[]) {
     'ID': d.id,
     'Tanggal': d.date,
     'Lokasi': d.location,
+    'Kelas Air': d.kelasAir || 'II',
     'Petugas': d.officer,
     'Tipe Pemantauan': d.monitoringType || 'Bulanan',
     'pH': d.ph,
@@ -124,7 +132,9 @@ function mapReclamationGuarantees(data: ReclamationGuarantee[]) {
   return data.map(d => ({
     'ID': d.id,
     'Nomor Jaminan': d.guaranteeNo,
+    'Kategori Jaminan': d.guaranteeCategory || 'Jaminan Reklamasi',
     'Bentuk Jaminan': d.guaranteeType,
+    'Jenis Bank': d.bankType || '-',
     'Nilai Jaminan': formatIDR(d.value),
     'Lembaga Penerbit': d.issuingInstitution,
     'Tanggal Terbit': d.issuedDate,
@@ -195,6 +205,7 @@ function mapCalendarEvents(data: ComplianceCalendarEvent[]) {
 function mapEnvironmentalCosts(data: EnvironmentalCost[]) {
   return data.map(d => ({
     'ID': d.id,
+    'Kode Anggaran': d.budgetCode || '-',
     'Tahun': d.year,
     'Periode': d.period,
     'Kategori Program': d.category,
@@ -308,6 +319,114 @@ function mapRegulatory(data: RegulatoryWatchData[]) {
   }));
 }
 
+function mapAmdTreatment(data: AmdTreatmentData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Tanggal': d.date,
+    'Lokasi': d.location,
+    'Zona Treatment': d.treatmentZone,
+    'pH Inflow': d.inflowPh,
+    'pH Outflow': d.outflowPh,
+    'Debit Inflow (m³/s)': d.inflowDebitM3s,
+    'Debit Outflow (m³/s)': d.outflowDebitM3s,
+    'Dosis Kapur (kg)': d.limeKg,
+    'Dosis Tawas (kg)': d.alumKg,
+    'Stok Kapur (kg)': d.activeLimeStockKg ?? '-',
+    'Status Kepatuhan': d.complianceStatus,
+    'Petugas': d.officer,
+    'Catatan': d.notes || '-',
+  }));
+}
+
+function mapAirEmission(data: AirEmissionData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Tanggal': d.date,
+    'Kategori': d.monitoringCategory,
+    'Lokasi': d.location,
+    'PM10 (µg/Nm³)': d.pm10,
+    'PM2.5 (µg/Nm³)': d.pm25,
+    'TSP (µg/Nm³)': d.tsp,
+    'SO2 (µg/Nm³)': d.so2,
+    'NO2 (µg/Nm³)': d.no2,
+    'CO (µg/Nm³)': d.co,
+    'Kebisingan (dBA)': d.noiseDb,
+    'Status': d.status,
+    'Ref Lab': d.labRef || '-',
+    'Petugas': d.officer,
+  }));
+}
+
+function mapTopsoilErosion(data: TopsoilErosionData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Tanggal': d.date,
+    'Blok / Pit': d.blockLocation,
+    'Topsoil Masuk (m³)': d.topsoilVolumeM3,
+    'Topsoil Ditebar (m³)': d.stockpileUsedM3,
+    'Saldo Bank (m³)': d.cumulativeBalanceM3,
+    'Ketebalan (cm)': d.thicknessCm,
+    'Cover Crop (Ha)': d.coverCropAreaHa,
+    'Tingkat Erosi': d.erosionSeverity,
+    'Tindakan Mitigasi': d.mitigationAction,
+    'Petugas': d.officer,
+  }));
+}
+
+function mapBiodiversity(data: BiodiversityData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Tanggal': d.date,
+    'Zona': d.zone,
+    'Kategori': d.category,
+    'Nama Spesies': d.speciesName,
+    'Nama Ilmiah': d.scientificName,
+    'Status Konservasi': formatConservationStatus(d.conservationStatus),
+    'Jumlah Individu': d.count,
+    'Metode': d.observationMethod,
+    'Kondisi': d.condition,
+    'Pengamat': d.officer,
+  }));
+}
+
+function mapIadlRisk(data: IadlRiskData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Kode IADL': d.code,
+    'Aktivitas': d.activity,
+    'Aspek Lingkungan': d.aspect,
+    'Dampak Lingkungan': d.impact,
+    'Kondisi': d.environmentalCondition,
+    'Keparahan (S)': d.severityScore,
+    'Kemungkinan (L)': d.likelihoodScore,
+    'Skor Risiko (S×L)': d.riskScore,
+    'Tingkat Risiko': d.riskLevel,
+    'Pengendalian': d.controlMeasure,
+    'Regulasi Terkait': d.legalRef,
+    'PIC': d.pic,
+    'Status': d.status,
+  }));
+}
+
+function mapProperRkab(data: ProperRkabData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Tahun': d.year,
+    'Periode': d.period,
+    'Jenis': d.recordType,
+    'Kategori': d.category,
+    'Indikator': d.indicatorName,
+    'Target': d.targetValue,
+    'Realisasi': d.realizedValue,
+    'Bobot (%)': d.scoreWeight,
+    'Skor Mandiri': d.selfScore,
+    'Target PROPER': d.targetProperRating,
+    'Peringkat Aktual PROPER': d.actualProperRating || '-',
+    'Status': d.status,
+    'PIC': d.pic,
+  }));
+}
+
 function triggerDownload(buffer: ArrayBuffer | Uint8Array, fileName: string): void {
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -344,6 +463,12 @@ export interface ExportPayload {
   complianceMatrix?: ComplianceMatrixData[];
   incidents?: IncidentData[];
   regulatory?: RegulatoryWatchData[];
+  amdTreatments?: AmdTreatmentData[];
+  airEmissions?: AirEmissionData[];
+  topsoilErosions?: TopsoilErosionData[];
+  biodiversity?: BiodiversityData[];
+  iadlRisks?: IadlRiskData[];
+  properRkab?: ProperRkabData[];
 }
 
 export function exportAllDataToXLSX(payload: ExportPayload, companyName?: string): void {
@@ -353,25 +478,31 @@ export function exportAllDataToXLSX(payload: ExportPayload, companyName?: string
   wb.created = new Date();
   const exportDate = new Date().toLocaleString('id-ID');
 
-  // Definisi semua sheet
+  // Definisi semua sheet (23 sheet data + Ringkasan)
   const sheets: Array<{ name: string; rows: Record<string, any>[] }> = [
     { name: 'Kualitas Air Limbah',      rows: mapWastewater(payload.wastewater) },
     { name: 'Kualitas Air Permukaan',   rows: mapSurfaceWater(payload.surfaceWater || []) },
     { name: 'Curah Hujan',              rows: mapRainfall(payload.rainfall) },
+    { name: 'Treatment AAT (AMD)',      rows: mapAmdTreatment(payload.amdTreatments || []) },
+    { name: 'Udara, Emisi & Bising',    rows: mapAirEmission(payload.airEmissions || []) },
     { name: 'Nursery & Bibit',          rows: mapNursery(payload.nursery) },
     { name: 'Pengeluaran Bibit',        rows: mapNurseryStockOut(payload.nurseryStockOut || []) },
     { name: 'Rencana Reklamasi',        rows: mapReclamationPlans(payload.reclamationPlans) },
     { name: 'Jaminan Reklamasi',        rows: mapReclamationGuarantees(payload.reclamationGuarantees) },
+    { name: 'Topsoil & Erosi',          rows: mapTopsoilErosion(payload.topsoilErosions || []) },
+    { name: 'Keanekaragaman Hayati',    rows: mapBiodiversity(payload.biodiversity || []) },
     { name: 'Limbah B3 Masuk',          rows: mapWasteIn(payload.wasteIn) },
     { name: 'Limbah B3 Keluar',         rows: mapWasteOut(payload.wasteOut) },
+    { name: 'Pengolahan Sampah',        rows: mapSolidWaste(payload.solidWaste || []) },
     { name: 'Dokumen Lingkungan',       rows: mapDocuments(payload.documents) },
     { name: 'Agenda Kepatuhan',         rows: mapCalendarEvents(payload.calendarEvents) },
-    { name: 'Biaya Lingkungan',         rows: mapEnvironmentalCosts(payload.environmentalCosts) },
-    { name: 'Pengolahan Sampah',        rows: mapSolidWaste(payload.solidWaste || []) },
-    { name: 'CAPA & Temuan',            rows: mapCapa(payload.capa || []) },
     { name: 'Matriks Kepatuhan',        rows: mapComplianceMatrix(payload.complianceMatrix || []) },
+    { name: 'Register IADL ISO 14001',  rows: mapIadlRisk(payload.iadlRisks || []) },
+    { name: 'CAPA & Temuan',            rows: mapCapa(payload.capa || []) },
     { name: 'Insiden Lingkungan',       rows: mapIncidents(payload.incidents || []) },
     { name: 'Regulatory Watch',         rows: mapRegulatory(payload.regulatory || []) },
+    { name: 'Biaya Lingkungan',         rows: mapEnvironmentalCosts(payload.environmentalCosts) },
+    { name: 'PROPER & RKAB',            rows: mapProperRkab(payload.properRkab || []) },
   ];
 
   // Sheet 1: Ringkasan / Cover

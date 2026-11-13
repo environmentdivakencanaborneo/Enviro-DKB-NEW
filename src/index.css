@@ -1,206 +1,554 @@
-/* 1. Import fonts */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+/* 1. Import Fonts: Space Grotesk (Headings), Inter (Body), JetBrains Mono (Data & Codes) */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* 2. Theme tokens for Tailwind v4 */
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: "Poppins", sans-serif;
-  --font-manrope: "Manrope", sans-serif;
-  --font-mono: "Manrope", monospace;
-  
-  --color-forest-900: #2E4B3D;
-  --color-forest-800: #2F5A46;
-  --color-forest-700: #365645;
-  --color-forest-600: #4D7C5A;
-  --color-forest-300: #A8B9A5;
-  --color-forest-100: #DCE5DA;
-  --color-forest-50: #F5F6F2;
-  
-  --color-success: #3FA66B;
-  --color-warning: #E2A43B;
-  --color-danger: #D95C5C;
-  --color-info: #5C8DBA;
-  
-  --color-text-primary: #23312B;
-  --color-text-secondary: #6D7B73;
-  --color-border-custom: #E6ECE6;
+/* 2. Theme Variables — "Neon Gelap" (Default) & "Terang Lapangan" (Outdoor High Contrast) */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --theme-bg-0: #05070D;
+  --theme-bg-1: #0A0F1C;
+  --theme-bg-2: #111827;
+  --theme-surface-glass: rgba(17, 24, 39, 0.62);
+  --theme-border-neon: rgba(0, 240, 255, 0.18);
+  --theme-border-subtle: rgba(148, 163, 184, 0.16);
+
+  --theme-neon-cyan: #00F0FF;
+  --theme-neon-green: #39FF88;
+  --theme-neon-violet: #A855F7;
+  --theme-neon-amber: #FFC400;
+  --theme-neon-red: #FF2E63;
+
+  --theme-text-hi: #E6F1FF;
+  --theme-text-mid: #9FB3C8;
+  --theme-text-low: #64748B;
+  --theme-text-muted-aa: #8FA3BA;
+
+  --theme-glow-cyan: 0 0 0 1px rgba(0, 240, 255, 0.35), 0 0 18px rgba(0, 240, 255, 0.25);
+  --theme-glow-green: 0 0 0 1px rgba(57, 255, 136, 0.35), 0 0 18px rgba(57, 255, 136, 0.25);
+  --theme-glow-amber: 0 0 0 1px rgba(255, 196, 0, 0.35), 0 0 18px rgba(255, 196, 0, 0.25);
+  --theme-glow-red: 0 0 0 1px rgba(255, 46, 99, 0.35), 0 0 18px rgba(255, 46, 99, 0.25);
+  --theme-glow-violet: 0 0 0 1px rgba(168, 85, 247, 0.35), 0 0 18px rgba(168, 85, 247, 0.25);
+
+  --theme-grid-line: rgba(148, 163, 184, 0.055);
+  --theme-radial-1: rgba(0, 240, 255, 0.08);
+  --theme-radial-2: rgba(168, 85, 247, 0.08);
+  --theme-row-zebra: rgba(255, 255, 255, 0.018);
+  --theme-row-hover: rgba(0, 240, 255, 0.05);
+  --theme-tooltip-bg: rgba(10, 15, 28, 0.92);
 }
 
-/* 3. Base reset & background */
-*, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+[data-theme="light"] {
+  color-scheme: light;
+  --theme-bg-0: #F8FAFC;
+  --theme-bg-1: #FFFFFF;
+  --theme-bg-2: #F1F5F9;
+  --theme-surface-glass: rgba(255, 255, 255, 0.9);
+  --theme-border-neon: rgba(14, 116, 144, 0.24);
+  --theme-border-subtle: rgba(15, 23, 42, 0.12);
+
+  /* High-contrast daylight-readable accents */
+  --theme-neon-cyan: #0E7490;
+  --theme-neon-green: #15803D;
+  --theme-neon-violet: #7E22CE;
+  --theme-neon-amber: #B45309;
+  --theme-neon-red: #BE123C;
+
+  --theme-text-hi: #0F172A;
+  --theme-text-mid: #334155;
+  --theme-text-low: #475569;
+  --theme-text-muted-aa: #475569;
+
+  --theme-glow-cyan: 0 0 0 1px rgba(14, 116, 144, 0.35), 0 8px 20px rgba(14, 116, 144, 0.10);
+  --theme-glow-green: 0 0 0 1px rgba(21, 128, 61, 0.35), 0 8px 20px rgba(21, 128, 61, 0.10);
+  --theme-glow-amber: 0 0 0 1px rgba(180, 83, 9, 0.35), 0 8px 20px rgba(180, 83, 9, 0.10);
+  --theme-glow-red: 0 0 0 1px rgba(190, 18, 60, 0.35), 0 8px 20px rgba(190, 18, 60, 0.10);
+  --theme-glow-violet: 0 0 0 1px rgba(126, 34, 206, 0.35), 0 8px 20px rgba(126, 34, 206, 0.10);
+
+  --theme-grid-line: rgba(14, 116, 144, 0.045);
+  --theme-radial-1: rgba(14, 116, 144, 0.05);
+  --theme-radial-2: rgba(21, 128, 61, 0.04);
+  --theme-row-zebra: rgba(15, 23, 42, 0.02);
+  --theme-row-hover: rgba(14, 116, 144, 0.06);
+  --theme-tooltip-bg: rgba(255, 255, 255, 0.96);
+}
+
+/* 3. Tailwind v4 Theme Token Mapping + Legacy Token Aliases */
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-manrope: "JetBrains Mono", ui-monospace, monospace;
+
+  /* New Neon Mining Ops Tokens */
+  --color-bg-0: var(--theme-bg-0);
+  --color-bg-1: var(--theme-bg-1);
+  --color-bg-2: var(--theme-bg-2);
+  --color-surface-glass: var(--theme-surface-glass);
+  --color-border-neon: var(--theme-border-neon);
+  --color-border-subtle: var(--theme-border-subtle);
+
+  --color-neon-cyan: var(--theme-neon-cyan);
+  --color-neon-green: var(--theme-neon-green);
+  --color-neon-violet: var(--theme-neon-violet);
+  --color-neon-amber: var(--theme-neon-amber);
+  --color-neon-red: var(--theme-neon-red);
+
+  --color-text-hi: var(--theme-text-hi);
+  --color-text-mid: var(--theme-text-mid);
+  --color-text-low: var(--theme-text-low);
+  --color-text-aa: var(--theme-text-muted-aa);
+
+  --shadow-glow-cyan: var(--theme-glow-cyan);
+  --shadow-glow-green: var(--theme-glow-green);
+  --shadow-glow-amber: var(--theme-glow-amber);
+  --shadow-glow-red: var(--theme-glow-red);
+  --shadow-glow-violet: var(--theme-glow-violet);
+
+  /* Preserved Legacy Token Aliases so older components keep working */
+  --color-forest-900: var(--theme-neon-cyan);
+  --color-forest-800: var(--theme-neon-green);
+  --color-forest-700: var(--theme-neon-cyan);
+  --color-forest-600: var(--theme-neon-cyan);
+  --color-forest-300: var(--theme-text-mid);
+  --color-forest-100: var(--theme-bg-2);
+  --color-forest-50: var(--theme-bg-1);
+
+  --color-success: var(--theme-neon-green);
+  --color-warning: var(--theme-neon-amber);
+  --color-danger: var(--theme-neon-red);
+  --color-info: var(--theme-neon-cyan);
+
+  --color-text-primary: var(--theme-text-hi);
+  --color-text-secondary: var(--theme-text-mid);
+  --color-border-custom: var(--theme-border-neon);
+}
+
+/* 4. Base Reset & Typography */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: var(--theme-bg-0);
+  color: var(--theme-text-hi);
+}
+
 body {
-  background-color: #F5F6F2;
-  color: #23312B;
+  background-color: var(--theme-bg-0);
+  color: var(--theme-text-hi);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* 4. Glass components & sidebar styles */
+h1, h2, h3, h4, .font-heading {
+  font-family: var(--font-heading);
+}
+
+.tabular-nums,
+.font-mono,
+table td[data-numeric="true"],
+table td.text-right {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Visible Keyboard Focus Ring (WCAG 2.1 AA) */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--theme-neon-cyan);
+  outline-offset: 2px;
+}
+
+/* Mobile 44px Touch Targets */
+@media (max-width: 767px) {
+  button, a[role="button"], select {
+    min-height: 44px;
+  }
+}
+
+/* 5. Atmospheric Neon Grid + Corner Radial Glow Canvas (Pure CSS) */
+.app-grid-bg {
+  background-color: var(--theme-bg-0);
+  background-image:
+    radial-gradient(circle at 12% 8%, var(--theme-radial-1) 0%, transparent 42%),
+    radial-gradient(circle at 88% 92%, var(--theme-radial-2) 0%, transparent 44%),
+    linear-gradient(to right, var(--theme-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--theme-grid-line) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
+  background-attachment: fixed;
+}
+
+/* 6. Glass Panels, Cards & Surfaces */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--theme-surface-glass);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid #E6ECE6;
-  box-shadow: 0 8px 30px rgba(32, 52, 43, 0.04), inset 0 1px 0 rgba(255,255,255,0.6);
+  border: 1px solid var(--theme-border-neon);
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.24);
+}
+
+[data-theme="light"] .glass-panel {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
 .glass-aside {
-  background: #2E4B3D;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--theme-bg-1);
+  border-right: 1px solid var(--theme-border-neon);
 }
 
 .glass-header {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--theme-surface-glass);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid #E6ECE6;
+  border-bottom: 1px solid var(--theme-border-neon);
 }
 
-/* 5. Custom animations */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+.nav-glass {
+  background: var(--theme-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--theme-border-neon);
 }
 
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* KPI / Bento Gradient-Border Glass Card */
+.neon-card {
+  position: relative;
+  background: var(--theme-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--theme-border-neon);
+  border-radius: 20px;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
 }
 
-@keyframes bounceShort {
-  0%, 100% { transform: translateY(0); }
-  40%      { transform: translateY(-5px); }
-  70%      { transform: translateY(-2px); }
+.neon-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.45), rgba(168, 85, 247, 0.35));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.72;
 }
 
-@keyframes floatGlow {
-  0%   { transform: translate(0, 0) scale(1); }
-  33%  { transform: translate(20px, -40px) scale(1.1); }
-  66%  { transform: translate(-15px, 15px) scale(0.95); }
-  100% { transform: translate(0, 0) scale(1); }
+[data-theme="light"] .neon-card::before {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.4), rgba(126, 34, 206, 0.28));
 }
 
-@keyframes shimmer {
-  from { background-position: -200% center; }
-  to   { background-position: 200% center; }
+.neon-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--theme-glow-cyan);
 }
 
-.animate-fade-in    { animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.animate-slide-up   { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.animate-bounce-short { animation: bounceShort 0.5s ease-out both; }
-.glow-bubble-1      { animation: floatGlow 15s ease-in-out infinite; }
-.glow-bubble-2      { animation: floatGlow 20s ease-in-out infinite alternate; }
-
-/* 6. Skeleton loading shimmer */
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    rgba(77, 124, 90, 0.03) 25%,
-    rgba(77, 124, 90, 0.08) 50%,
-    rgba(77, 124, 90, 0.03) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.8s linear infinite;
-  border-radius: 12px;
+/* Legacy .card-3d mapped cleanly to Neon glass card */
+.card-3d {
+  position: relative;
+  background: var(--theme-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--theme-border-neon);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.22);
 }
 
-/* 7. Beautiful rounded elements & UI blocks */
+[data-theme="light"] .card-3d {
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+}
+
 .rounded-20 {
   border-radius: 20px;
 }
 
 .shadow-custom {
-  box-shadow: 0 8px 30px rgba(32, 52, 43, 0.06);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.22);
 }
 
 .shadow-custom-hover {
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .shadow-custom-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 36px rgba(32, 52, 43, 0.1);
+  box-shadow: var(--theme-glow-cyan);
 }
 
-/* 8. Status badges */
-.badge-safe     { background: rgba(63, 166, 107, 0.08); color: #2E5A46; border: 1px solid rgba(63, 166, 107, 0.2); }
-.badge-warning  { background: rgba(226, 164, 59, 0.08); color: #8F5E13; border: 1px solid rgba(226, 164, 59, 0.2); }
-.badge-exceeded { background: rgba(217, 92, 92, 0.08);  color: #9C3333; border: 1px solid rgba(217, 92, 92, 0.2); }
+/* 7. Primary & Danger Neon Buttons (WCAG Contrast >= 4.5:1) */
+.neon-btn-primary {
+  background: linear-gradient(135deg, #00F0FF 0%, #39FF88 100%);
+  color: #04121A;
+  font-weight: 700;
+  border: 1px solid rgba(57, 255, 136, 0.5);
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.22);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
 
-/* 9. Scrollbar — minimal forest style */
-::-webkit-scrollbar       { width: 6px; height: 6px; }
+.neon-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.38);
+  transform: translateY(-1px);
+}
+
+.neon-btn-danger {
+  background: transparent;
+  color: var(--theme-neon-red);
+  border: 1px solid var(--theme-neon-red);
+  font-weight: 600;
+  transition: background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.neon-btn-danger:hover:not(:disabled) {
+  background: rgba(255, 46, 99, 0.12);
+  box-shadow: var(--theme-glow-red);
+}
+
+/* 8. Tables: Sticky bg-2 Header, Subtle Zebra, Hover Left Cyan Bar */
+.neon-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.neon-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--theme-bg-2);
+}
+
+.neon-table thead th {
+  background-color: var(--theme-bg-2);
+  color: var(--theme-text-mid);
+  border-bottom: 1px solid var(--theme-border-neon);
+}
+
+.neon-table tbody tr {
+  border-bottom: 1px solid var(--theme-border-subtle);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.neon-table tbody tr:nth-child(even) {
+  background-color: var(--theme-row-zebra);
+}
+
+.neon-table tbody tr:hover {
+  background-color: var(--theme-row-hover);
+  box-shadow: inset 3px 0 0 var(--theme-neon-cyan);
+}
+
+/* 9. Form Inputs & Modals (Low specificity :where so custom Tailwind spacing stays intact) */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+  background-color: var(--theme-bg-0);
+  border: 1px solid var(--theme-border-neon);
+  color: var(--theme-text-hi);
+  border-radius: 12px;
+  font-family: var(--font-sans);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+:where(input, textarea)::placeholder {
+  color: var(--theme-text-low);
+}
+
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea):focus {
+  border-color: var(--theme-neon-cyan);
+  box-shadow: 0 0 0 2px var(--theme-neon-cyan);
+  outline: none;
+}
+
+/* 10. Status Badges (Icon + Text companion classes) */
+.badge-safe {
+  background: rgba(57, 255, 136, 0.12);
+  color: var(--theme-neon-green);
+  border: 1px solid rgba(57, 255, 136, 0.35);
+}
+
+.badge-warning {
+  background: rgba(255, 196, 0, 0.12);
+  color: var(--theme-neon-amber);
+  border: 1px solid rgba(255, 196, 0, 0.38);
+}
+
+.badge-exceeded {
+  background: rgba(255, 46, 99, 0.12);
+  color: var(--theme-neon-red);
+  border: 1px solid rgba(255, 46, 99, 0.38);
+}
+
+.badge-monitored {
+  background: rgba(168, 85, 247, 0.14);
+  color: var(--theme-neon-violet);
+  border: 1px solid rgba(168, 85, 247, 0.38);
+}
+
+.badge-verify {
+  background: rgba(100, 116, 139, 0.16);
+  color: var(--theme-text-mid);
+  border: 1px solid var(--theme-border-subtle);
+}
+
+/* 11. Animations & Neon Skeleton Shimmer */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounceShort {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-4px); }
+  70% { transform: translateY(-1px); }
+}
+
+@keyframes neonPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 46, 99, 0.65);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 46, 99, 0);
+  }
+}
+
+@keyframes particleDrift {
+  0% { transform: translate3d(0, 0, 0); opacity: 0.25; }
+  50% { transform: translate3d(14px, -22px, 0); opacity: 0.75; }
+  100% { transform: translate3d(0, 0, 0); opacity: 0.25; }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to { background-position: 200% center; }
+}
+
+.animate-fade-in { animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-slide-up { animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-bounce-short { animation: bounceShort 0.45s ease-out both; }
+.animate-critical-pulse { animation: neonPulse 1.8s ease-in-out infinite; }
+.auth-particle { animation: particleDrift 8s ease-in-out infinite; }
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 240, 255, 0.04) 20%,
+    rgba(0, 240, 255, 0.14) 50%,
+    rgba(57, 255, 136, 0.04) 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 12px;
+  border: 1px solid var(--theme-border-neon);
+}
+
+[data-theme="light"] .skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(14, 116, 144, 0.06) 20%,
+    rgba(14, 116, 144, 0.16) 50%,
+    rgba(14, 116, 144, 0.06) 80%
+  );
+  background-size: 200% 100%;
+}
+
+/* 12. Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(77, 124, 90, 0.15); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(77, 124, 90, 0.3); }
+::-webkit-scrollbar-thumb { background: var(--theme-border-neon); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--theme-neon-cyan); }
 
-/* 10. Forms, Input fields & Select elements */
-input, select, textarea {
-  background-color: #FFFFFF !important;
-  border: 1px solid #E6ECE6 !important;
-  color: #23312B !important;
-  border-radius: 12px !important;
-  padding: 0.625rem 1rem !important;
-  font-family: "Inter", sans-serif !important;
-  font-size: 0.875rem !important;
-  transition: all 0.2s ease !important;
-}
-input::placeholder, textarea::placeholder {
-  color: #A8B9A5 !important;
-}
-input:focus, select:focus, textarea:focus {
-  border-color: #4D7C5A !important;
-  box-shadow: 0 0 0 4px rgba(77, 124, 90, 0.12) !important;
-  outline: none !important;
+/* 13. Respect Prefers Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-pulse,
+  .animate-critical-pulse,
+  .auth-particle,
+  .skeleton {
+    animation: none !important;
+  }
 }
 
-/* Premium 3D Card effects for Forest Theme */
-.card-3d {
-  background: #FFFFFF;
-  position: relative;
-  background-clip: padding-box;
-  border: 1px solid transparent;
-  box-shadow: 0 8px 32px rgba(32, 52, 43, 0.05);
-  border-radius: 20px;
-}
-
-.card-3d::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  z-index: -1;
-  background: linear-gradient(160deg, #E6ECE6, rgba(255,255,255,0.4) 40%, #E6ECE6);
-}
-
-.nav-glass {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid #E6ECE6;
-}
-
-/* 11. Evidence Printing Styles (A4 Portrait & Page Breaks) */
+/* 14. Formal White-Black A4 Print Exception (Evidence & ReportsView Print Mode) */
 @page {
   size: A4 portrait;
   margin: 8mm;
 }
 
 @media print {
-  body {
-    background-color: #ffffff !important;
+  :root,
+  html,
+  [data-theme="dark"],
+  [data-theme="light"] {
+    color-scheme: light !important;
+    --theme-bg-0: #ffffff !important;
+    --theme-bg-1: #ffffff !important;
+    --theme-bg-2: #f8fafc !important;
+    --theme-surface-glass: #ffffff !important;
+    --theme-border-neon: #cbd5e1 !important;
+    --theme-border-subtle: #e2e8f0 !important;
+    --theme-text-hi: #000000 !important;
+    --theme-text-mid: #1e293b !important;
+    --theme-text-low: #475569 !important;
+    --theme-glow-cyan: none !important;
+    --theme-glow-green: none !important;
+    --theme-glow-amber: none !important;
+    --theme-glow-red: none !important;
+  }
+
+  html,
+  body,
+  #root,
+  #app-workspace,
+  .app-grid-bg {
+    background: #ffffff !important;
+    background-image: none !important;
     color: #000000 !important;
   }
+
+  .glass-panel,
+  .neon-card,
+  .card-3d,
+  .glass-header,
+  .glass-aside {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+    background-image: none !important;
+  }
+
+  .neon-card::before {
+    display: none !important;
+  }
+
+  * {
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+
   .no-print {
     display: none !important;
   }
+
   .print-only {
     display: block !important;
   }
+
   .break-after-page {
     page-break-after: always !important;
     break-after: page !important;
   }
+
   .break-inside-avoid {
     page-break-inside: avoid !important;
     break-inside: avoid !important;

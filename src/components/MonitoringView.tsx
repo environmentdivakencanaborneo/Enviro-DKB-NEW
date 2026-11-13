@@ -5,7 +5,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import ModalPortal from './ModalPortal';
-import { WastewaterData, SurfaceWaterData, RainfallData, ReclamationPlan, WqLocation, WastewaterPhoto } from '../types';
+import {
+  WastewaterData,
+  SurfaceWaterData,
+  RainfallData,
+  ReclamationPlan,
+  WqLocation,
+  WastewaterPhoto,
+  EnvironmentalStandard,
+  InternalThresholdsConfig,
+} from '../types';
 import { 
   Plus, 
   Search, 
@@ -30,21 +39,45 @@ import {
   MapPin,
   X,
   FileText,
-  Loader2
+  Loader2,
+  Sliders
 } from 'lucide-react';
-import { evaluateWastewaterStatus, evaluateSurfaceWaterStatus, WASTEWATER_BASIS_LABEL } from '../data/regulations';
+import {
+  evaluateWastewaterStatus,
+  evaluateSurfaceWaterStatus,
+  evaluateSurfaceWaterParam,
+  resolveActiveStandards,
+  WASTEWATER_BASIS_LABEL,
+  SURFACE_WATER_BASIS_LABEL,
+  DEFAULT_INTERNAL_THRESHOLDS,
+} from '../data/regulations';
 import { todayLocalISO } from '../utils/dateUtils';
 import { wqLocationService } from '../services/wqLocationService';
 import { waterQualityService } from '../services/dbService';
-import { isSuperintendent } from '../services/permissionService';
+import { isSuperintendent, isAdmin } from '../services/permissionService';
 import PhotoUploader, { CompressedPhotoData } from './PhotoUploader';
 import WqLocationModal from './WqLocationModal';
+import StandardsConfigModal from './StandardsConfigModal';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ReferenceLine
+} from 'recharts';
 
 interface MonitoringViewProps {
   wastewater: WastewaterData[];
   surfaceWater: SurfaceWaterData[];
   rainfall: RainfallData[];
   userProfile?: any;
+  standards?: EnvironmentalStandard[];
+  internalThresholds?: InternalThresholdsConfig;
+  canManageStandards?: boolean;
   onAddWastewater: (item: any, photo?: any) => void;
   onUpdateWastewater?: (id: string, item: any, photo?: any) => void;
   onDeleteWastewater: (id: string) => void;
@@ -62,6 +95,9 @@ export default function MonitoringView({
   surfaceWater,
   rainfall,
   userProfile,
+  standards = [],
+  internalThresholds = DEFAULT_INTERNAL_THRESHOLDS,
+  canManageStandards,
   onAddWastewater,
   onUpdateWastewater,
   onDeleteWastewater,
@@ -75,10 +111,12 @@ export default function MonitoringView({
 }: MonitoringViewProps) {
   const [activeTab, setActiveTab] = useState<'water' | 'surfacewater' | 'rainfall' | 'erosion'>('water');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; type: 'water' | 'surfacewater' | 'rain'; message: string } | null>(null);
+  const canManageStd = canManageStandards ?? isSuperintendent(userProfile);
 
-  // MASTER WQ LOCATIONS
+  // MASTER WQ LOCATIONS & STANDARDS
   const [locations, setLocations] = useState<WqLocation[]>([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showStandardsModal, setShowStandardsModal] = useState(false);
 
   useEffect(() => {
     const unsub = wqLocationService.subscribe((data) => {
@@ -128,13 +166,6 @@ export default function MonitoringView({
   const [photoPreviewDoc, setPhotoPreviewDoc] = useState<WastewaterPhoto | null>(null);
   const [isLoadingLazyPhoto, setIsLoadingLazyPhoto] = useState(false);
 
-  // Populate default officer when userProfile arrives
-  useEffect(() => {
-    if (!wOfficer && defaultOfficer) {
-      setWOfficer(defaultOfficer);
-    }
-  }, [defaultOfficer, wOfficer]);
-
   // SURFACE WATER STATE
   const [editingSurfaceWaterId, setEditingSurfaceWaterId] = useState<string | null>(null);
   const [showSurfaceForm, setShowSurfaceForm] = useState(false);
@@ -144,7 +175,17 @@ export default function MonitoringView({
   // Surface Form Fields
   const [swDate, setSwDate] = useState(todayLocalISO());
   const [swLoc, setSwLoc] = useState('Air Sungai Sembakung (Hulu)');
-  const [swOfficer, setSwOfficer] = useState('');
+  const [swOfficer, setSwOfficer] = useState(defaultOfficer);
+
+  // Populate default officer when userProfile arrives
+  useEffect(() => {
+    if (!wOfficer && defaultOfficer) {
+      setWOfficer(defaultOfficer);
+    }
+    if (!swOfficer && defaultOfficer) {
+      setSwOfficer(defaultOfficer);
+    }
+  }, [defaultOfficer, wOfficer, swOfficer]);
   const [swPh, setSwPh] = useState(7.0);
   const [swTss, setSwTss] = useState(15);
   const [swDoVal, setSwDoVal] = useState(6.2);
@@ -152,9 +193,24 @@ export default function MonitoringView({
   const [swCod, setSwCod] = useState(12.0);
   const [swFe, setSwFe] = useState(0.15);
   const [swMn, setSwMn] = useState(0.04);
+  const [swKelasAir, setSwKelasAir] = useState<'I' | 'II' | 'III' | 'IV'>('II');
   const [swMonitoringType, setSwMonitoringType] = useState<'Harian' | 'Bulanan'>('Harian');
 
-  const dynamicSurfaceStatus = evaluateSurfaceWaterStatus(swPh, swTss, swDoVal, swBod, swCod, swFe, swMn);
+  const dynamicSurfaceStatus = evaluateSurfaceWaterStatus(
+    swPh,
+    swTss,
+    swDoVal,
+    swBod,
+    swCod,
+    swFe,
+    swMn,
+    {
+      standards,
+      thresholds: internalThresholds,
+      sampleDate: swDate,
+      kelasAir: swKelasAir,
+    }
+  );
 
   // RAINFALL STATE
   const [showRainForm, setShowRainForm] = useState(false);
@@ -179,12 +235,36 @@ export default function MonitoringView({
     return 'Storm'; // > 50 mm dianggap Hujan Sangat Lebat / Badai (Storm)
   };
 
-  // Calculations for Water compliance rate in view
-  const phLimitRange = "6.0 - 9.0";
-  const tssLimit = "300 mg/L";
+  // Dynamic standards resolution for banner & form display
+  const activeWaterStds = useMemo(
+    () =>
+      resolveActiveStandards(standards, 'air_limbah', {
+        locationCode: wLocationCode,
+        sampleDate: wDate,
+      }),
+    [standards, wLocationCode, wDate]
+  );
+
+  const activeSurfaceStds = useMemo(
+    () =>
+      resolveActiveStandards(standards, 'air_permukaan', {
+        sampleDate: swDate,
+        kelasAir: swKelasAir,
+      }),
+    [standards, swDate, swKelasAir]
+  );
+
+  const phMinLimit = activeWaterStds.ph?.minLimit ?? 6.0;
+  const phMaxLimit = activeWaterStds.ph?.maxLimit ?? 9.0;
+  const tssMaxLimit = activeWaterStds.tss?.maxLimit ?? 300;
+  const feMaxLimit = activeWaterStds.fe?.maxLimit ?? 7.0;
+  const mnMaxLimit = activeWaterStds.mn?.maxLimit ?? 4.0;
+
+  const phLimitRange = `${phMinLimit.toFixed(1)} - ${phMaxLimit.toFixed(1)}`;
+  const tssLimit = `${tssMaxLimit} mg/L`;
   const debitLimit = "Bebas / Pantau";
-  const feLimit = "7.0 mg/L";
-  const mnLimit = "4.0 mg/L";
+  const feLimit = `${feMaxLimit.toFixed(1)} mg/L`;
+  const mnLimit = `${mnMaxLimit.toFixed(1)} mg/L`;
 
   // Decimal parsing helper: accepts comma and dot, verifies finite number
   const parseDecimal = (val: string): number | null => {
@@ -207,13 +287,19 @@ export default function MonitoringView({
     wFeNum !== null && wFeNum >= 0 &&
     wMnNum !== null && wMnNum >= 0;
 
-  // Water dynamic rating calculator (uses parsed values or default for feedback)
+  // Water dynamic rating calculator (uses parsed values + active standards + thresholds)
   const dynamicWaterStatus = evaluateWastewaterStatus(
     wPhNum ?? 7.0,
     wTssNum ?? 0,
     wDebitNum ?? 0,
     wFeNum ?? 0,
-    wMnNum ?? 0
+    wMnNum ?? 0,
+    {
+      standards,
+      thresholds: internalThresholds,
+      locationCode: wLocationCode,
+      sampleDate: wDate,
+    }
   );
 
   // Duplicate check for Daily ('Harian'): (date, locationCode) must be unique
@@ -398,6 +484,7 @@ export default function MonitoringView({
     setSwCod(item.cod);
     setSwFe(item.fe);
     setSwMn(item.mn);
+    setSwKelasAir(item.kelasAir || 'II');
     setSwMonitoringType(item.monitoringType || 'Harian');
     setShowSurfaceForm(true);
   };
@@ -420,6 +507,7 @@ export default function MonitoringView({
       cod: Number(swCod),
       fe: Number(swFe),
       mn: Number(swMn),
+      kelasAir: swKelasAir,
       monitoringType: swMonitoringType
     };
 
@@ -440,6 +528,7 @@ export default function MonitoringView({
     setSwCod(12.0);
     setSwFe(0.15);
     setSwMn(0.04);
+    setSwKelasAir('II');
     setSwMonitoringType('Harian');
     setShowSurfaceForm(false);
   };
@@ -622,6 +711,19 @@ export default function MonitoringView({
           <Droplet className="h-4 w-4" />
           Pemantauan Air Limbah Tambang
         </button>
+
+        <button
+          id="monitoring-tab-surfacewater"
+          onClick={() => setActiveTab('surfacewater')}
+          className={`px-5 py-3 text-sm font-semibold tracking-wide border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === 'surfacewater'
+              ? 'border-teal-500 text-teal-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Activity className="h-4 w-4" />
+          Air Permukaan (Sungai / Badan Air)
+        </button>
         
         <button
           id="monitoring-tab-rainfall"
@@ -772,25 +874,25 @@ export default function MonitoringView({
                     <div className="grid grid-cols-2 gap-2 text-center font-mono">
                       <div className="bg-white border border-slate-200/60 rounded-xl p-1.5 flex flex-col justify-center">
                         <span className="text-slate-500 text-[8px] uppercase">Rerata pH</span>
-                        <strong className={`text-xs mt-0.5 ${monthlyAvgPh < 6 || monthlyAvgPh > 9 ? 'text-rose-600' : 'text-slate-700'}`}>
+                        <strong className={`text-xs mt-0.5 ${monthlyAvgPh < phMinLimit || monthlyAvgPh > phMaxLimit ? 'text-rose-600' : 'text-slate-700'}`}>
                           {monthlyAvgPh}
                         </strong>
                       </div>
                       <div className="bg-white border border-slate-200/60 rounded-xl p-1.5 flex flex-col justify-center">
                         <span className="text-slate-500 text-[8px] uppercase">Rerata TSS</span>
-                        <strong className={`text-xs mt-0.5 ${monthlyAvgTss > 300 ? 'text-rose-600' : 'text-slate-700'}`}>
+                        <strong className={`text-xs mt-0.5 ${monthlyAvgTss > tssMaxLimit ? 'text-rose-600' : 'text-slate-700'}`}>
                           {monthlyAvgTss} <span className="text-[8px] font-normal text-slate-500">mg/L</span>
                         </strong>
                       </div>
                       <div className="bg-white border border-slate-200/60 rounded-xl p-1.5 flex flex-col justify-center">
                         <span className="text-slate-500 text-[8px] uppercase">Rerata Fe</span>
-                        <strong className={`text-xs mt-0.5 ${monthlyAvgFe > 7 ? 'text-rose-600' : 'text-slate-700'}`}>
+                        <strong className={`text-xs mt-0.5 ${monthlyAvgFe > feMaxLimit ? 'text-rose-600' : 'text-slate-700'}`}>
                           {monthlyAvgFe} <span className="text-[8px] font-normal text-slate-500">mg/L</span>
                         </strong>
                       </div>
                       <div className="bg-white border border-slate-200/60 rounded-xl p-1.5 flex flex-col justify-center">
                         <span className="text-slate-500 text-[8px] uppercase">Rerata Mn</span>
-                        <strong className={`text-xs mt-0.5 ${monthlyAvgMn > 4 ? 'text-rose-600' : 'text-slate-700'}`}>
+                        <strong className={`text-xs mt-0.5 ${monthlyAvgMn > mnMaxLimit ? 'text-rose-600' : 'text-slate-700'}`}>
                           {monthlyAvgMn} <span className="text-[8px] font-normal text-slate-500">mg/L</span>
                         </strong>
                       </div>
@@ -842,16 +944,27 @@ export default function MonitoringView({
 
             {/* Action buttons */}
             <div className="flex items-center gap-2 self-start flex-wrap">
-              {isSuperintendent(userProfile) && (
-                <button
-                  id="water-manage-locations-btn"
-                  type="button"
-                  onClick={() => setShowLocationModal(true)}
-                  className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs shadow-sm cursor-pointer transition-colors"
-                >
-                  <MapPin className="h-4 w-4 text-teal-600" />
-                  Kelola Titik Sampling
-                </button>
+              {canManageStd && (
+                <>
+                  <button
+                    id="water-manage-standards-btn"
+                    type="button"
+                    onClick={() => setShowStandardsModal(true)}
+                    className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs shadow-sm cursor-pointer transition-colors"
+                  >
+                    <Sliders className="h-4 w-4 text-teal-600" />
+                    Kelola Baku Mutu &amp; Ambang
+                  </button>
+                  <button
+                    id="water-manage-locations-btn"
+                    type="button"
+                    onClick={() => setShowLocationModal(true)}
+                    className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs shadow-sm cursor-pointer transition-colors"
+                  >
+                    <MapPin className="h-4 w-4 text-teal-600" />
+                    Kelola Titik Sampling
+                  </button>
+                </>
               )}
 
               <button
@@ -1039,7 +1152,7 @@ export default function MonitoringView({
                         wPhNum !== null && (wPhNum < 0 || wPhNum > 14) ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200'
                       }`}
                     />
-                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: 6.0 – 9.0</span>
+                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: {phLimitRange}</span>
                   </div>
 
                   <div>
@@ -1056,7 +1169,7 @@ export default function MonitoringView({
                       onChange={(e) => setWTssStr(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
                     />
-                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: &le; 300 mg/L</span>
+                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: &le; {tssLimit}</span>
                   </div>
 
                   <div>
@@ -1090,7 +1203,7 @@ export default function MonitoringView({
                       onChange={(e) => setWFeStr(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
                     />
-                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: &le; 7.0 mg/L</span>
+                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: &le; {feLimit}</span>
                   </div>
 
                   <div>
@@ -1107,7 +1220,7 @@ export default function MonitoringView({
                       onChange={(e) => setWMnStr(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
                     />
-                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: &le; 4.0 mg/L</span>
+                    <span className="text-[9px] text-slate-400 mt-0.5 block">Baku: &le; {mnLimit}</span>
                   </div>
                 </div>
               </div>
@@ -1294,11 +1407,11 @@ export default function MonitoringView({
                             )}
                           </div>
                         </td>
-                        <td className={`p-3.5 text-center font-bold font-mono ${item.ph < 6 || item.ph > 9 ? 'text-red-600' : 'text-slate-500'}`}>{item.ph}</td>
-                        <td className={`p-3.5 text-center font-bold font-mono ${item.tss > 300 ? 'text-red-600' : 'text-slate-500'}`}>{item.tss}</td>
+                        <td className={`p-3.5 text-center font-bold font-mono ${item.ph < (item.standardSnapshot?.ph?.min ?? phMinLimit) || item.ph > (item.standardSnapshot?.ph?.max ?? phMaxLimit) ? 'text-red-600' : 'text-slate-500'}`}>{item.ph}</td>
+                        <td className={`p-3.5 text-center font-bold font-mono ${item.tss > (item.standardSnapshot?.tss?.max ?? tssMaxLimit) ? 'text-red-600' : 'text-slate-500'}`}>{item.tss}</td>
                         <td className="p-3.5 text-center font-bold font-mono text-teal-600">{(item.debit ?? 0).toFixed(3)}</td>
-                        <td className={`p-3.5 text-center font-bold font-mono ${item.fe > 7 ? 'text-red-600' : 'text-slate-500'}`}>{item.fe}</td>
-                        <td className={`p-3.5 text-center font-bold font-mono ${item.mn > 4 ? 'text-red-600' : 'text-slate-500'}`}>{item.mn}</td>
+                        <td className={`p-3.5 text-center font-bold font-mono ${item.fe > (item.standardSnapshot?.fe?.max ?? feMaxLimit) ? 'text-red-600' : 'text-slate-500'}`}>{item.fe}</td>
+                        <td className={`p-3.5 text-center font-bold font-mono ${item.mn > (item.standardSnapshot?.mn?.max ?? mnMaxLimit) ? 'text-red-600' : 'text-slate-500'}`}>{item.mn}</td>
                         <td className="p-3.5 text-center">
                           <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
                             item.status === 'Safe' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
@@ -1334,6 +1447,432 @@ export default function MonitoringView({
                         </td>
                       </tr>
                     ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'surfacewater' && (
+        <div id="surfacewater-monitoring-panel" className="space-y-6">
+          {/* PP No. 22 Tahun 2021 Lampiran VI Parameter Banner */}
+          <div className="bg-white/70 p-4 border border-slate-200 rounded-2xl space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+              <span className="text-xs font-bold text-[#2E4B3D] uppercase tracking-wider">
+                Baku Mutu Air Permukaan ({SURFACE_WATER_BASIS_LABEL})
+              </span>
+              <span className="text-[11px] font-mono text-slate-500">
+                Periode Statistik: {activeSurfaceMonth ? formatIndoMonth(activeSurfaceMonth) : 'Bulan Ini'} ({monthlySurfaceTotal} Sampel)
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+              <div className="text-center border-r border-slate-100 last:border-0 py-1">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">pH</span>
+                <p className="text-xs font-bold text-slate-800 mt-0.5">
+                  {(activeSurfaceStds.ph?.minLimit ?? 6.0).toFixed(1)} – {(activeSurfaceStds.ph?.maxLimit ?? 9.0).toFixed(1)}
+                </p>
+                <p className="text-[10px] text-teal-600 font-mono">Avg: {monthlySurfaceAvgPh}</p>
+              </div>
+              <div className="text-center border-r border-slate-100 last:border-0 py-1">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">TSS Max</span>
+                <p className="text-xs font-bold text-slate-800 mt-0.5">{activeSurfaceStds.tss?.maxLimit ?? 50} mg/L</p>
+                <p className="text-[10px] text-teal-600 font-mono">Avg: {monthlySurfaceAvgTss}</p>
+              </div>
+              <div className="text-center border-r border-slate-100 last:border-0 py-1">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">DO Min</span>
+                <p className="text-xs font-bold text-slate-800 mt-0.5">≥ {(activeSurfaceStds.doVal?.minLimit ?? 4.0).toFixed(1)} mg/L</p>
+                <p className="text-[10px] text-teal-600 font-mono">Avg: {monthlySurfaceAvgDo}</p>
+              </div>
+              <div className="text-center border-r border-slate-100 last:border-0 py-1">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">BOD Max</span>
+                <p className="text-xs font-bold text-slate-800 mt-0.5">{(activeSurfaceStds.bod?.maxLimit ?? 3.0).toFixed(1)} mg/L</p>
+                <p className="text-[10px] text-teal-600 font-mono">Avg: {monthlySurfaceAvgBod}</p>
+              </div>
+              <div className="text-center border-r border-slate-100 last:border-0 py-1">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">COD Max</span>
+                <p className="text-xs font-bold text-slate-800 mt-0.5">{activeSurfaceStds.cod?.maxLimit ?? 25} mg/L</p>
+                <p className="text-[10px] text-teal-600 font-mono">Avg: {monthlySurfaceAvgCod}</p>
+              </div>
+              <div className="text-center border-r border-slate-100 last:border-0 py-1">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">Fe Max</span>
+                <p className="text-xs font-bold text-slate-800 mt-0.5">{activeSurfaceStds.fe?.maxLimit ?? 0.3} mg/L</p>
+                {activeSurfaceStds.fe?.verificationStatus !== 'Terverifikasi' ? (
+                  <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold mt-0.5">
+                    Informatif (Perlu verifikasi)
+                  </span>
+                ) : (
+                  <p className="text-[10px] text-teal-600 font-mono">Avg: {monthlySurfaceAvgFe}</p>
+                )}
+              </div>
+              <div className="text-center py-1">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">Mn Max</span>
+                <p className="text-xs font-bold text-slate-800 mt-0.5">{activeSurfaceStds.mn?.maxLimit ?? 0.1} mg/L</p>
+                {activeSurfaceStds.mn?.verificationStatus !== 'Terverifikasi' ? (
+                  <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold mt-0.5">
+                    Informatif (Perlu verifikasi)
+                  </span>
+                ) : (
+                  <p className="text-[10px] text-teal-600 font-mono">Avg: {monthlySurfaceAvgMn}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* KPI Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+            <div className="bg-white/70 p-4 rounded-2xl border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase font-mono font-bold">Kepatuhan Bulan Ini</span>
+                <p className="text-2xl font-black text-[#2E4B3D] mt-1">{monthlySurfaceComplianceRate}%</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {monthlySurfaceSafeCount} Aman • {monthlySurfaceWarningCount} Warning • {monthlySurfaceExceededCount} Exceeded
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600">
+                <CheckCircle className="h-5 w-5" />
+              </div>
+            </div>
+
+            <div className="bg-white/70 p-4 rounded-2xl border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase font-mono font-bold">Rata-rata DO / BOD</span>
+                <p className="text-2xl font-black text-sky-700 mt-1">{monthlySurfaceAvgDo} / {monthlySurfaceAvgBod}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">mg/L (Target DO ≥ 4, BOD ≤ 3)</p>
+              </div>
+              <div className="p-3 rounded-xl bg-sky-50 text-sky-600">
+                <Activity className="h-5 w-5" />
+              </div>
+            </div>
+
+            <div className="bg-white/70 p-4 rounded-2xl border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase font-mono font-bold">Total Titik Sampel Sungai</span>
+                <p className="text-2xl font-black text-slate-800 mt-1">{surfaceWater.length} Record</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Hulu, Tengah &amp; Hilir Sungai</p>
+              </div>
+              <div className="p-3 rounded-xl bg-teal-50 text-teal-600">
+                <Droplet className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Tren Parameter Air Permukaan */}
+          {filteredSurfaceWater.length > 0 && (
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 text-left">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Tren Kualitas Air Permukaan (pH, TSS, DO, COD)
+                </h4>
+                <span className="text-[10px] font-mono text-slate-400">12 Sampel Terakhir</span>
+              </div>
+              <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={[...filteredSurfaceWater]
+                      .slice(0, 12)
+                      .reverse()
+                      .map(d => ({ date: d.date, pH: d.ph, TSS: d.tss, DO: d.doVal, COD: d.cod }))}
+                    margin={{ top: 10, right: 16, left: -16, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                    <XAxis dataKey="date" fontSize={10} tickLine={false} />
+                    <YAxis fontSize={10} tickLine={false} />
+                    <RechartsTooltip />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <ReferenceLine y={50} stroke="#EF4444" strokeDasharray="3 3" label={{ value: 'Max TSS 50', position: 'insideTopRight', fill: '#EF4444', fontSize: 9 }} />
+                    <Line type="monotone" dataKey="pH" stroke="#2E4B3D" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="DO" stroke="#0EA5E9" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="TSS" stroke="#E2A43B" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="COD" stroke="#6366F1" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Toolbar Filter & Tombol Input */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="relative min-w-[200px]">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                <input
+                  id="surfacewater-filter-loc"
+                  type="text"
+                  placeholder="Cari Lokasi Sungai..."
+                  value={surfaceFilterLoc}
+                  onChange={(e) => setSurfaceFilterLoc(e.target.value)}
+                  className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:border-teal-500 outline-none w-full"
+                />
+              </div>
+              <select
+                id="surfacewater-filter-status"
+                value={surfaceFilterStatus}
+                onChange={(e) => setSurfaceFilterStatus(e.target.value)}
+                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:border-teal-500 outline-none"
+              >
+                <option value="">Semua Status</option>
+                <option value="Safe">Lolos / Safe</option>
+                <option value="Warning">Warning</option>
+                <option value="Exceeded">Melampaui Baku Mutu</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 self-start flex-wrap">
+              {canManageStd && (
+                <button
+                  type="button"
+                  onClick={() => setShowStandardsModal(true)}
+                  className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs shadow-sm cursor-pointer transition-colors"
+                >
+                  <Sliders className="h-4 w-4 text-teal-600" />
+                  Kelola Baku Mutu &amp; Ambang
+                </button>
+              )}
+              <button
+                id="surfacewater-add-data-btn"
+                onClick={() => {
+                  if (showSurfaceForm) {
+                    setShowSurfaceForm(false);
+                    setEditingSurfaceWaterId(null);
+                  } else {
+                    setShowSurfaceForm(true);
+                  }
+                }}
+                className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-[#2E4B3D] hover:bg-[#233A2F] text-white font-bold rounded-xl text-xs shadow-lg cursor-pointer self-start"
+              >
+                <Plus className="h-4 w-4" />
+                {showSurfaceForm ? 'Tutup Form Air Permukaan' : 'Input Sampel Air Permukaan'}
+              </button>
+            </div>
+          </div>
+
+          {/* Form Input / Edit Air Permukaan */}
+          {showSurfaceForm && (
+            <form
+              id="surfacewater-data-form"
+              onSubmit={handleSurfaceSubmit}
+              className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-left space-y-4"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-[#2E4B3D]">
+                  {editingSurfaceWaterId ? 'Edit Data Uji Air Permukaan' : 'Formulir Uji Kualitas Air Permukaan (Sungai)'}
+                </h3>
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                  dynamicSurfaceStatus === 'Safe' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                  dynamicSurfaceStatus === 'Warning' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                  'bg-rose-50 text-rose-700 border border-rose-200'
+                }`}>
+                  Evaluasi Otomatis: {dynamicSurfaceStatus === 'Safe' ? 'MEMENUHI BAKU MUTU' : dynamicSurfaceStatus === 'Warning' ? 'MENDEKATI BATAS' : 'MELAMPAUI BAKU MUTU'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Tanggal Sampling</label>
+                  <input type="date" required value={swDate} onChange={(e) => setSwDate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Titik Lokasi Sungai</label>
+                  <input type="text" required value={swLoc} onChange={(e) => setSwLoc(e.target.value)} placeholder="cth. Sungai Sembakung Hulu" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Kelas Air (PP 22/2021)</label>
+                  <select value={swKelasAir} onChange={(e) => setSwKelasAir(e.target.value as any)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800">
+                    <option value="I">Kelas I</option>
+                    <option value="II">Kelas II (Default)</option>
+                    <option value="III">Kelas III</option>
+                    <option value="IV">Kelas IV</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Tipe Pemantauan</label>
+                  <select value={swMonitoringType} onChange={(e) => setSwMonitoringType(e.target.value as 'Harian' | 'Bulanan')} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800">
+                    <option value="Harian">Harian</option>
+                    <option value="Bulanan">Bulanan (Lab Terakreditasi)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Petugas Pengambil Sampel</label>
+                  <input type="text" required value={swOfficer} onChange={(e) => setSwOfficer(e.target.value)} placeholder="Nama Petugas" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1">pH (6-9)</label>
+                  <input type="number" step="0.01" required value={swPh} onChange={(e) => setSwPh(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1">TSS (≤{activeSurfaceStds.tss?.maxLimit ?? 50})</label>
+                  <input type="number" step="0.1" required value={swTss} onChange={(e) => setSwTss(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1">DO (≥{activeSurfaceStds.doVal?.minLimit ?? 4})</label>
+                  <input type="number" step="0.01" required value={swDoVal} onChange={(e) => setSwDoVal(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1">BOD (≤{activeSurfaceStds.bod?.maxLimit ?? 3})</label>
+                  <input type="number" step="0.01" required value={swBod} onChange={(e) => setSwBod(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1">COD (≤{activeSurfaceStds.cod?.maxLimit ?? 25})</label>
+                  <input type="number" step="0.1" required value={swCod} onChange={(e) => setSwCod(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1">
+                    Fe (≤{activeSurfaceStds.fe?.maxLimit ?? 0.3})
+                  </label>
+                  <input type="number" step="0.001" required value={swFe} onChange={(e) => setSwFe(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800" />
+                  {activeSurfaceStds.fe?.verificationStatus !== 'Terverifikasi' && (
+                    <span className="text-[9px] text-amber-700 block mt-0.5">Informatif (Perlu verifikasi)</span>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 font-bold mb-1">
+                    Mn (≤{activeSurfaceStds.mn?.maxLimit ?? 0.1})
+                  </label>
+                  <input type="number" step="0.001" required value={swMn} onChange={(e) => setSwMn(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800" />
+                  {activeSurfaceStds.mn?.verificationStatus !== 'Terverifikasi' && (
+                    <span className="text-[9px] text-amber-700 block mt-0.5">Informatif (Perlu verifikasi)</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSurfaceForm(false);
+                    setEditingSurfaceWaterId(null);
+                  }}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-600 font-semibold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#4D7C5A] hover:bg-[#3e6649] text-white font-bold rounded-xl text-xs cursor-pointer"
+                >
+                  {editingSurfaceWaterId ? 'Perbarui Data Air Permukaan' : 'Simpan Data Air Permukaan'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Tabel Data Air Permukaan */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table id="surfacewater-monitoring-table" className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
+                    <th className="p-3.5 pl-5">Tanggal &amp; ID</th>
+                    <th className="p-3.5">Lokasi Sungai &amp; Petugas</th>
+                    <th className="p-3.5 text-center">pH</th>
+                    <th className="p-3.5 text-center">TSS</th>
+                    <th className="p-3.5 text-center">DO</th>
+                    <th className="p-3.5 text-center">BOD</th>
+                    <th className="p-3.5 text-center">COD</th>
+                    <th className="p-3.5 text-center">Fe</th>
+                    <th className="p-3.5 text-center">Mn</th>
+                    <th className="p-3.5 text-center">Status</th>
+                    <th className="p-3.5 text-center pr-5">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSurfaceWater.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="p-10 text-center text-slate-400">
+                        Belum ada data pemantauan air permukaan. Klik tombol "Input Sampel Air Permukaan" untuk mulai mencatat.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredSurfaceWater.map((item) => {
+                      const feEval = evaluateSurfaceWaterParam('fe', item.fe, {
+                        standards,
+                        thresholds: internalThresholds,
+                        sampleDate: item.date,
+                        kelasAir: item.kelasAir || 'II',
+                      });
+                      const mnEval = evaluateSurfaceWaterParam('mn', item.mn, {
+                        standards,
+                        thresholds: internalThresholds,
+                        sampleDate: item.date,
+                        kelasAir: item.kelasAir || 'II',
+                      });
+                      return (
+                      <tr key={item.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                        <td className="p-3.5 pl-5 font-mono">
+                          <span className="text-slate-400 block text-[9px]">{item.id}</span>
+                          <span className="font-semibold text-slate-700">{item.date}</span>
+                        </td>
+                        <td className="p-3.5">
+                          <span className="font-semibold text-slate-800 block">{item.location}</span>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-slate-500">
+                              {item.officer} • {item.monitoringType || 'Harian'}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 border border-sky-200 font-mono">
+                              Kelas {item.kelasAir || 'II'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className={`p-3.5 text-center font-mono font-bold ${item.ph < (item.standardSnapshot?.ph?.min ?? 6) || item.ph > (item.standardSnapshot?.ph?.max ?? 9) ? 'text-red-600' : 'text-slate-600'}`}>{item.ph}</td>
+                        <td className={`p-3.5 text-center font-mono font-bold ${item.tss > (item.standardSnapshot?.tss?.max ?? 50) ? 'text-red-600' : 'text-slate-600'}`}>{item.tss}</td>
+                        <td className={`p-3.5 text-center font-mono font-bold ${item.doVal < (item.standardSnapshot?.doVal?.min ?? 4) ? 'text-red-600' : 'text-sky-700'}`}>{item.doVal}</td>
+                        <td className={`p-3.5 text-center font-mono font-bold ${item.bod > (item.standardSnapshot?.bod?.max ?? 3) ? 'text-red-600' : 'text-slate-600'}`}>{item.bod}</td>
+                        <td className={`p-3.5 text-center font-mono font-bold ${item.cod > (item.standardSnapshot?.cod?.max ?? 25) ? 'text-red-600' : 'text-slate-600'}`}>{item.cod}</td>
+                        <td className={`p-3.5 text-center font-mono font-bold ${feEval.verificationStatus === 'Terverifikasi' && feEval.result === 'tidak_memenuhi' ? 'text-red-600' : 'text-slate-600'}`}>
+                          <span>{item.fe}</span>
+                          {feEval.verificationStatus === 'Perlu verifikasi' && (
+                            <span className="block text-[9px] font-sans font-semibold text-amber-700">
+                              Informatif (Perlu verifikasi)
+                            </span>
+                          )}
+                        </td>
+                        <td className={`p-3.5 text-center font-mono font-bold ${mnEval.verificationStatus === 'Terverifikasi' && mnEval.result === 'tidak_memenuhi' ? 'text-red-600' : 'text-slate-600'}`}>
+                          <span>{item.mn}</span>
+                          {mnEval.verificationStatus === 'Perlu verifikasi' && (
+                            <span className="block text-[9px] font-sans font-semibold text-amber-700">
+                              Informatif (Perlu verifikasi)
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
+                            item.status === 'Safe' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                            item.status === 'Warning' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                            'bg-rose-50 border-rose-200 text-rose-700'
+                          }`}>
+                            {item.status === 'Safe' ? 'Lolos' : item.status === 'Warning' ? 'Warning' : 'Over Limit'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-center pr-5 flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => startEditSurfaceWater(item)}
+                            className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
+                            title="Edit record"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDeleteConfirm({
+                                id: item.id,
+                                type: 'surfacewater',
+                                message: `Hapus data pengamatan air permukaan ${item.id}?`
+                              });
+                            }}
+                            className="p-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg cursor-pointer transition-colors"
+                            title="Hapus record"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1662,6 +2201,16 @@ export default function MonitoringView({
         onClose={() => setShowLocationModal(false)}
         locations={locations}
         canManage={isSuperintendent(userProfile)}
+      />
+
+      {/* Modal Kelola Baku Mutu Lingkungan & Ambang Internal */}
+      <StandardsConfigModal
+        isOpen={showStandardsModal}
+        onClose={() => setShowStandardsModal(false)}
+        standards={standards}
+        internalThresholds={internalThresholds}
+        canManage={canManageStd}
+        canDelete={isAdmin(userProfile)}
       />
 
       {/* Modal Lazy Preview Foto Evidence Sampling */}
