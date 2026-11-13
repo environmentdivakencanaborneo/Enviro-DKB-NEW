@@ -35,6 +35,10 @@ export interface UserProfileLike {
 
 export function isActiveApproved(profile: UserProfileLike | null | undefined): boolean {
   if (!profile) return false;
+  const blockedStatuses = ['Disabled', 'Deleted', 'Rejected', 'Pending'];
+  if (profile.status && blockedStatuses.includes(profile.status)) {
+    return false;
+  }
   const isStatusActiveOrApproved = (profile.status === 'Active' || profile.isApproved === true);
   const isNotDisabled = profile.isActive !== false;
   const isNotDeleted = profile.deleted !== true;
@@ -103,10 +107,15 @@ export const MODULE_MIN_ROLE: Record<string, Role> = {
   waste: 'Viewer',
   solid_waste: 'Viewer',
   capa: 'Viewer',
+  findings: 'Viewer',
   incidents: 'Viewer',
   documents: 'Viewer',
   compliance: 'Viewer',
+  compliance_matrix: 'Viewer',
   regulatory: 'Viewer',
+  regulatory_watch: 'Viewer',
+  notifications: 'Viewer',
+  evidence: 'Viewer',
   reports: 'Viewer'
 };
 

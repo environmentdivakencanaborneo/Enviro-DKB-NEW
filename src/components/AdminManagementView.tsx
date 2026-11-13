@@ -158,7 +158,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
     }
   }, [activeTab]);
 
-  // Load / initialize permission matrix
+  // Load / initialize permission matrix and listen to real-time updates from /app_meta/permission_matrix
   useEffect(() => {
     const defaultMatrix: Record<string, Record<string, boolean>> = {};
     AVAILABLE_ROLES.forEach(role => {
@@ -179,6 +179,22 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
       });
     });
     setPermissionMatrix(defaultMatrix);
+
+    const unsub = onSnapshot(doc(db, 'app_meta', 'permission_matrix'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.matrix) {
+          setPermissionMatrix(prev => ({
+            ...defaultMatrix,
+            ...data.matrix
+          }));
+        }
+      }
+    }, (err) => {
+      console.warn("Could not read app_meta/permission_matrix:", err);
+    });
+
+    return () => unsub();
   }, []);
 
   const triggerToast = (msg: string) => {
@@ -202,6 +218,13 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
       };
 
       await updateDoc(userRef, updatePayload);
+
+      if (approveUserTarget.email) {
+        await setDoc(doc(db, 'roles', approveUserTarget.email), {
+          level: selectedApproveRole,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
 
       await auditService.createLog({
         collection: 'users',
@@ -258,9 +281,16 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
     try {
       await updateDoc(doc(db, 'users', u.uid), {
         status: 'Disabled',
+        isApproved: false,
         isActive: false,
         updatedAt: new Date().toISOString()
       });
+      if (u.email) {
+        await setDoc(doc(db, 'roles', u.email), {
+          level: 'Viewer',
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
       await auditService.createLog({
         collection: 'users',
         recordId: u.uid,
@@ -318,11 +348,18 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
       await updateDoc(doc(db, 'users', u.uid), {
         deleted: true,
         status: 'Deleted',
+        isApproved: false,
         isActive: false,
         deletedAt: new Date().toISOString(),
         deletedBy: currentUser?.email || 'Admin',
         updatedAt: new Date().toISOString()
       });
+      if (u.email) {
+        await setDoc(doc(db, 'roles', u.email), {
+          level: 'Viewer',
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
       await auditService.createLog({
         collection: 'users',
         recordId: u.uid,
@@ -342,6 +379,12 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
         role: selectedNewRole,
         updatedAt: new Date().toISOString()
       });
+      if (editRoleTarget.email) {
+        await setDoc(doc(db, 'roles', editRoleTarget.email), {
+          level: selectedNewRole,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
       await auditService.createLog({
         collection: 'users',
         recordId: editRoleTarget.uid,
@@ -355,14 +398,24 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
     }
   };
 
-  const togglePermission = (role: string, modKey: string) => {
-    setPermissionMatrix(prev => ({
-      ...prev,
+  const togglePermission = async (role: string, modKey: string) => {
+    const nextMatrix = {
+      ...permissionMatrix,
       [role]: {
-        ...prev[role],
-        [modKey]: !prev[role]?.[modKey]
+        ...permissionMatrix[role],
+        [modKey]: !permissionMatrix[role]?.[modKey]
       }
-    }));
+    };
+    setPermissionMatrix(nextMatrix);
+    try {
+      await setDoc(doc(db, 'app_meta', 'permission_matrix'), {
+        matrix: nextMatrix,
+        updatedAt: new Date().toISOString(),
+        updatedBy: currentUser?.email || 'Admin'
+      }, { merge: true });
+    } catch (err: any) {
+      console.error("Gagal menyimpan matriks izin:", err);
+    }
   };
 
   // Filtered lists

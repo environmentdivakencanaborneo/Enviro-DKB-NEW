@@ -49,7 +49,7 @@ const AdminManagementView = lazy(() => import('./components/AdminManagementView'
 const EvidenceHub = lazy(() => import('./components/evidence/EvidenceHub'));
 
 import { useAuth } from './services/authService';
-import { canAccessModule, isAdmin, isSuperintendent, canDelete } from './services/permissionService';
+import { canAccessModule, isAdmin, isSuperintendent, canDelete, isActiveApproved } from './services/permissionService';
 import { useFirestoreData } from './hooks/useFirestoreData';
 import { handleGlobalError } from './utils/errorHandler';
 import { 
@@ -587,7 +587,7 @@ export default function App() {
   };
 
   const handleAddDocument = async (item: any) => {
-    if (!hasWriteAuthority) {
+    if (!isSuperintendent(profile)) {
       showAuthorityWarning("Unggah Dokumen AMDAL/RKL-RPL");
       return;
     }
@@ -599,7 +599,7 @@ export default function App() {
     }
   };
   const handleUpdateDocument = async (id: string, item: any) => {
-    if (!hasWriteAuthority) {
+    if (!isSuperintendent(profile)) {
       showAuthorityWarning("Ubah Dokumen AMDAL/RKL-RPL");
       return;
     }
@@ -611,7 +611,7 @@ export default function App() {
     }
   };
   const handleDeleteDocument = async (id: string) => {
-    if (!canDelete(profile)) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Dokumen AMDAL");
       return;
     }
@@ -680,7 +680,7 @@ export default function App() {
     }
   };
   const handleDeleteCost = async (id: string) => {
-    if (!canDelete(profile)) {
+    if (!isAdmin(profile)) {
       showAuthorityWarning("Hapus Catatan Biaya Lingkungan");
       return;
     }
@@ -939,8 +939,8 @@ export default function App() {
           <RegulatoryWatchView
             data={regulatory}
             isLoading={isLoadingRegulatory}
-            canEdit={hasWriteAuthority}
-            canDelete={canDelete(profile)}
+            canEdit={isSuperintendent(profile)}
+            canDelete={isAdmin(profile)}
             onUnauthorizedAction={showAuthorityWarning}
           />
         );
@@ -1042,6 +1042,7 @@ export default function App() {
               onMarkAllRead={handleNotificationMarkAllRead}
               onClearAll={handleNotificationClearAll}
               userEmail={profile?.email}
+              canDelete={isSuperintendent(profile)}
             />
           </ModuleErrorBoundary>
         );
@@ -1083,7 +1084,7 @@ export default function App() {
     }
   };
 
-  const isApprovedUser = user && profile && (profile.status === 'Active' || profile.isApproved === true);
+  const isApprovedUser = Boolean(user && isActiveApproved(profile));
 
   // Show a full-screen sleek loader if checking auth states
   if (loading && !user && !authError) {

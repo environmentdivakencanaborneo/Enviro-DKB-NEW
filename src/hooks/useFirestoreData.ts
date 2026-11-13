@@ -118,7 +118,7 @@ export function useFirestoreData(activeTab: string) {
   useEffect(() => {
     if (!user || !profile) return;
 
-    const needsMonitoring = ['dashboard', 'monitoring', 'reports'].includes(activeTab);
+    const needsMonitoring = ['dashboard', 'monitoring', 'reports', 'evidence'].includes(activeTab);
     const needsReclamation = ['dashboard', 'reclamation', 'reports', 'executive'].includes(activeTab);
     const needsWaste = ['dashboard', 'waste', 'reports'].includes(activeTab);
     const needsSolidWaste = ['dashboard', 'solid_waste', 'reports'].includes(activeTab);

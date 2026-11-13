@@ -19,6 +19,7 @@ export default function NurseryStockOutForm({ nursery, nurseryStockOut, plans, i
     jumlahKeluar: initialData?.jumlahKeluar?.toString() || '',
     satuan: initialData?.satuan || 'Batang',
     jenisTransaksi: initialData?.jenisTransaksi || 'Penanaman',
+    kapling: initialData?.kapling || '',
     tujuan: initialData?.tujuan || '',
     lokasiPenanaman: initialData?.lokasiPenanaman || '',
     luasReklamasi: initialData?.luasReklamasi?.toString() || '',
@@ -61,6 +62,8 @@ export default function NurseryStockOutForm({ nursery, nurseryStockOut, plans, i
       species: selectedNursery.plantType,
       jumlahKeluar: qty,
       satuan: formData.satuan,
+      jenisTransaksi: formData.jenisTransaksi as any,
+      kapling: formData.kapling || undefined,
       tujuan: formData.tujuan,
       lokasiPenanaman: formData.lokasiPenanaman.trim(),
       luasReklamasi: parseFloat(formData.luasReklamasi) || 0,
@@ -154,6 +157,19 @@ export default function NurseryStockOutForm({ nursery, nurseryStockOut, plans, i
             placeholder="Contoh: Revegetasi"
             className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-2 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
           />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Blok / Area Reklamasi (Opsional)</label>
+          <select
+            value={formData.kapling}
+            onChange={e => setFormData({...formData, kapling: e.target.value})}
+            className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3 py-2 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+          >
+            <option value="">-- Pilih Blok Reklamasi (Opsional) --</option>
+            {plans.map(p => (
+              <option key={p.id} value={p.areaName}>{p.areaName} ({p.targetYear} - {p.sizeHa} Ha)</option>
+            ))}
+          </select>
         </div>
         <div className="md:col-span-2 lg:col-span-3">
           <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Lokasi Penanaman *</label>

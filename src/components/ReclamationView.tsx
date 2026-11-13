@@ -2329,11 +2329,11 @@ export default function ReclamationView({
                         }));
                       } else if (type === 'reset-plan') {
                         await onUpdatePlan(id, {
-                          realizedSizeHa: undefined,
-                          realizedYear: undefined,
-                          realizedPlantType: undefined,
-                          realizedMethod: undefined,
-                          realizedCost: undefined,
+                          realizedSizeHa: null as any,
+                          realizedYear: null as any,
+                          realizedPlantType: null as any,
+                          realizedMethod: null as any,
+                          realizedCost: null as any,
                           status: 'In Progress'
                         });
                       } else if (type === 'guarantee') {

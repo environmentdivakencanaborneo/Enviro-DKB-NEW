@@ -130,9 +130,9 @@ export const NurseryStockOutSchema = z.object({
   penanggungJawab: z.string().min(1, "Penanggung jawab wajib diisi"),
   keterangan: z.string().optional(),
   createdBy: z.string().min(1, "CreatedBy wajib diisi"),
-  createdAt: z.string(),
+  createdAt: z.any().optional(),
   updatedBy: z.string().optional(),
-  updatedAt: z.string().optional(),
+  updatedAt: z.any().optional(),
 });
 
 export const ReclamationPlanSchema = z.object({
@@ -219,7 +219,10 @@ export const EnvironmentalDocumentSchema = z.object({
   expiryDate: z.string().min(1, "Tanggal kadaluarsa wajib diisi"),
   status: z.enum(["Active", "Expired", "Renewal Needed"]),
   pic: z.string().trim().min(2, "Penanggung jawab (PIC) wajib diisi"),
-  fileSize: z.string().optional().nullable(),
+  issuer: z.string().trim().max(200).optional().nullable(),
+  obligations: z.string().trim().max(4000).optional().nullable(),
+  documentUrl: z.string().trim().max(2000).optional().nullable(),
+  fileSize: z.string().max(50).optional().nullable(),
 });
 
 export const ComplianceCalendarEventSchema = z.object({

@@ -83,6 +83,16 @@ const trailUpdate = () => ({
   updatedAt: serverTimestamp(),
 });
 
+function stripUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 // 1. Wastewater (Water Quality) Operations
 export const waterQualityService = {
   subscribe: (callback: (data: WastewaterData[]) => void) => {
@@ -694,7 +704,7 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...merged, ...trailUpdate() } as any);
+    await updateDoc(docRef, stripUndefined({ ...merged, ...trailUpdate() }) as any);
 
     // Update offline cache
     const docs = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
@@ -1993,11 +2003,12 @@ export const nurseryStockOutService = {
   add: async (item: Omit<NurseryStockOut, 'id' | 'createdAt' | 'createdBy'>): Promise<NurseryStockOut> => {
     const id = `NSO-${crypto.randomUUID()}`;
     const user = auth.currentUser;
+    const nowIso = new Date().toISOString();
     const newItem: NurseryStockOut = {
       ...item,
       id,
-      createdBy: user?.uid || 'system',
-      createdAt: new Date().toISOString()
+      createdBy: user?.email || 'system',
+      createdAt: nowIso
     };
 
     const parseResult = NurseryStockOutSchema.safeParse(newItem);
@@ -2005,7 +2016,7 @@ export const nurseryStockOutService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'nursery_stock_out', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'nursery_stock_out', id), stripUndefined({ ...newItem, ...trailCreate(), createdAt: nowIso }));
 
     await auditService.createLog({
       collection: 'nursery_stock_out',
@@ -2018,20 +2029,32 @@ export const nurseryStockOutService = {
   },
 
   update: async (id: string, updates: Partial<Omit<NurseryStockOut, 'id' | 'createdBy' | 'createdAt'>>): Promise<void> => {
+    const docRef = doc(db, 'nursery_stock_out', id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      throw new Error('Data pengeluaran bibit tidak ditemukan.');
+    }
+    const current = snap.data() as NurseryStockOut;
     const user = auth.currentUser;
-    const updatedData = {
+    const merged = {
+      ...current,
       ...updates,
-      updatedBy: user?.uid || 'system',
+      updatedBy: user?.email || 'system',
       updatedAt: new Date().toISOString()
     };
 
-    await updateDoc(doc(db, 'nursery_stock_out', id), { ...updatedData, ...trailUpdate() });
+    const parseResult = NurseryStockOutSchema.safeParse(merged);
+    if (!parseResult.success) {
+      handleValidationError(parseResult.error);
+    }
+
+    await updateDoc(docRef, stripUndefined({ ...merged, ...trailUpdate() }));
 
     await auditService.createLog({
       collection: 'nursery_stock_out',
       recordId: id,
       action: 'update',
-      details: `Mengubah data nursery stock out`
+      details: `Mengubah data nursery stock out ${merged.namaBibit}`
     });
   },
 

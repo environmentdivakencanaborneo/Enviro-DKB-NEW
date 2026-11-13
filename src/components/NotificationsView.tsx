@@ -25,6 +25,7 @@ interface NotificationsViewProps {
   onMarkAllRead: () => void;
   onClearAll: () => void;
   userEmail?: string;
+  canDelete?: boolean;
 }
 
 export default function NotificationsView({
@@ -32,7 +33,8 @@ export default function NotificationsView({
   onMarkRead,
   onMarkAllRead,
   onClearAll,
-  userEmail
+  userEmail,
+  canDelete = false
 }: NotificationsViewProps) {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const unreadCount = alerts.filter(x => {
@@ -64,16 +66,18 @@ export default function NotificationsView({
             Tandai semua dibaca
           </button>
           
-          <button
-            id="notif-clear-all"
-            onClick={() => {
-              setDeleteConfirm(true);
-            }}
-            className="flex items-center gap-2 px-3.5 py-2 border border-red-500/20 hover:bg-red-500/10 text-xs font-semibold rounded-xl text-red-600 transition-colors cursor-pointer"
-          >
-            <Trash2 className="h-4 w-4" />
-            Bersihkan log
-          </button>
+          {canDelete && (
+            <button
+              id="notif-clear-all"
+              onClick={() => {
+                setDeleteConfirm(true);
+              }}
+              className="flex items-center gap-2 px-3.5 py-2 border border-red-500/20 hover:bg-red-500/10 text-xs font-semibold rounded-xl text-red-600 transition-colors cursor-pointer"
+            >
+              <Trash2 className="h-4 w-4" />
+              Bersihkan log
+            </button>
+          )}
         </div>
       </div>
 

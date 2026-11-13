@@ -106,6 +106,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (userDoc.exists()) {
         const data = userDoc.data() as any;
         
+        let effectiveUserRole = data.role;
+        const email = firebaseUser.email || data.email;
+        if (email) {
+          try {
+            const roleDoc = await getDoc(doc(db, 'roles', email));
+            if (roleDoc.exists() && roleDoc.data()?.level) {
+              effectiveUserRole = roleDoc.data().level;
+            }
+          } catch (e) {
+            // non-fatal, fallback to data.role
+          }
+        }
+
+        const blockedStatuses = ['Disabled', 'Deleted', 'Rejected', 'Pending'];
+        const isBlocked = (data.status && blockedStatuses.includes(data.status)) || data.deleted === true || data.isActive === false;
+        const resolvedStatus = data.status || (data.isApproved === true ? 'Active' : 'Pending');
+        const isApproved = isBlocked ? false : (data.isApproved ?? (resolvedStatus === 'Active'));
+        const isActive = isBlocked ? false : (data.isActive ?? true);
+
         const createdAtStr = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString());
         const updatedAtStr = data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : (typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString());
 
@@ -115,12 +134,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           name: data.fullName || data.displayName || data.name || firebaseUser.displayName || 'Pengguna',
           fullName: data.fullName || data.displayName || data.name || firebaseUser.displayName || 'Pengguna',
           displayName: data.displayName || data.fullName || data.name || firebaseUser.displayName || 'Pengguna',
-          email: firebaseUser.email || data.email || '',
+          email: email || '',
           photoURL: firebaseUser.photoURL || data.photoURL || '',
-          role: normalizeRole(data.role),
-          status: data.status || (data.isApproved === true ? 'Active' : 'Pending'),
-          isApproved: data.isApproved ?? (data.status === 'Active'),
-          isActive: data.isActive ?? true,
+          role: normalizeRole(effectiveUserRole),
+          status: resolvedStatus,
+          isApproved,
+          isActive,
           createdAt: createdAtStr,
           updatedAt: updatedAtStr
         };
