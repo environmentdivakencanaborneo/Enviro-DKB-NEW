@@ -60,7 +60,6 @@ const ExternalSupervisionView = lazy(() => import('./components/ExternalSupervis
 const DomesticWastewaterView = lazy(() => import('./components/DomesticWastewaterView'));
 const GhgInventoryView = lazy(() => import('./components/GhgInventoryView'));
 const ReclamationGuaranteeView = lazy(() => import('./components/ReclamationGuaranteeView'));
-const ForestryPpkhView = lazy(() => import('./components/ForestryPpkhView'));
 const StandardsMasterView = lazy(() => import('./components/StandardsMasterView'));
 
 import { useAuth } from './services/authService';
@@ -208,7 +207,6 @@ export default function App() {
     domesticWastewater,
     ghgFactors,
     ghgActivities,
-    forestryPpkh,
     isLoadingWastewater,
     isLoadingSurfaceWater,
     isLoadingRainfall,
@@ -233,8 +231,7 @@ export default function App() {
     isLoadingReportingCalendar,
     isLoadingSupervisions,
     isLoadingDomesticWastewater,
-    isLoadingGhgInventory,
-    isLoadingForestryPpkh
+    isLoadingGhgInventory
   } = useFirestoreData(activeTab);
   
   // Backup Sync and Retry State
@@ -1313,21 +1310,6 @@ export default function App() {
                 activities={ghgActivities}
                 isLoading={isLoadingGhgInventory}
                 canEdit={hasWriteAuthority}
-                canDelete={canDelete(profile)}
-                onUnauthorizedAction={showAuthorityWarning}
-              />
-            </ModuleErrorBoundary>
-          </Suspense>
-        );
-
-      case 'forestry_ppkh':
-        return (
-          <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
-            <ModuleErrorBoundary moduleName="Kewajiban Kehutanan (PPKH & Rehabilitasi DAS)">
-              <ForestryPpkhView
-                data={forestryPpkh}
-                isLoading={isLoadingForestryPpkh}
-                canEdit={isSuperintendent(profile)}
                 canDelete={canDelete(profile)}
                 onUnauthorizedAction={showAuthorityWarning}
               />

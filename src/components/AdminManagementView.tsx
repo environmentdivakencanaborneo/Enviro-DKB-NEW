@@ -74,7 +74,6 @@ const MODULE_PERMISSIONS = [
   { key: 'reclamation_guarantee', label: 'Jaminan Reklamasi & Pascatambang' },
   { key: 'topsoil_erosion', label: 'Topsoil & Erosi' },
   { key: 'biodiversity', label: 'Keanekaragaman Hayati' },
-  { key: 'forestry_ppkh', label: 'Kewajiban Kehutanan (PPKH/DAS)' },
   { key: 'waste', label: 'Limbah B3 TPS' },
   { key: 'solid_waste', label: 'Pengolahan Sampah' },
   { key: 'documents', label: 'Dokumen & Izin' },

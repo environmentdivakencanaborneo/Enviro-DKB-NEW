@@ -34,8 +34,7 @@ import {
   externalSupervisionService,
   domesticWastewaterService,
   ghgFactorService,
-  ghgActivityService,
-  forestryPpkhService
+  ghgActivityService
 } from '../services/dbService';
 import { 
   WastewaterData,
@@ -70,8 +69,7 @@ import {
   ExternalSupervisionData,
   DomesticWastewaterData,
   GhgEmissionFactorData,
-  GhgActivityData,
-  ForestryPpkhData
+  GhgActivityData
 } from '../types';
 import { DEFAULT_INTERNAL_THRESHOLDS, DEFAULT_PROPER_CRITERIA } from '../data/regulations';
 
@@ -117,7 +115,6 @@ export function useFirestoreData(activeTab: string) {
   const [domesticWastewater, setDomesticWastewater] = useState<DomesticWastewaterData[]>([]);
   const [ghgFactors, setGhgFactors] = useState<GhgEmissionFactorData[]>([]);
   const [ghgActivities, setGhgActivities] = useState<GhgActivityData[]>([]);
-  const [forestryPpkh, setForestryPpkh] = useState<ForestryPpkhData[]>([]);
 
   // Loading States
   const [isLoadingWastewater, setIsLoadingWastewater] = useState(false);
@@ -145,7 +142,6 @@ export function useFirestoreData(activeTab: string) {
   const [isLoadingSupervisions, setIsLoadingSupervisions] = useState(false);
   const [isLoadingDomesticWastewater, setIsLoadingDomesticWastewater] = useState(false);
   const [isLoadingGhgInventory, setIsLoadingGhgInventory] = useState(false);
-  const [isLoadingForestryPpkh, setIsLoadingForestryPpkh] = useState(false);
 
   // Persistent subscriptions ref across tab navigation
   const subscriptionsRef = useRef<Map<string, () => void>>(new Map());
@@ -170,7 +166,7 @@ export function useFirestoreData(activeTab: string) {
       setInternalThresholds({ ...DEFAULT_INTERNAL_THRESHOLDS });
       setProperCriteria({ ...DEFAULT_PROPER_CRITERIA });
       setPertekSlo([]); setReportingCalendar([]); setExternalSupervisions([]);
-      setDomesticWastewater([]); setGhgFactors([]); setGhgActivities([]); setForestryPpkh([]);
+      setDomesticWastewater([]); setGhgFactors([]); setGhgActivities([]);
     }
   }, [user, profile]);
 
@@ -210,7 +206,6 @@ export function useFirestoreData(activeTab: string) {
     const needsSupervisions = ['dashboard', 'supervision', 'reports', 'executive'].includes(activeTab);
     const needsDomesticWastewater = ['dashboard', 'domestic_wastewater', 'reports'].includes(activeTab);
     const needsGhgInventory = ['dashboard', 'ghg_inventory', 'reports', 'executive'].includes(activeTab);
-    const needsForestryPpkh = ['dashboard', 'forestry_ppkh', 'reports', 'executive'].includes(activeTab);
 
     try {
       if (needsMonitoring && !subscriptionsRef.current.has('monitoring')) {
@@ -443,14 +438,6 @@ export function useFirestoreData(activeTab: string) {
         });
         subscriptionsRef.current.set('ghg_inventory', () => { u1(); u2(); });
       }
-
-      if (needsForestryPpkh && !subscriptionsRef.current.has('forestry_ppkh')) {
-        setIsLoadingForestryPpkh(true);
-        const u = forestryPpkhService.subscribe((data) => {
-          setForestryPpkh(data); setIsLoadingForestryPpkh(false);
-        });
-        subscriptionsRef.current.set('forestry_ppkh', u);
-      }
     } catch (error) {
       console.error("Gagal mendaftarkan Firestore listeners di hook:", error);
     }
@@ -473,11 +460,11 @@ export function useFirestoreData(activeTab: string) {
     environmentalCosts, alerts, solidWaste, capaFindings, complianceMatrix, incidents, regulatory,
     amdTreatments, airEmissions, topsoilErosions, biodiversity, iadlRisks, properRkab,
     standards, internalThresholds, properCriteria,
-    pertekSlo, reportingCalendar, externalSupervisions, domesticWastewater, ghgFactors, ghgActivities, forestryPpkh,
+    pertekSlo, reportingCalendar, externalSupervisions, domesticWastewater, ghgFactors, ghgActivities,
     isLoadingWastewater, isLoadingSurfaceWater, isLoadingRainfall,
     isLoadingNursery, isLoadingReclamation, isLoadingWaste,
     isLoadingDocuments, isLoadingCosts, isLoadingAlerts, isLoadingSolidWaste, isLoadingCapa, isLoadingCompliance, isLoadingIncidents, isLoadingRegulatory,
     isLoadingAmd, isLoadingAirEmission, isLoadingTopsoil, isLoadingBiodiversity, isLoadingIadl, isLoadingProperRkab,
-    isLoadingPertekSlo, isLoadingReportingCalendar, isLoadingSupervisions, isLoadingDomesticWastewater, isLoadingGhgInventory, isLoadingForestryPpkh
+    isLoadingPertekSlo, isLoadingReportingCalendar, isLoadingSupervisions, isLoadingDomesticWastewater, isLoadingGhgInventory
   };
 }

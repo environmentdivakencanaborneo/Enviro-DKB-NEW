@@ -114,7 +114,6 @@ export const MODULE_MIN_ROLE: Record<string, Role> = {
   reclamation_guarantee: 'Viewer',
   topsoil_erosion: 'Viewer',
   biodiversity: 'Viewer',
-  forestry_ppkh: 'Viewer',
   nursery: 'Viewer',
   waste: 'Viewer',
   solid_waste: 'Viewer',

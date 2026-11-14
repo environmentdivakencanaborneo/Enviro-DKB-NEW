@@ -88,7 +88,6 @@ export default function Header({
       case 'reclamation_guarantee':
       case 'topsoil_erosion':
       case 'biodiversity':
-      case 'forestry_ppkh':
       case 'costs':
         return 'reclamation';
       case 'waste':

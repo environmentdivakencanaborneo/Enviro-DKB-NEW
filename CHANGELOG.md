@@ -4,6 +4,13 @@ Seluruh perubahan utama hingga versi **3.0.0** pada proyek **DEM — Diva Enviro
 
 ---
 
+## [3.0.1] — 2026-11-14
+
+### Penghapusan Modul
+- Menghapus menu dan modul **Kewajiban Kehutanan (`forestry_ppkh` — PPKH & Rehabilitasi DAS)** beserta seluruh komponen, schema Zod, service CRUD, listener Firestore, aturan `firestore.rules`, dan entri `firebase-blueprint.json`, karena seluruh area konsesi perusahaan berada pada **Areal Penggunaan Lain (APL)**. Kelompok menu disesuaikan menjadi **Reklamasi & Pascatambang**.
+
+---
+
 ## [3.0.0] — 2026-11-14
 
 ### 1. Pengamanan Kritis, Tinggi & Hardening Firestore Rules (`CRIT-`, `HIGH-`, `SR-`, `SEC-`)

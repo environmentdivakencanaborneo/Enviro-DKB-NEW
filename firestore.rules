@@ -10,9 +10,9 @@ rules_version = '2';
 //             Break-Glass Admin Isolation, and Least-Privilege Access
 // ============================================================================
 //  CATATAN PERUBAHAN REVISI 05 (FASE 3 - STRUKTUR MENU & MODUL BARU):
-//  - Penambahan 7 koleksi operasional baru + validator ketat:
+//  - Penambahan 6 koleksi operasional baru + validator ketat:
 //    pertek_slo, reporting_calendar, external_supervisions,
-//    domestic_wastewater, ghg_factors, ghg_activities, forestry_ppkh.
+//    domestic_wastewater, ghg_factors, ghg_activities.
 //  - vEnvironmentalStandard: dukung media 'air_limbah_domestik' (Permen LH/BPLH 11/2025).
 //  - vAmdTreatment: dukung treatmentMethod ('Pengapuran Aktif', 'Lahan Basah Buatan', 'Hibrida').
 // ============================================================================
@@ -860,32 +860,6 @@ service cloud.firestore {
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // Kewajiban Kehutanan (PPKH & Rehabilitasi DAS) Validator
-    function vForestryPpkh() {
-      let d = request.resource.data;
-      return d.keys().hasAll(['id','docType','decreeNumber','title','areaLocation','approvedAreaHa','realizedAreaHa','progressPct','legalBasis','authorityLabel','issuedDate','expiryDate','obligationSummary','status','pic'])
-        && shapeOk(24)
-        && isValidDocId(d.id)
-        && d.docType in ['PPKH', 'Rehabilitasi DAS', 'Kompensasi Lahan / Lainnya']
-        && isText(d.decreeNumber, 180)
-        && isText(d.title, 300)
-        && isText(d.areaLocation, 180)
-        && d.approvedAreaHa is number && d.approvedAreaHa >= 0
-        && d.realizedAreaHa is number && d.realizedAreaHa >= 0
-        && d.progressPct is number && d.progressPct >= 0 && d.progressPct <= 100
-        && isText(d.legalBasis, 350)
-        && d.authorityLabel == 'Kementerian Kehutanan'
-        && isText(d.issuedDate, 30)
-        && isText(d.expiryDate, 30)
-        && isText(d.obligationSummary, 2200)
-        && d.status in ['Aktif', 'Dalam Pelaksanaan', 'Selesai', 'Perlu Tindak Lanjut']
-        && isText(d.pic, 100)
-        && isOptText(d.get('documentUrl', null), 1500)
-        && isOptText(d.get('notes', null), 1000)
-        && isOptText(d.get('createdBy', null), 100)
-        && isOptText(d.get('updatedBy', null), 100);
-    }
-
     // --- COLLECTION MATCHES ---
 
     // --- COLLECTION: users [SR-02, SR-03] ---
@@ -1183,12 +1157,6 @@ service cloud.firestore {
     match /ghg_activities/{docId} {
       allow read: if isVerifiedUser();
       allow create, update: if isActiveMember() && isOperator() && vGhgActivity();
-      allow delete: if isAdmin() || isSuperintendent();
-    }
-
-    match /forestry_ppkh/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vForestryPpkh();
       allow delete: if isAdmin() || isSuperintendent();
     }
   }

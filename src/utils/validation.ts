@@ -631,29 +631,3 @@ export const GhgActivitySchema = z.object({
   updatedAt: z.any().optional(),
   updatedBy: z.string().optional(),
 });
-
-export const ForestryPpkhSchema = z.object({
-  id: z.string().min(1, "ID wajib diisi"),
-  docType: z.enum(['PPKH', 'Rehabilitasi DAS', 'Kompensasi Lahan / Lainnya']),
-  decreeNumber: z.string().trim().min(2, "Nomor SK Kementerian Kehutanan wajib diisi").max(150),
-  title: z.string().trim().min(3, "Judul / nama kegiatan wajib diisi").max(250),
-  areaLocation: z.string().trim().min(2, "Lokasi areal wajib diisi").max(150),
-  approvedAreaHa: z.number().finite().min(0, "Luas izin tidak boleh negatif"),
-  realizedAreaHa: z.number().finite().min(0, "Luas realisasi tidak boleh negatif"),
-  progressPct: z.number().finite().min(0).max(100),
-  legalBasis: z.string().trim().min(3, "Dasar hukum wajib diisi pengguna").max(300),
-  authorityLabel: z.literal('Kementerian Kehutanan'),
-  issuedDate: z.string().regex(dateRegex, "Format tanggal terbit harus YYYY-MM-DD"),
-  expiryDate: z.string().trim().min(1, "Masa berlaku wajib diisi").max(30),
-  obligationSummary: z.string().trim().min(3, "Ringkasan kewajiban wajib diisi").max(2000),
-  status: z.enum(['Aktif', 'Dalam Pelaksanaan', 'Selesai', 'Perlu Tindak Lanjut']),
-  pic: z.string().trim().min(2, "PIC wajib diisi").max(100),
-  documentUrl: z.string().trim().max(1500).optional().nullable(),
-  notes: z.string().max(1000).optional().nullable(),
-  createdAt: z.any().optional(),
-  createdBy: z.string().optional(),
-  updatedAt: z.any().optional(),
-  updatedBy: z.string().optional(),
-});
-
-

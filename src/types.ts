@@ -973,29 +973,3 @@ export interface GhgActivityData {
   updatedAt?: any;
   updatedBy?: string;
 }
-
-export interface ForestryPpkhData {
-  id: string;
-  docType: 'PPKH' | 'Rehabilitasi DAS' | 'Kompensasi Lahan / Lainnya';
-  decreeNumber: string; // Nomor SK Kementerian Kehutanan
-  title: string;
-  areaLocation: string;
-  approvedAreaHa: number;
-  realizedAreaHa: number;
-  progressPct: number;
-  legalBasis: string; // Diisi pengguna sesuai SK / peraturan berlaku
-  authorityLabel: 'Kementerian Kehutanan';
-  issuedDate: string;
-  expiryDate: string; // YYYY-MM-DD or 'N/A'
-  obligationSummary: string;
-  status: 'Aktif' | 'Dalam Pelaksanaan' | 'Selesai' | 'Perlu Tindak Lanjut';
-  pic: string;
-  documentUrl?: string;
-  notes?: string;
-  createdAt?: any;
-  createdBy?: string;
-  updatedAt?: any;
-  updatedBy?: string;
-}
-
-

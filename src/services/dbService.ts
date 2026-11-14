@@ -52,8 +52,7 @@ import {
   ExternalSupervisionData,
   DomesticWastewaterData,
   GhgEmissionFactorData,
-  GhgActivityData,
-  ForestryPpkhData
+  GhgActivityData
 } from '../types';
 import { 
   WastewaterSchema,
@@ -86,8 +85,7 @@ import {
   ExternalSupervisionSchema,
   DomesticWastewaterSchema,
   GhgEmissionFactorSchema,
-  GhgActivitySchema,
-  ForestryPpkhSchema
+  GhgActivitySchema
 } from '../utils/validation';
 import { auditService } from './auditService';
 import {
@@ -3421,79 +3419,3 @@ export const ghgActivityService = {
     });
   }
 };
-
-// ============================================================================
-// 27. KEWAJIBAN KEHUTANAN — PPKH & REHABILITASI DAS (Kementerian Kehutanan)
-// ============================================================================
-export const forestryPpkhService = {
-  subscribe: (callback: (data: ForestryPpkhData[]) => void) => {
-    const cached = getOfflineCache<ForestryPpkhData[]>('forestry_ppkh', []);
-    if (cached.length > 0) callback(cached);
-    const q = query(collection(db, 'forestry_ppkh'), orderBy('issuedDate', 'desc'));
-    return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ ...d.data(), id: d.id }) as ForestryPpkhData);
-      setOfflineCache('forestry_ppkh', docs);
-      callback(docs);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'forestry_ppkh');
-    });
-  },
-
-  add: async (item: Omit<ForestryPpkhData, 'id'>): Promise<ForestryPpkhData> => {
-    const id = `FOR-${crypto.randomUUID()}`;
-    const newItem: ForestryPpkhData = { ...item, id };
-    const parseResult = ForestryPpkhSchema.safeParse(newItem);
-    if (!parseResult.success) handleValidationError(parseResult.error);
-
-    await setDoc(doc(db, 'forestry_ppkh', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<ForestryPpkhData[]>('forestry_ppkh', []);
-    setOfflineCache('forestry_ppkh', [newItem, ...docs]);
-
-    await auditService.createLog({
-      collection: 'forestry_ppkh',
-      recordId: id,
-      action: 'insert',
-      details: `Menambah kewajiban ${item.docType} SK ${item.decreeNumber} (${item.approvedAreaHa} Ha)`
-    });
-    return newItem;
-  },
-
-  update: async (id: string, item: Partial<ForestryPpkhData>): Promise<void> => {
-    const docRef = doc(db, 'forestry_ppkh', id);
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) throw new Error('Data kewajiban kehutanan tidak ditemukan.');
-    const updatedItem: ForestryPpkhData = { ...(snap.data() as ForestryPpkhData), ...item, id };
-    const parseResult = ForestryPpkhSchema.safeParse(updatedItem);
-    if (!parseResult.success) handleValidationError(parseResult.error);
-
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<ForestryPpkhData[]>('forestry_ppkh', []);
-    setOfflineCache('forestry_ppkh', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
-      collection: 'forestry_ppkh',
-      recordId: id,
-      action: 'update',
-      details: `Memperbarui ${updatedItem.docType} ${updatedItem.decreeNumber} (Progres: ${updatedItem.progressPct}%)`
-    });
-  },
-
-  delete: async (id: string): Promise<void> => {
-    const docRef = doc(db, 'forestry_ppkh', id);
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
-    const oldData = snap.data() as ForestryPpkhData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<ForestryPpkhData[]>('forestry_ppkh', []);
-    setOfflineCache('forestry_ppkh', docs.filter(x => x.id !== id));
-
-    await auditService.createLog({
-      collection: 'forestry_ppkh',
-      recordId: id,
-      action: 'delete',
-      details: `Menghapus kewajiban kehutanan ${oldData.decreeNumber || '-'} (${oldData.title || '-'})`
-    });
-  }
-};
-
-

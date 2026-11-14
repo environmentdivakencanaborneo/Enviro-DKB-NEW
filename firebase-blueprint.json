@@ -606,22 +606,6 @@
         "emissionsTco2e": { "type": "number" }
       },
       "required": ["id", "date", "reportingYear", "monthPeriod", "activityCategory", "quantity", "emissionsTco2e"]
-    },
-    "ForestryPpkh": {
-      "title": "Forestry Obligation (PPKH & Rehabilitasi DAS)",
-      "description": "Register PPKH & Rehabilitasi DAS di bawah Kementerian Kehutanan",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "docType": { "type": "string" },
-        "decreeNumber": { "type": "string" },
-        "title": { "type": "string" },
-        "approvedAreaHa": { "type": "number" },
-        "realizedAreaHa": { "type": "number" },
-        "legalBasis": { "type": "string" },
-        "authorityLabel": { "type": "string" }
-      },
-      "required": ["id", "docType", "decreeNumber", "title", "approvedAreaHa", "realizedAreaHa", "legalBasis", "authorityLabel"]
     }
   },
   "firestore": {
@@ -740,10 +724,6 @@
     "ghg_activities/{docId}": {
       "schema": "GhgActivity",
       "description": "GHG activity logs and calculated tCO2e inventory"
-    },
-    "forestry_ppkh/{docId}": {
-      "schema": "ForestryPpkh",
-      "description": "Forestry PPKH & Rehabilitasi DAS obligations"
     }
   }
 }

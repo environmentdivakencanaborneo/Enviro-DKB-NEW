@@ -6,7 +6,7 @@ Dibangun dengan **React 19, TypeScript 5.8, Vite 6, Tailwind CSS v4 (tema *Neon 
 
 ---
 
-## Daftar Modul (31 Modul dalam 9 Kelompok Menu)
+## Daftar Modul (32 Modul dalam 9 Kelompok Menu)
 
 ### 1. Ringkasan & Kinerja
 1. **Dashboard Operasional (`dashboard`)** — Ringkasan harian kepatuhan air limbah, air permukaan, curah hujan, stok LB3 TPS, pemilahan sampah, dan peringatan dini.
@@ -36,28 +36,27 @@ Dibangun dengan **React 19, TypeScript 5.8, Vite 6, Tailwind CSS v4 (tema *Neon 
 17. **Limbah B3 — TPS, Logbook, Neraca & Manifest Elektronik (`waste`)** — Logbook masuk/keluar TPS LB3 berbasis alokasi FIFO, pelacakan umur penyimpanan (`75 hari` peringatan dini / `90 hari` default batas), dan manifest elektronik.
 18. **Limbah Non-B3 & Sampah Domestik (`solid_waste`)** — Pencatatan sampah organik, anorganik, dan residu dengan KPI persentase pemilahan/pengolahan internal yang dapat dikonfigurasi (default `30%`).
 
-### 6. Reklamasi, Pascatambang & Kehutanan
+### 6. Reklamasi & Pascatambang *(Area Konsesi 100% APL)*
 19. **Reklamasi & Nursery (`reclamation`)** — Inventaris bibit persemaian (*nursery*), penyaluran bibit keluar, rencana & realisasi reklamasi lahan tambang.
 20. **Jaminan Reklamasi & Pascatambang (`reclamation_guarantee`) `[BARU]`** — Pengelolaan instrumen jaminan (termasuk Deposito Berjangka Bank Pemerintah), nilai penempatan, status pencairan, dan pemantauan jatuh tempo Jamrek/JamPT.
 21. **Tanah Pucuk, Erosi & Sedimentasi (`topsoil_erosion`)** — Neraca *stockpile topsoil*, penanaman *cover crop*, dan pengendalian erosi/sedimentasi.
 22. **Keanekaragaman Hayati & TSL Dilindungi (`biodiversity`)** — Inventarisasi flora/fauna, status konservasi, dan pemantauan koridor satwa.
-23. **Kewajiban Kehutanan — PPKH & Rehabilitasi DAS (`forestry_ppkh`) `[BARU]`** — Register Persetujuan Penggunaan Kawasan Hutan (PPKH), luas kewajiban, progres penanaman/pemeliharaan Rehabilitasi DAS, serta serah terima.
 
 ### 7. Insiden & Perbaikan
-24. **Insiden & Tanggap Darurat Pencemaran (`incidents`)** — Pelaporan tumpahan, luapan KPL, dan insiden lingkungan beserta tindakan penanggulangan.
-25. **CAPA & Temuan (`findings`)** — Pelacakan tindakan korektif dan preventif (*Corrective & Preventive Action*) dari audit internal, PROPER, maupun pengawasan eksternal.
+23. **Insiden & Tanggap Darurat Pencemaran (`incidents`)** — Pelaporan tumpahan, luapan KPL, dan insiden lingkungan beserta tindakan penanggulangan.
+24. **CAPA & Temuan (`findings`)** — Pelacakan tindakan korektif dan preventif (*Corrective & Preventive Action*) dari audit internal, PROPER, maupun pengawasan eksternal.
 
 ### 8. Biaya & Pelaporan
-26. **Biaya Lingkungan (`costs`)** — Rencana & realisasi anggaran OPEX/CAPEX pengelolaan lingkungan (*Superintendent+ / Auditor read-only*).
-27. **Laporan Lingkungan Tambang (`reports`)** — Rekapitulasi lintas-modul dan ekspor multi-sheet Excel (`.xlsx`).
+25. **Biaya Lingkungan (`costs`)** — Rencana & realisasi anggaran OPEX/CAPEX pengelolaan lingkungan (*Superintendent+ / Auditor read-only*).
+26. **Laporan Lingkungan Tambang (`reports`)** — Rekapitulasi lintas-modul dan ekspor multi-sheet Excel (`.xlsx`).
 
 ### 9. Sistem & Administrasi
-28. **Notifikasi & Peringatan Dini (`notifications`)** — Log peringatan pelampauan baku mutu, batas simpan TPS, persetujuan, dan jadwal kepatuhan.
-29. **Persetujuan Registrasi (`registration_approval`)** — Verifikasi pendaftar baru (*Pending -> Active / Rejected*) beserta penetapan peran awal (*Manager+*).
-30. **Manajemen Pengguna (`user_management`)** — Pengelolaan status akun (*Enable/Disable*, soft-delete, reset password, ubah peran) (*Manager+*).
-31. **Matriks Peran / RBAC (`role_management`)** — Konfigurasi matriks hak akses di `app_meta/permission_matrix` (*Admin*).
-32. **Audit Trail Sistem (`audit_log`)** — Log aktivitas baca/tulis Firestore yang *immutable append-only* (*Superintendent+ / Auditor read-only*).
-33. **Master Baku Mutu & Konfigurasi (`standards_master`) `[BARU]`** — Pengelolaan master koleksi `standards/{id}` dan ambang batas internal (`app_meta/env_thresholds`) (*Superintendent+ / Auditor read-only*).
+27. **Notifikasi & Peringatan Dini (`notifications`)** — Log peringatan pelampauan baku mutu, batas simpan TPS, persetujuan, dan jadwal kepatuhan.
+28. **Persetujuan Registrasi (`registration_approval`)** — Verifikasi pendaftar baru (*Pending -> Active / Rejected*) beserta penetapan peran awal (*Manager+*).
+29. **Manajemen Pengguna (`user_management`)** — Pengelolaan status akun (*Enable/Disable*, soft-delete, reset password, ubah peran) (*Manager+*).
+30. **Matriks Peran / RBAC (`role_management`)** — Konfigurasi matriks hak akses di `app_meta/permission_matrix` (*Admin*).
+31. **Audit Trail Sistem (`audit_log`)** — Log aktivitas baca/tulis Firestore yang *immutable append-only* (*Superintendent+ / Auditor read-only*).
+32. **Master Baku Mutu & Konfigurasi (`standards_master`) `[BARU]`** — Pengelolaan master koleksi `standards/{id}` dan ambang batas internal (`app_meta/env_thresholds`) (*Superintendent+ / Auditor read-only*).
 
 ---
 
@@ -87,7 +86,6 @@ Dibangun dengan **React 19, TypeScript 5.8, Vite 6, Tailwind CSS v4 (tema *Neon 
 | **Jaminan Reklamasi & Pascatambang (`reclamation_guarantee`)** | Kepmen ESDM No. 344.K/MB.01/MEM.B/2025 (Deposito Berjangka pada Bank Pemerintah) |
 | **Tanah Pucuk, Erosi & Sedimentasi (`topsoil_erosion`)** | Kepmen ESDM No. 1827 K/30/MEM/2018 |
 | **Keanekaragaman Hayati (`biodiversity`)** | Permen LHK No. P.106/MENLHK/SETJEN/KUM.1/12/2018 · UU No. 32 Tahun 2024 |
-| **Kewajiban Kehutanan PPKH & DAS (`forestry_ppkh`)** | Kementerian Kehutanan (dasar hukum sesuai SK PPKH masing-masing) |
 | **Insiden & Tanggap Darurat (`incidents`)** | PP No. 22 Tahun 2021 · Kepmen ESDM No. 1827 K/30/MEM/2018 |
 | **CAPA & Temuan (`findings`)** | ISO 14001:2015 · Permen LH/BPLH No. 6 Tahun 2026 & No. 7 Tahun 2025 |
 | **Biaya Lingkungan (`costs`)** | Permen ESDM No. 17 Tahun 2025 jo. No. 6 Tahun 2026 (RKAB) |
@@ -103,7 +101,7 @@ Dibangun dengan **React 19, TypeScript 5.8, Vite 6, Tailwind CSS v4 (tema *Neon 
 2. `Auditor` (`1`) — Akses baca modul operasional + akses *read-only* khusus ke `audit_log`, `compliance_matrix`, `regulatory_watch`, `proper_rkab`, dan `costs`.
 3. `Operator` (`2`) — Tambah/ubah data operasional harian & terbitkan Evidence Harian (`Disiapkan`). Tidak boleh menghapus data.
 4. `Foreman` (`2.5`) — Seluruh hak Operator + menandatangani verifikasi Evidence (`Diperiksa`) untuk dokumen yang bukan disiapkan oleh dirinya sendiri.
-5. `Environment Superintendent` (`3`) — Hak hapus pada koleksi operasional, kelola Master Baku Mutu (`standards`), ambang internal (`env_thresholds`), kriteria PROPER (`proper_criteria`), dokumen izin, biaya lingkungan, regulasi, Pertek/SLO, Pengawasan Eksternal, PPKH, dan revisi Evidence.
+5. `Environment Superintendent` (`3`) — Hak hapus pada koleksi operasional, kelola Master Baku Mutu (`standards`), ambang internal (`env_thresholds`), kriteria PROPER (`proper_criteria`), dokumen izin, biaya lingkungan, regulasi, Pertek/SLO, Pengawasan Eksternal, dan revisi Evidence.
 6. `Environment Manager` (`4`) — Hak administratif (`registration_approval`, `user_management`), persetujuan akhir Evidence (`Disetujui`) & pembatalan (`Dibatalkan`), hapus dokumen/biaya/regulasi/master baku mutu (`isAdmin()` di `firestore.rules`).
 7. `Admin` (`5`) — Seluruh kewenangan sistem termasuk `role_management` (`app_meta/permission_matrix`).
 

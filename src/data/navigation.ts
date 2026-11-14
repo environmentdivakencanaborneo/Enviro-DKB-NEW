@@ -30,7 +30,6 @@ import {
   ShowerHead,
   CloudCog,
   Landmark,
-  TreePine,
   Sliders,
   LucideIcon
 } from 'lucide-react';
@@ -227,7 +226,7 @@ export const APP_MENU_GROUPS: NavGroup[] = [
     ]
   },
   {
-    group: 'REKLAMASI, PASCATAMBANG & KEHUTANAN',
+    group: 'REKLAMASI & PASCATAMBANG',
     items: [
       {
         id: 'reclamation',
@@ -261,15 +260,6 @@ export const APP_MENU_GROUPS: NavGroup[] = [
         subtitle: 'Inventarisasi Flora, Fauna & Koridor Satwa Dilindungi',
         regulationBasis: 'Permen LHK No. P.106/2018',
         regulationSearchKey: '106',
-      },
-      {
-        id: 'forestry_ppkh',
-        name: 'Kewajiban Kehutanan (PPKH & Rehabilitasi DAS)',
-        icon: TreePine,
-        isNew: true,
-        subtitle: 'Persetujuan Penggunaan Kawasan Hutan & Progres Rehabilitasi DAS',
-        regulationBasis: 'Kementerian Kehutanan (Dasar Hukum Sesuai SK)',
-        regulationSearchKey: 'Kehutanan',
       },
     ]
   },
