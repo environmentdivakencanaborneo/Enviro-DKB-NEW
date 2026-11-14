@@ -260,7 +260,7 @@ export default function ReportsView({
   };
 
   return (
-    <div id="reports-view-wrapper" className="space-y-6 text-slate-700 text-left">
+    <div id="reports-view-wrapper" className="space-y-6 text-text-mid text-left">
       {/* Dynamic inline stylesheet specifically for print formatting */}
       <style>{`
         @media print {
@@ -334,15 +334,15 @@ export default function ReportsView({
       `}</style>
 
       {/* Top Segmented Switch: Laporan Terintegrasi vs Evidence Air Limbah */}
-      <div id="reports-main-tab-switch" className="flex items-center justify-between bg-white p-2 rounded-2xl border border-slate-200 shadow-xs no-print">
-        <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+      <div id="reports-main-tab-switch" className="flex items-center justify-between glass-panel p-2 rounded-2xl border border-border-neon no-print">
+        <div className="flex bg-bg-0/60 p-1 rounded-xl text-xs font-semibold border border-border-subtle">
           <button
             type="button"
             onClick={() => setMainTab('integrated')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
               mainTab === 'integrated'
-                ? 'bg-white text-teal-800 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/40 shadow-glow-cyan font-bold'
+                : 'text-text-mid hover:text-text-hi border border-transparent'
             }`}
           >
             <FileText className="w-4 h-4" />
@@ -353,15 +353,15 @@ export default function ReportsView({
             onClick={() => setMainTab('evidence')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
               mainTab === 'evidence'
-                ? 'bg-white text-emerald-800 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-neon-green/15 text-neon-green border border-neon-green/40 shadow-glow-green font-bold'
+                : 'text-text-mid hover:text-text-hi border border-transparent'
             }`}
           >
-            <Leaf className="w-4 h-4 text-emerald-600" />
+            <Leaf className="w-4 h-4 text-neon-green" />
             Evidence Air Limbah
           </button>
         </div>
-        <div className="hidden sm:block text-xs text-slate-500 font-mono pr-2">
+        <div className="hidden sm:block text-xs text-text-low font-mono pr-2">
           Kepatuhan AMDAL &bull; ISO 14001:2015
         </div>
       </div>
@@ -375,15 +375,15 @@ export default function ReportsView({
       ) : !isPreview ? (
         <div id="reports-setup-tab" className="space-y-6 animate-fade-in">
           {/* Main selection card */}
-          <div className="bg-white/80 p-6 border border-slate-200 rounded-2xl max-w-2xl mx-auto space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+          <div className="glass-panel p-6 border border-border-neon rounded-2xl max-w-2xl mx-auto space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border-subtle">
               <div className="flex items-center gap-3.5">
-                <div className="p-3 bg-teal-500/10 text-teal-600 rounded-xl">
+                <div className="p-3 bg-neon-cyan/15 border border-neon-cyan/30 text-neon-cyan rounded-xl">
                   <FileText className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">Config Laporan Lingkungan Tambang</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Analisa otomatis parameter baku mutu sesuai {WASTEWATER_BASIS_LABEL}</p>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-text-hi font-heading">Config Laporan Lingkungan Tambang</h3>
+                  <p className="text-xs text-text-mid mt-0.5">Analisa otomatis parameter baku mutu sesuai {WASTEWATER_BASIS_LABEL}</p>
                 </div>
               </div>
 
@@ -408,8 +408,8 @@ export default function ReportsView({
                   properRkab
                 }, user?.company)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-                  bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white
-                  text-xs font-semibold shadow-sm transition-all duration-200 cursor-pointer self-start sm:self-center"
+                  bg-neon-green/15 hover:bg-neon-green/25 text-neon-green border border-neon-green/40
+                  text-xs font-semibold transition-all duration-200 cursor-pointer self-start sm:self-center"
               >
                 <FileSpreadsheet size={14} />
                 Export ke Excel (.xlsx)
@@ -417,66 +417,66 @@ export default function ReportsView({
             </div>
 
             <div className="space-y-4">
-              <label className="block text-xs text-slate-500 font-bold uppercase tracking-wider">Pilih Jangka Waktu & Format Laporan</label>
+              <label className="block text-xs text-text-low font-bold uppercase tracking-wider">Pilih Jangka Waktu & Format Laporan</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   id="report-select-weekly"
                   type="button"
                   onClick={() => setReportType('weekly')}
-                  className={`p-4 rounded-xl border-2 text-left transition-all flex flex-col justify-between cursor-pointer ${
+                  className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                     reportType === 'weekly' 
-                      ? 'border-teal-500 bg-teal-500/10 text-teal-800 font-bold' 
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'
+                      ? 'border-neon-cyan bg-neon-cyan/10 text-neon-cyan font-bold shadow-glow-cyan' 
+                      : 'border-border-subtle bg-bg-0/50 text-text-mid hover:border-border-neon hover:text-text-hi'
                   }`}
                 >
                   <span className="text-xs uppercase font-bold tracking-widest font-mono">Laporan Mingguan</span>
-                  <p className="text-[10px] text-slate-500 font-sans font-medium mt-1">Pilih minggu kalender berjalan (Senin – Minggu).</p>
+                  <p className="text-[10px] text-text-mid font-sans font-medium mt-1">Pilih minggu kalender berjalan (Senin – Minggu).</p>
                 </button>
 
                 <button
                   id="report-select-monthly"
                   type="button"
                   onClick={() => setReportType('monthly')}
-                  className={`p-4 rounded-xl border-2 text-left transition-all flex flex-col justify-between cursor-pointer ${
+                  className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                     reportType === 'monthly' 
-                      ? 'border-teal-500 bg-teal-500/10 text-teal-800 font-bold' 
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'
+                      ? 'border-neon-cyan bg-neon-cyan/10 text-neon-cyan font-bold shadow-glow-cyan' 
+                      : 'border-border-subtle bg-bg-0/50 text-text-mid hover:border-border-neon hover:text-text-hi'
                   }`}
                 >
                   <span className="text-xs uppercase font-bold tracking-widest font-mono">Laporan Bulanan</span>
-                  <p className="text-[10px] text-slate-500 font-sans font-medium mt-1">Pilih bulan dan tahun kalender berjalan.</p>
+                  <p className="text-[10px] text-text-mid font-sans font-medium mt-1">Pilih bulan dan tahun kalender berjalan.</p>
                 </button>
               </div>
 
               {/* Dynamic Calendar Date Picker for Weekly / Monthly */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="p-4 bg-bg-0/50 border border-border-neon rounded-xl space-y-2">
                 {reportType === 'weekly' ? (
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label className="block text-[11px] font-bold text-text-hi mb-1">
                       Pilih Tanggal Acuan Minggu (Senin – Minggu):
                     </label>
                     <input 
                       type="date"
                       value={selectedWeekDate}
                       onChange={e => setSelectedWeekDate(e.target.value)}
-                      className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-teal-500 shadow-sm"
+                      className="px-3 py-1.5 text-xs font-mono"
                     />
-                    <p className="text-[11px] text-teal-700 font-semibold mt-2">
+                    <p className="text-[11px] text-neon-cyan font-mono font-semibold mt-2">
                       Rentang Periode: {formatDateLocalIndonesian(startDate)} s.d. {formatDateLocalIndonesian(endDate)}
                     </p>
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label className="block text-[11px] font-bold text-text-hi mb-1">
                       Pilih Bulan & Tahun Laporan:
                     </label>
                     <input 
                       type="month"
                       value={selectedMonth}
                       onChange={e => setSelectedMonth(e.target.value)}
-                      className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-teal-500 shadow-sm"
+                      className="px-3 py-1.5 text-xs font-mono"
                     />
-                    <p className="text-[11px] text-teal-700 font-semibold mt-2">
+                    <p className="text-[11px] text-neon-cyan font-mono font-semibold mt-2">
                       Rentang Periode: {formatDateLocalIndonesian(startDate)} s.d. {formatDateLocalIndonesian(endDate)}
                     </p>
                   </div>
@@ -484,11 +484,11 @@ export default function ReportsView({
               </div>
             </div>
 
-            <div className="bg-white p-4.5 rounded-xl border border-slate-200 flex items-start gap-3.5 text-xs text-slate-500">
-              <Info className="h-4 w-4 text-teal-600 shrink-0 mt-0.5" />
+            <div className="bg-bg-1/60 p-4.5 rounded-xl border border-border-subtle flex items-start gap-3.5 text-xs text-text-mid">
+              <Info className="h-4 w-4 text-neon-cyan shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-slate-700">Kompilasi Otomatis (Automatic Evaluator)</p>
-                <p className="mt-1 leading-relaxed text-slate-500">
+                <p className="font-semibold text-text-hi">Kompilasi Otomatis (Automatic Evaluator)</p>
+                <p className="mt-1 leading-relaxed text-text-mid">
                   Laporan yang di-generate mencakup evaluasi baku mutu air limbah KPL, grafik intensitas hujan harian, audit log TPS Limbah B3, serta progress inventaris tanaman nursery secara real-time.
                 </p>
               </div>
@@ -497,7 +497,7 @@ export default function ReportsView({
             <button
               id="report-view-preview-btn"
               onClick={() => setIsPreview(true)}
-              className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs shadow transition-colors cursor-pointer"
+              className="neon-btn-primary w-full py-3 rounded-xl text-xs cursor-pointer"
             >
               Generate & Preview Draft Laporan
             </button>
@@ -506,11 +506,11 @@ export default function ReportsView({
       ) : (
         <div id="reports-preview-tab" className="space-y-6">
           {/* Back & Print Action Bar */}
-          <div id="reports-toolbar-buttons" className="flex items-center justify-between bg-white/60 p-4 border border-slate-200 rounded-2xl">
+          <div id="reports-toolbar-buttons" className="flex items-center justify-between glass-panel p-4 border border-border-neon rounded-2xl">
             <button
               id="reports-back-btn"
               onClick={() => setIsPreview(false)}
-              className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold hover:bg-white rounded-xl text-slate-600 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold hover:bg-bg-2 rounded-xl text-text-mid hover:text-text-hi border border-border-subtle transition-colors cursor-pointer"
             >
               <ArrowLeft className="h-4 w-4" />
               Kembali
@@ -519,22 +519,22 @@ export default function ReportsView({
             <button
               id="reports-trigger-print-btn"
               onClick={handlePrint}
-              className="flex items-center gap-2 px-5 py-2.5 bg-teal-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-teal-400 shadow transition-colors cursor-pointer"
+              className="neon-btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs cursor-pointer"
             >
               <Printer className="h-4 w-4" />
               Cetak PDF / Print Laporan
             </button>
           </div>
 
-          <div id="print-reminder-banner" className="bg-white p-4 rounded-xl border border-slate-200/80 flex items-center gap-2.5 text-xs text-slate-500">
-            <Info className="h-4 w-4 text-amber-500" />
+          <div id="print-reminder-banner" className="bg-neon-amber/10 p-4 rounded-xl border border-neon-amber/30 flex items-center gap-2.5 text-xs text-text-mid">
+            <Info className="h-4 w-4 text-neon-amber shrink-0" />
             <span>Format cetak dioptimalkan untuk ukuran kertas **A4 Portrait**. Gunakan opsi **Save as PDF** di browser Anda.</span>
           </div>
 
-          {/* Real styled A4 Container */}
+          {/* Real styled A4 Container (formal white-black print surface preserved) */}
           <div 
             id="print-document-container"
-            className="bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 shadow-2xl max-w-4xl mx-auto font-sans text-left space-y-8"
+            className="bg-white text-slate-700 border border-slate-200 rounded-2xl p-8 sm:p-12 shadow-2xl max-w-4xl mx-auto font-sans text-left space-y-8"
           >
             {/* Header Laporan */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b-2 border-slate-200">

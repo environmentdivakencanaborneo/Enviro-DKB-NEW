@@ -8,6 +8,7 @@ import ModalPortal from './ModalPortal';
 import { WqLocation } from '../types';
 import { wqLocationService } from '../services/wqLocationService';
 import { MapPin, Plus, X, Edit2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import StatusBadge from './StatusBadge';
 
 interface WqLocationModalProps {
   isOpen: boolean;
@@ -119,26 +120,26 @@ export default function WqLocationModal({
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-left">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-0/75 backdrop-blur-md animate-fade-in">
+        <div className="glass-panel rounded-2xl shadow-2xl border border-border-neon w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-left">
           {/* Header */}
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="px-6 py-4 border-b border-border-subtle flex items-center justify-between bg-bg-2/60">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600">
+              <div className="w-8 h-8 rounded-lg bg-neon-cyan/15 border border-neon-cyan/35 flex items-center justify-center text-neon-cyan">
                 <MapPin className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-800">
+                <h3 className="text-sm font-bold text-text-hi font-heading">
                   Kelola Master Titik Sampling Air Limbah
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-text-mid">
                   Koleksi master titik KPL / Settling Pond (Wewenang Superintendent ke atas)
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
+              className="p-1.5 rounded-lg text-text-low hover:text-text-hi hover:bg-bg-2 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -147,7 +148,7 @@ export default function WqLocationModal({
           {/* Body */}
           <div className="p-6 overflow-y-auto space-y-4 flex-1">
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-neon-red/10 border border-neon-red/35 text-neon-red text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
@@ -156,14 +157,14 @@ export default function WqLocationModal({
             {/* Action Bar */}
             {canManage && (
               <div className="flex justify-between items-center">
-                <span className="text-xs text-slate-500 font-medium">
-                  Total Terdaftar: <strong className="text-slate-800">{locations.length} Lokasi</strong>
+                <span className="text-xs text-text-mid font-medium">
+                  Total Terdaftar: <strong className="text-text-hi font-mono tabular-nums">{locations.length} Lokasi</strong>
                 </span>
                 {!showAddForm && (
                   <button
                     type="button"
                     onClick={() => setShowAddForm(true)}
-                    className="px-3 py-1.5 bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                    className="neon-btn-primary px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     Tambah Titik Baru
@@ -176,16 +177,16 @@ export default function WqLocationModal({
             {showAddForm && canManage && (
               <form
                 onSubmit={handleCreate}
-                className="p-4 rounded-xl border border-teal-200 bg-teal-50/30 space-y-3 animate-slide-up"
+                className="p-4 rounded-xl border border-neon-cyan/35 bg-neon-cyan/5 space-y-3 animate-slide-up"
               >
-                <div className="flex items-center justify-between pb-1 border-b border-teal-200/60">
-                  <span className="text-xs font-bold text-teal-800">
+                <div className="flex items-center justify-between pb-1 border-b border-neon-cyan/25">
+                  <span className="text-xs font-bold text-neon-cyan font-heading">
                     Tambah Titik Sampling Baru
                   </span>
                   <button
                     type="button"
                     onClick={() => setShowAddForm(false)}
-                    className="text-xs text-slate-400 hover:text-slate-700"
+                    className="text-xs text-text-low hover:text-text-hi cursor-pointer"
                   >
                     Batal
                   </button>
@@ -193,7 +194,7 @@ export default function WqLocationModal({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                    <label className="block text-[10px] font-bold text-text-low uppercase mb-1">
                       Kode Titik (cth: KPL-02) *
                     </label>
                     <input
@@ -202,12 +203,12 @@ export default function WqLocationModal({
                       placeholder="KPL-02"
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono uppercase focus:ring-1 focus:ring-teal-500 outline-none"
+                      className="w-full px-3 py-1.5 text-xs font-mono uppercase"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                    <label className="block text-[10px] font-bold text-text-low uppercase mb-1">
                       Nama Titik Sampling *
                     </label>
                     <input
@@ -216,12 +217,12 @@ export default function WqLocationModal({
                       placeholder="KPL Tambang Blok Selatan"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 outline-none"
+                      className="w-full px-3 py-1.5 text-xs"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                    <label className="block text-[10px] font-bold text-text-low uppercase mb-1">
                       Sumber Air Limbah Default *
                     </label>
                     <input
@@ -230,12 +231,12 @@ export default function WqLocationModal({
                       placeholder="Settling Pond Outlet"
                       value={defaultSource}
                       onChange={(e) => setDefaultSource(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 outline-none"
+                      className="w-full px-3 py-1.5 text-xs"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                    <label className="block text-[10px] font-bold text-text-low uppercase mb-1">
                       Suffix Dokumen (Opsional)
                     </label>
                     <input
@@ -243,18 +244,18 @@ export default function WqLocationModal({
                       placeholder="cth: SP-02"
                       value={docSuffix}
                       onChange={(e) => setDocSuffix(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 outline-none"
+                      className="w-full px-3 py-1.5 text-xs"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                    <label className="block text-[10px] font-bold text-text-low uppercase mb-1">
                       Kelas Air (PP 22/2021 Lampiran VI)
                     </label>
                     <select
                       value={kelasAir}
                       onChange={(e) => setKelasAir(e.target.value as any)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500 outline-none"
+                      className="w-full px-3 py-1.5 text-xs cursor-pointer"
                     >
                       <option value="I">Kelas I</option>
                       <option value="II">Kelas II (Default)</option>
@@ -268,14 +269,14 @@ export default function WqLocationModal({
                   <button
                     type="button"
                     onClick={() => setShowAddForm(false)}
-                    className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-800"
+                    className="px-3 py-1.5 text-xs text-text-mid hover:text-text-hi cursor-pointer"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-4 py-1.5 bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold text-xs rounded-lg shadow-sm cursor-pointer"
+                    className="neon-btn-primary px-4 py-1.5 text-xs rounded-lg cursor-pointer"
                   >
                     {isSubmitting ? 'Menyimpan...' : 'Simpan Titik'}
                   </button>
@@ -284,9 +285,9 @@ export default function WqLocationModal({
             )}
 
             {/* List of locations */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+            <div className="border border-border-neon rounded-xl overflow-hidden divide-y divide-border-subtle bg-bg-1/40">
               {locations.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs">
+                <div className="p-8 text-center text-text-low text-xs">
                   Belum ada master titik sampling terdaftar.
                 </div>
               ) : (
@@ -297,53 +298,53 @@ export default function WqLocationModal({
                     <div
                       key={loc.id}
                       className={`p-3.5 transition-colors ${
-                        !loc.isActive ? 'bg-slate-50/70 opacity-75' : 'bg-white hover:bg-slate-50/50'
+                        !loc.isActive ? 'bg-bg-0/40 opacity-75' : 'bg-transparent hover:bg-bg-2/50'
                       }`}
                     >
                       {isEditingThis ? (
                         <div className="space-y-2">
                           <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                             <div>
-                              <label className="text-[10px] text-slate-500 font-bold block">
+                              <label className="text-[10px] text-text-low font-bold block mb-0.5">
                                 Nama Titik
                               </label>
                               <input
                                 type="text"
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
-                                className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs"
+                                className="w-full px-2 py-1 text-xs"
                               />
                             </div>
                             <div>
-                              <label className="text-[10px] text-slate-500 font-bold block">
+                              <label className="text-[10px] text-text-low font-bold block mb-0.5">
                                 Sumber Default
                               </label>
                               <input
                                 type="text"
                                 value={editSource}
                                 onChange={(e) => setEditSource(e.target.value)}
-                                className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs"
+                                className="w-full px-2 py-1 text-xs"
                               />
                             </div>
                             <div>
-                              <label className="text-[10px] text-slate-500 font-bold block">
+                              <label className="text-[10px] text-text-low font-bold block mb-0.5">
                                 Suffix Dokumen
                               </label>
                               <input
                                 type="text"
                                 value={editDocSuffix}
                                 onChange={(e) => setEditDocSuffix(e.target.value)}
-                                className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs"
+                                className="w-full px-2 py-1 text-xs"
                               />
                             </div>
                             <div>
-                              <label className="text-[10px] text-slate-500 font-bold block">
+                              <label className="text-[10px] text-text-low font-bold block mb-0.5">
                                 Kelas Air
                               </label>
                               <select
                                 value={editKelasAir}
                                 onChange={(e) => setEditKelasAir(e.target.value as any)}
-                                className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs"
+                                className="w-full px-2 py-1 text-xs cursor-pointer"
                               >
                                 <option value="I">Kelas I</option>
                                 <option value="II">Kelas II</option>
@@ -356,7 +357,7 @@ export default function WqLocationModal({
                             <button
                               type="button"
                               onClick={() => setEditingId(null)}
-                              className="px-2.5 py-1 text-xs text-slate-600 hover:text-slate-800"
+                              className="px-2.5 py-1 text-xs text-text-mid hover:text-text-hi cursor-pointer"
                             >
                               Batal
                             </button>
@@ -364,7 +365,7 @@ export default function WqLocationModal({
                               type="button"
                               disabled={isSubmitting}
                               onClick={() => handleSaveEdit(loc.id)}
-                              className="px-3 py-1 bg-teal-500 text-slate-950 font-bold rounded text-xs"
+                              className="neon-btn-primary px-3 py-1 rounded text-xs cursor-pointer"
                             >
                               Simpan
                             </button>
@@ -373,32 +374,24 @@ export default function WqLocationModal({
                       ) : (
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-bg-0/80 text-neon-cyan border border-border-neon">
                                 {loc.code}
                               </span>
-                              <span className="font-semibold text-xs text-slate-800 truncate">
+                              <span className="font-semibold text-xs text-text-hi truncate">
                                 {loc.name}
                               </span>
-                              <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-sky-50 text-sky-700 border border-sky-200">
+                              <span className="badge-monitored text-[10px] px-1.5 py-0.5 rounded font-mono">
                                 Kelas {loc.kelasAir || 'II'}
                               </span>
-                              <span
-                                className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
-                                  loc.isActive
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                    : 'bg-rose-50 text-rose-700 border border-rose-200'
-                                }`}
-                              >
-                                {loc.isActive ? 'Aktif' : 'Nonaktif'}
-                              </span>
+                              <StatusBadge status={loc.isActive ? 'Aktif' : 'Non-compliant'} label={loc.isActive ? 'Aktif' : 'Nonaktif'} />
                             </div>
-                            <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-3">
+                            <div className="text-[11px] text-text-mid mt-1 flex items-center gap-3 flex-wrap">
                               <span>Sumber: {loc.defaultSource}</span>
                               {loc.docSuffix && (
                                 <span>Suffix Dokumen: {loc.docSuffix}</span>
                               )}
-                              <span className="text-slate-400 font-mono text-[10px]">
+                              <span className="text-text-low font-mono text-[10px]">
                                 Label: {loc.name} ({loc.code})
                               </span>
                             </div>
@@ -409,7 +402,7 @@ export default function WqLocationModal({
                               <button
                                 type="button"
                                 onClick={() => handleStartEdit(loc)}
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                                className="p-1.5 rounded-lg text-text-mid hover:text-neon-cyan hover:bg-neon-cyan/10 transition-colors cursor-pointer"
                                 title="Ubah Titik"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
@@ -417,10 +410,10 @@ export default function WqLocationModal({
                               <button
                                 type="button"
                                 onClick={() => handleToggleActive(loc)}
-                                className={`p-1.5 rounded-lg transition-colors ${
+                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                                   loc.isActive
-                                    ? 'text-rose-500 hover:text-rose-700 hover:bg-rose-50'
-                                    : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                                    ? 'text-neon-red hover:bg-neon-red/15'
+                                    : 'text-neon-green hover:bg-neon-green/15'
                                 }`}
                                 title={loc.isActive ? 'Nonaktifkan Titik' : 'Aktifkan Titik'}
                               >
@@ -442,11 +435,11 @@ export default function WqLocationModal({
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex justify-end">
+          <div className="px-6 py-3 border-t border-border-subtle bg-bg-2/60 flex justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium text-xs rounded-xl transition-colors cursor-pointer"
+              className="px-4 py-2 bg-bg-1 border border-border-subtle hover:bg-bg-2 text-text-mid hover:text-text-hi font-medium text-xs rounded-xl transition-colors cursor-pointer"
             >
               Tutup
             </button>

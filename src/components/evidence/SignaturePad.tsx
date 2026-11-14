@@ -141,29 +141,30 @@ export default function SignaturePad({
   };
 
   return (
-    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xl max-w-md w-full">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+    <div className="bg-bg-1 rounded-2xl p-5 border border-border-neon shadow-2xl max-w-md w-full">
+      <div className="flex items-center justify-between pb-3 border-b border-border-subtle mb-4">
         <div className="flex items-center gap-2">
-          <div className="p-2 bg-emerald-50 text-emerald-700 rounded-lg">
+          <div className="p-2 bg-neon-cyan/15 border border-neon-cyan/30 text-neon-cyan rounded-lg">
             <PenTool className="w-4 h-4" />
           </div>
-          <h4 className="text-sm font-bold text-slate-800">{title}</h4>
+          <h4 className="text-sm font-bold text-text-hi font-heading">{title}</h4>
         </div>
         <button
           type="button"
           onClick={handleClear}
-          className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-200 hover:bg-slate-50 transition-colors"
+          className="text-xs text-text-mid hover:text-text-hi flex items-center gap-1 px-2.5 py-1 rounded-md border border-border-subtle hover:bg-bg-2 transition-colors cursor-pointer"
         >
           <Eraser className="w-3.5 h-3.5" />
           Bersihkan
         </button>
       </div>
 
-      <p className="text-[11px] text-slate-500 mb-2">
+      <p className="text-[11px] text-text-mid mb-2">
         Gunakan kursor mouse atau sentuhan jari pada layar untuk membubuhkan tanda tangan.
       </p>
 
-      <div className="relative border-2 border-dashed border-slate-300 rounded-xl overflow-hidden bg-slate-50 touch-none">
+      {/* Canvas wrapper MUST remain white so #0f172a dark ink contrasts clearly */}
+      <div className="relative border-2 border-dashed border-border-neon rounded-xl overflow-hidden bg-white touch-none">
         <canvas
           ref={canvasRef}
           width={400}
@@ -185,15 +186,15 @@ export default function SignaturePad({
       </div>
 
       {errorMsg && (
-        <p className="text-xs text-red-600 mt-2 font-medium">{errorMsg}</p>
+        <p className="text-xs text-neon-red mt-2 font-medium">{errorMsg}</p>
       )}
 
-      <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-slate-100">
+      <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-border-subtle">
         {onCancel && (
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            className="px-4 py-2 text-xs font-semibold text-text-mid hover:text-text-hi hover:bg-bg-2 rounded-lg transition-colors cursor-pointer"
           >
             Batal
           </button>
@@ -202,7 +203,7 @@ export default function SignaturePad({
           type="button"
           onClick={handleSave}
           disabled={!hasStroke}
-          className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+          className="neon-btn-primary px-5 py-2 text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-1.5 cursor-pointer"
         >
           <Check className="w-4 h-4" />
           Gunakan Tanda Tangan

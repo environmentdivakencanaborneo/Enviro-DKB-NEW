@@ -5,6 +5,9 @@
 
 import React, { useMemo, useState } from 'react';
 import ModalPortal from './ModalPortal';
+import StatusBadge from './StatusBadge';
+import TableSkeleton from './TableSkeleton';
+import EmptyState from './EmptyState';
 import { ReclamationGuarantee } from '../types';
 import { exportToExcel } from '../services/exportService';
 import { calculateGuaranteeMetrics } from '../utils/guaranteeMetrics';
@@ -244,19 +247,19 @@ export default function ReclamationGuaranteeView({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in text-slate-800">
+    <div className="space-y-6 animate-fade-in text-text-hi">
       {/* Header Banner */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+      <div className="glass-panel rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-neon-green/10 border border-neon-green/30 flex items-center justify-center text-neon-green shrink-0">
             <Landmark className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-800">
+            <h3 className="text-sm font-bold text-text-hi font-heading">
               Jaminan Reklamasi (Jamrek) &amp; Jaminan Pascatambang (JamPT)
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Menggunakan koleksi <code className="font-mono font-bold">reclamation</code> (<code className="font-mono">RG-</code>) secara tunggal sesuai Kepmen ESDM No. 344.K/MB.01/MEM.B/2025.
+            <p className="text-xs text-text-mid mt-0.5">
+              Menggunakan koleksi <code className="font-mono font-bold text-neon-cyan">reclamation</code> (<code className="font-mono text-neon-cyan">RG-</code>) secara tunggal sesuai Kepmen ESDM No. 344.K/MB.01/MEM.B/2025.
             </p>
           </div>
         </div>
@@ -265,9 +268,9 @@ export default function ReclamationGuaranteeView({
             type="button"
             onClick={handleExport}
             disabled={sortedAndFiltered.length === 0}
-            className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+            className="px-3.5 py-2 bg-bg-1 border border-border-neon hover:border-neon-cyan/40 hover:bg-bg-2 text-text-hi text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap transition-colors"
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <FileSpreadsheet className="w-4 h-4 text-neon-green" />
             Ekspor Excel
           </button>
           <button
@@ -277,7 +280,7 @@ export default function ReclamationGuaranteeView({
               resetForm();
               setShowForm(!showForm);
             }}
-            className="px-4 py-2 bg-[#4D7C5A] hover:bg-[#3e6449] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm whitespace-nowrap"
+            className="px-4 py-2 neon-btn-primary text-xs rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
             {showForm ? 'Tutup Form' : 'Registrasi Jaminan'}
@@ -286,39 +289,39 @@ export default function ReclamationGuaranteeView({
       </div>
 
       {/* Compliance Notice */}
-      <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-2xl flex items-start gap-3 text-left">
-        <ShieldAlert className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+      <div className="bg-neon-red/10 border border-neon-red/30 p-4 rounded-2xl flex items-start gap-3 text-left">
+        <ShieldAlert className="h-5 w-5 text-neon-red shrink-0 mt-0.5" />
         <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-red-700">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-neon-red font-heading">
             Ketentuan Kepmen ESDM No. 344.K/MB.01/MEM.B/2025 (Berlaku 23 Oktober 2025)
           </h4>
-          <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-            Penempatan Jaminan Reklamasi &amp; Pascatambang baru wajib berbentuk <strong>Deposito Berjangka (Time Deposit) pada Bank Pemerintah</strong>. Dokumen bentuk lama tetap dipantau dan perlu disesuaikan saat perpanjangan.
+          <p className="text-xs text-text-mid mt-0.5 leading-relaxed">
+            Penempatan Jaminan Reklamasi &amp; Pascatambang baru wajib berbentuk <strong className="text-text-hi">Deposito Berjangka (Time Deposit) pada Bank Pemerintah</strong>. Dokumen bentuk lama tetap dipantau dan perlu disesuaikan saat perpanjangan.
           </p>
         </div>
       </div>
 
       {/* KPI Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nilai Jaminan Aktif</span>
-          <p className="text-lg font-bold text-emerald-700 mt-1 font-mono tabular-nums">
+        <div className="neon-card p-4">
+          <span className="text-[11px] font-bold text-text-mid uppercase tracking-wider">Nilai Jaminan Aktif</span>
+          <p className="text-lg font-bold text-neon-green mt-1 font-mono tabular-nums">
             {formatIDR(metrics.totalActiveValue)}
           </p>
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Dokumen Active</span>
-          <p className="text-2xl font-bold text-slate-800 mt-1 font-mono tabular-nums">{metrics.activeCount}</p>
+        <div className="neon-card p-4">
+          <span className="text-[11px] font-bold text-text-mid uppercase tracking-wider">Dokumen Active</span>
+          <p className="text-2xl font-bold text-text-hi mt-1 font-mono tabular-nums">{metrics.activeCount}</p>
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Perlu Renewal</span>
-          <p className={`text-2xl font-bold mt-1 font-mono tabular-nums ${metrics.renewalCount > 0 ? 'text-amber-600' : 'text-slate-700'}`}>
+        <div className="neon-card p-4">
+          <span className="text-[11px] font-bold text-text-mid uppercase tracking-wider">Perlu Renewal</span>
+          <p className={`text-2xl font-bold mt-1 font-mono tabular-nums ${metrics.renewalCount > 0 ? 'text-neon-amber' : 'text-text-hi'}`}>
             {metrics.renewalCount}
           </p>
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Jatuh Tempo ≤ 90 Hari</span>
-          <p className={`text-2xl font-bold mt-1 font-mono tabular-nums ${metrics.expiringCount > 0 ? 'text-rose-600' : 'text-slate-700'}`}>
+        <div className="neon-card p-4">
+          <span className="text-[11px] font-bold text-text-mid uppercase tracking-wider">Jatuh Tempo ≤ 90 Hari</span>
+          <p className={`text-2xl font-bold mt-1 font-mono tabular-nums ${metrics.expiringCount > 0 ? 'text-neon-red' : 'text-text-hi'}`}>
             {metrics.expiringCount}
           </p>
         </div>
@@ -326,63 +329,63 @@ export default function ReclamationGuaranteeView({
 
       {/* Form Panel */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-left space-y-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 border-b border-slate-200 pb-2">
+        <form onSubmit={handleSubmit} className="glass-panel p-5 rounded-2xl text-left space-y-4">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-neon-cyan border-b border-border-neon pb-2 font-heading">
             {editingId ? 'Edit Penempatan Jaminan Reklamasi / Pascatambang' : 'Registrasi Penempatan Jaminan Baru'}
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Nomor Surat Jaminan / Bilyet *</label>
-              <input type="text" required value={gNo} onChange={(e) => setGNo(e.target.value)} placeholder="JAMREK-2026-PTDKB-XXX" className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+              <label className="block text-[11px] text-text-mid font-bold mb-1 uppercase">Nomor Surat Jaminan / Bilyet *</label>
+              <input type="text" required value={gNo} onChange={(e) => setGNo(e.target.value)} placeholder="JAMREK-2026-PTDKB-XXX" className="w-full px-3 py-2 text-xs font-mono" />
             </div>
             <div>
-              <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Kategori Jaminan *</label>
-              <select value={gCategory} onChange={(e) => setGCategory(e.target.value as any)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white">
+              <label className="block text-[11px] text-text-mid font-bold mb-1 uppercase">Kategori Jaminan *</label>
+              <select value={gCategory} onChange={(e) => setGCategory(e.target.value as any)} className="w-full px-3 py-2 text-xs">
                 <option value="Jaminan Reklamasi">Jaminan Reklamasi (Jamrek)</option>
                 <option value="Jaminan Pascatambang">Jaminan Pascatambang (JamPT)</option>
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Instrumen Finansial *</label>
-              <select value={gType} onChange={(e) => setGType(e.target.value as any)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white">
+              <label className="block text-[11px] text-text-mid font-bold mb-1 uppercase">Instrumen Finansial *</label>
+              <select value={gType} onChange={(e) => setGType(e.target.value as any)} className="w-full px-3 py-2 text-xs">
                 <option value="Time Deposit">Time Deposit / Deposito Berjangka (Kepmen 344.K/2025)</option>
                 {editingId && gType === 'Bank Guarantee' && <option value="Bank Guarantee">Bank Guarantee (Bentuk Lama)</option>}
                 {editingId && gType === 'Environmental Bond' && <option value="Environmental Bond">Environmental Bond (Bentuk Lama)</option>}
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Jenis Bank *</label>
-              <select value={gBankType} onChange={(e) => setGBankType(e.target.value as any)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white">
+              <label className="block text-[11px] text-text-mid font-bold mb-1 uppercase">Jenis Bank *</label>
+              <select value={gBankType} onChange={(e) => setGBankType(e.target.value as any)} className="w-full px-3 py-2 text-xs">
                 <option value="Bank Pemerintah">Bank Pemerintah (Mandiri / BRI / BNI / BTN)</option>
                 <option value="Lainnya">Lainnya (Perlu verifikasi Kepmen 344.K/2025)</option>
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Lembaga Penerbit *</label>
-              <input type="text" required value={gInst} onChange={(e) => setGInst(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" />
+              <label className="block text-[11px] text-text-mid font-bold mb-1 uppercase">Lembaga Penerbit *</label>
+              <input type="text" required value={gInst} onChange={(e) => setGInst(e.target.value)} className="w-full px-3 py-2 text-xs" />
             </div>
             <div>
-              <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Nilai Jaminan (IDR) *</label>
-              <input type="number" min={1} required value={gValue} onChange={(e) => setGValue(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold text-emerald-700" />
+              <label className="block text-[11px] text-text-mid font-bold mb-1 uppercase">Nilai Jaminan (IDR) *</label>
+              <input type="number" min={1} required value={gValue} onChange={(e) => setGValue(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono font-bold text-neon-green" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Tahun Pelaksanaan *</label>
-              <input type="number" min={2000} max={2100} required value={gPeriodYear} onChange={(e) => setGPeriodYear(e.target.value === '' ? '' : Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+              <label className="block text-[11px] text-text-mid font-bold mb-1 uppercase">Tahun Pelaksanaan *</label>
+              <input type="number" min={2000} max={2100} required value={gPeriodYear} onChange={(e) => setGPeriodYear(e.target.value === '' ? '' : Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
             </div>
             <div>
-              <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Tanggal Terbit *</label>
-              <input type="date" required value={gIssue} onChange={(e) => setGIssue(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+              <label className="block text-[11px] text-text-mid font-bold mb-1 uppercase">Tanggal Terbit *</label>
+              <input type="date" required value={gIssue} onChange={(e) => setGIssue(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
             </div>
             <div>
-              <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Tanggal Jatuh Tempo *</label>
-              <input type="date" required value={gDue} onChange={(e) => setGDue(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+              <label className="block text-[11px] text-text-mid font-bold mb-1 uppercase">Tanggal Jatuh Tempo *</label>
+              <input type="date" required value={gDue} onChange={(e) => setGDue(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
             </div>
             <div>
-              <label className="block text-[11px] text-slate-500 font-bold mb-1 uppercase">Status Dokumen *</label>
-              <select value={gStatus} onChange={(e) => setGStatus(e.target.value as any)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white">
+              <label className="block text-[11px] text-text-mid font-bold mb-1 uppercase">Status Dokumen *</label>
+              <select value={gStatus} onChange={(e) => setGStatus(e.target.value as any)} className="w-full px-3 py-2 text-xs">
                 <option value="Active">Active &amp; Valid</option>
                 <option value="Renewal Needed">Renewal Needed</option>
                 <option value="Claimed">Claimed</option>
@@ -391,9 +394,9 @@ export default function ReclamationGuaranteeView({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-            <button type="button" onClick={() => { setShowForm(false); resetForm(); }} className="px-4 py-2 text-xs text-slate-600 cursor-pointer">Batal</button>
-            <button type="submit" disabled={isSaving} className="px-5 py-2 bg-[#4D7C5A] hover:bg-[#3e6449] text-white font-bold text-xs rounded-xl cursor-pointer">
+          <div className="flex justify-end gap-2 pt-3 border-t border-border-subtle">
+            <button type="button" onClick={() => { setShowForm(false); resetForm(); }} className="px-4 py-2 text-xs text-text-mid hover:text-text-hi cursor-pointer">Batal</button>
+            <button type="submit" disabled={isSaving} className="px-5 py-2 neon-btn-primary text-xs rounded-xl cursor-pointer">
               {isSaving ? 'Menyimpan...' : editingId ? 'Update Jaminan' : 'Daftarkan Jaminan'}
             </button>
           </div>
@@ -401,13 +404,13 @@ export default function ReclamationGuaranteeView({
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-slate-50 border-b border-slate-200">
+      <div className="glass-panel rounded-2xl overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-bg-2/60 border-b border-border-neon">
           <div className="flex flex-wrap items-center gap-3">
             <select
               value={yearFilter}
               onChange={(e) => setYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs outline-none"
+              className="px-3 py-1.5 text-xs"
             >
               <option value="all">Semua Tahun</option>
               {uniqueYears.map((y) => <option key={y} value={y}>{y}</option>)}
@@ -415,7 +418,7 @@ export default function ReclamationGuaranteeView({
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs outline-none"
+              className="px-3 py-1.5 text-xs"
             >
               <option value="year-desc">Tahun Terbaru → Terlama</option>
               <option value="year-asc">Tahun Terlama → Terbaru</option>
@@ -424,24 +427,24 @@ export default function ReclamationGuaranteeView({
             </select>
           </div>
           <div className="relative w-full md:w-64">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-text-low absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Cari nomor jaminan / bank..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs outline-none"
+              className="w-full pl-8 pr-3 py-1.5 text-xs"
             />
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="neon-table text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-[10px] text-slate-500 font-mono uppercase tracking-wider">
+              <tr className="text-[10px] font-mono uppercase tracking-wider">
                 <th className="p-3.5 pl-5">Nomor Jaminan</th>
                 <th
-                  className="p-3.5 cursor-pointer hover:bg-slate-100"
+                  className="p-3.5 cursor-pointer hover:text-neon-cyan transition-colors"
                   onClick={() => setSortBy((prev) => (prev === 'year-desc' ? 'year-asc' : 'year-desc'))}
                 >
                   <div className="flex items-center gap-1">Tahun <ArrowUpDown className="w-3 h-3" /></div>
@@ -454,11 +457,23 @@ export default function ReclamationGuaranteeView({
                 <th className="p-3.5 text-center pr-5">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {isLoading ? (
-                <tr><td colSpan={8} className="p-8 text-center text-slate-400">Memuat data jaminan reklamasi...</td></tr>
+                <tr>
+                  <td colSpan={8} className="p-5">
+                    <TableSkeleton columns={8} rows={5} />
+                  </td>
+                </tr>
               ) : sortedAndFiltered.length === 0 ? (
-                <tr><td colSpan={8} className="p-10 text-center text-slate-500">Belum ada data jaminan reklamasi atau pascatambang.</td></tr>
+                <tr>
+                  <td colSpan={8} className="p-4">
+                    <EmptyState
+                      icon={Landmark}
+                      title="Belum ada data jaminan reklamasi atau pascatambang"
+                      description="Daftarkan bilyet deposito berjangka Bank Pemerintah atau ubah filter pencarian di atas."
+                    />
+                  </td>
+                </tr>
               ) : (
                 (() => {
                   const showDividers = yearFilter === 'all' && (sortBy === 'year-desc' || sortBy === 'year-asc');
@@ -470,63 +485,63 @@ export default function ReclamationGuaranteeView({
                     const diffDays = daysUntilLocal(item.dueDate);
                     const isWarning = item.status === 'Renewal Needed' || (item.status === 'Active' && diffDays <= GUARANTEE_WARNING_DAYS);
                     const stat = yearStats.get(itemYear);
+                    const badgeStatus =
+                      isWarning && item.status === 'Active'
+                        ? 'Renewal Needed'
+                        : item.status === 'Renewal Needed'
+                        ? 'Mendekati'
+                        : item.status === 'Active'
+                        ? 'Active'
+                        : 'Dipantau';
                     return (
                       <React.Fragment key={item.id}>
                         {shouldShowDivider && stat && (
-                          <tr className="bg-slate-100/90 border-y border-slate-200">
-                            <td colSpan={8} className="py-2 px-5 font-bold text-xs text-slate-700">
+                          <tr className="bg-bg-2/90 border-y border-border-neon">
+                            <td colSpan={8} className="py-2 px-5 font-bold text-xs text-text-hi">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <span className="flex items-center gap-2">
-                                  <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+                                  <Calendar className="w-3.5 h-3.5 text-neon-cyan" />
                                   Tahun Pelaksanaan {itemYear ?? 'Tidak Ditentukan'} ({stat.count} dokumen)
                                 </span>
-                                <span className="font-mono text-emerald-700 font-bold">Subtotal: {formatIDR(stat.totalValue)}</span>
+                                <span className="font-mono tabular-nums text-neon-green font-bold">Subtotal: {formatIDR(stat.totalValue)}</span>
                               </div>
                             </td>
                           </tr>
                         )}
-                        <tr className="hover:bg-slate-50/70">
-                          <td className="p-3.5 pl-5 font-mono font-bold text-slate-800">{item.guaranteeNo}</td>
-                          <td className="p-3.5 font-mono font-bold">{itemYear ?? '-'}</td>
+                        <tr>
+                          <td className="p-3.5 pl-5 font-mono font-bold text-text-hi">{item.guaranteeNo}</td>
+                          <td className="p-3.5 font-mono font-bold text-text-hi tabular-nums">{itemYear ?? '-'}</td>
                           <td className="p-3.5">
                             <div className="flex flex-col items-start gap-1">
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-neon-green/10 text-neon-green border border-neon-green/30 font-bold">
                                 {item.guaranteeCategory || 'Jaminan Reklamasi'}
                               </span>
-                              <span className="text-[11px] font-medium text-slate-700">
+                              <span className="text-[11px] font-medium text-text-mid">
                                 {item.guaranteeType === 'Time Deposit' ? 'Deposito Berjangka (Time Deposit)' : item.guaranteeType}
                               </span>
                             </div>
                           </td>
-                          <td className="p-3.5 text-right font-mono font-bold text-emerald-700">{formatIDR(item.value)}</td>
+                          <td className="p-3.5 text-right font-mono font-bold text-neon-green tabular-nums" data-numeric="true">{formatIDR(item.value)}</td>
                           <td className="p-3.5">
-                            <div className="font-semibold text-slate-700">{item.issuingInstitution}</div>
-                            {item.bankType && <div className="text-[10px] text-slate-400">{item.bankType}</div>}
+                            <div className="font-semibold text-text-hi">{item.issuingInstitution}</div>
+                            {item.bankType && <div className="text-[10px] text-text-low">{item.bankType}</div>}
                           </td>
-                          <td className="p-3.5 text-center font-mono">
-                            <div className={`font-bold ${isWarning ? 'text-rose-600' : 'text-slate-700'}`}>{item.dueDate}</div>
-                            <div className="text-[10px] text-slate-400">Terbit: {item.issuedDate}</div>
+                          <td className="p-3.5 text-center font-mono tabular-nums">
+                            <div className={`font-bold ${isWarning ? 'text-neon-red' : 'text-text-hi'}`}>{item.dueDate}</div>
+                            <div className="text-[10px] text-text-low">Terbit: {item.issuedDate}</div>
                           </td>
                           <td className="p-3.5 text-center">
-                            <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold border ${
-                              item.status === 'Active' && !isWarning
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : isWarning
-                                ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                : 'bg-slate-100 text-slate-600 border-slate-200'
-                            }`}>
-                              {item.status}
-                            </span>
+                            <StatusBadge status={badgeStatus} label={item.status} />
                           </td>
                           <td className="p-3.5 text-center pr-5">
                             <div className="flex items-center justify-center gap-1">
                               {canEdit && (
-                                <button type="button" onClick={() => startEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer" title="Edit">
+                                <button type="button" onClick={() => startEdit(item)} className="p-1.5 text-neon-cyan hover:bg-neon-cyan/10 rounded-lg cursor-pointer transition-colors" title="Edit">
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
                               )}
                               {canDelete && (
-                                <button type="button" onClick={() => setDeleteTarget(item)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer" title="Hapus">
+                                <button type="button" onClick={() => setDeleteTarget(item)} className="p-1.5 text-neon-red hover:bg-neon-red/10 rounded-lg cursor-pointer transition-colors" title="Hapus">
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               )}
@@ -542,20 +557,20 @@ export default function ReclamationGuaranteeView({
           </table>
         </div>
 
-        <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-600 flex justify-between">
-          <span>Menampilkan <strong>{sortedAndFiltered.length}</strong> dari <strong>{guarantees.length}</strong> dokumen</span>
-          <span>Total Nilai Filter: <strong className="font-mono text-emerald-700">{formatIDR(filteredTotalValue)}</strong></span>
+        <div className="p-4 bg-bg-2/60 border-t border-border-neon text-xs text-text-mid flex justify-between">
+          <span>Menampilkan <strong className="text-text-hi">{sortedAndFiltered.length}</strong> dari <strong className="text-text-hi">{guarantees.length}</strong> dokumen</span>
+          <span>Total Nilai Filter: <strong className="font-mono tabular-nums text-neon-green">{formatIDR(filteredTotalValue)}</strong></span>
         </div>
       </div>
 
       {deleteTarget && (
         <ModalPortal>
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 max-w-md w-full shadow-2xl space-y-4">
-              <h4 className="text-sm font-bold text-slate-800">Hapus Jaminan {deleteTarget.guaranteeNo}?</h4>
-              <p className="text-xs text-slate-600">Dokumen jaminan senilai <strong>{formatIDR(deleteTarget.value)}</strong> akan dihapus.</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-0/75 backdrop-blur-md">
+            <div className="glass-panel rounded-2xl p-6 max-w-md w-full space-y-4">
+              <h4 className="text-sm font-bold text-text-hi font-heading">Hapus Jaminan {deleteTarget.guaranteeNo}?</h4>
+              <p className="text-xs text-text-mid">Dokumen jaminan senilai <strong className="text-text-hi font-mono">{formatIDR(deleteTarget.value)}</strong> akan dihapus.</p>
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-xs text-slate-600 cursor-pointer">Batal</button>
+                <button type="button" onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-xs text-text-mid hover:text-text-hi cursor-pointer">Batal</button>
                 <button
                   type="button"
                   disabled={isSaving}
@@ -568,7 +583,7 @@ export default function ReclamationGuaranteeView({
                       setIsSaving(false);
                     }
                   }}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl cursor-pointer"
+                  className="px-4 py-2 neon-btn-danger text-xs rounded-xl cursor-pointer"
                 >
                   {isSaving ? 'Menghapus...' : 'Ya, Hapus'}
                 </button>
@@ -580,3 +595,4 @@ export default function ReclamationGuaranteeView({
     </div>
   );
 }
+

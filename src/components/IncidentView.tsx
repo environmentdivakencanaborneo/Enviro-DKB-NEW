@@ -5,11 +5,14 @@ import { incidentService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
 import { todayLocalISO } from '../utils/dateUtils';
 import { 
-  Flame, Plus, Search, Download, 
+  Flame, Search, Download, 
   Trash2, Edit, AlertTriangle, X,
-  Link as LinkIcon, ShieldAlert, CheckCircle
+  Link as LinkIcon, Calendar, Clock
 } from 'lucide-react';
 import ModuleErrorBoundary from './ModuleErrorBoundary';
+import StatusBadge from './StatusBadge';
+import EmptyState from './EmptyState';
+import TableSkeleton from './TableSkeleton';
 
 interface IncidentViewProps {
   incidents: IncidentData[];
@@ -97,27 +100,34 @@ export default function IncidentView({
     exportToExcel(filteredData, "Manajemen_Insiden_Lingkungan");
   };
 
+  const mapIncidentStatus = (status: string) => {
+    if (status === 'Ditutup') return 'Closed';
+    if (status === 'Tindakan Korektif') return 'Dipantau';
+    if (status === 'Investigasi') return 'Warning';
+    return 'Terbuka';
+  };
+
   return (
     <ModuleErrorBoundary moduleName="Insiden & Kedaruratan">
-      <div className="space-y-6 animate-fade-in text-text-primary font-sans">
+      <div className="space-y-6 animate-fade-in text-text-hi font-sans">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[20px] border border-border-custom shadow-custom">
+        <div className="glass-panel p-5 sm:p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-4">
-            <div className="p-3.5 bg-forest-100/60 text-[#2F5A46] rounded-2xl border border-border-custom">
+            <div className="p-3.5 bg-neon-red/10 text-neon-red rounded-2xl border border-neon-red/30 shadow-glow-red">
               <Flame className="h-6 w-6 stroke-[1.75]" />
             </div>
             <div className="text-left">
-              <h2 className="text-lg font-bold text-text-primary">Manajemen Insiden Lingkungan</h2>
-              <p className="text-xs text-text-secondary">Register pelaporan, investigasi, dan penanganan kedaruratan tambang.</p>
+              <h2 className="text-lg font-bold text-text-hi font-heading">Manajemen Insiden Lingkungan</h2>
+              <p className="text-xs text-text-mid">Register pelaporan, investigasi, dan penanganan kedaruratan tambang.</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2.5">
             <button 
               onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2.5 border border-border-custom hover:bg-forest-50 text-[#2F5A46] text-xs font-bold rounded-xl transition-all cursor-pointer bg-white shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 border border-border-neon bg-bg-1 hover:bg-bg-2 text-text-hi text-xs font-bold rounded-xl transition-all cursor-pointer"
             >
-              <Download size={14} /> Ekspor Excel
+              <Download size={14} className="text-neon-cyan" /> Ekspor Excel
             </button>
             <button 
               onClick={() => {
@@ -137,7 +147,7 @@ export default function IncidentView({
                 });
                 setFormOpen(true);
               }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#A33E3E] hover:bg-[#853030] text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer border border-[#853030]/10"
+              className="flex items-center gap-2 px-4 py-2.5 bg-neon-red/15 hover:bg-neon-red/25 text-neon-red border border-neon-red/45 shadow-glow-red text-xs font-bold rounded-xl transition-all cursor-pointer"
             >
               <AlertTriangle size={14} /> Lapor Insiden Baru
             </button>
@@ -146,45 +156,45 @@ export default function IncidentView({
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-white p-6 rounded-[20px] border border-border-custom shadow-custom text-left">
-            <p className="text-[10px] uppercase font-bold text-text-secondary tracking-wider font-manrope">Total Insiden</p>
-            <p className="text-3xl font-bold text-text-primary mt-1 font-manrope">{stats.total}</p>
+          <div className="neon-card p-5 text-left">
+            <p className="text-[10px] uppercase font-bold text-text-mid tracking-wider font-mono">Total Insiden</p>
+            <p className="text-3xl font-bold text-text-hi mt-1.5 font-mono tabular-nums">{stats.total}</p>
           </div>
-          <div className="bg-[#A33E3E]/5 border border-[#A33E3E]/15 p-6 rounded-[20px] text-left shadow-sm">
-            <p className="text-[10px] uppercase font-bold text-[#A33E3E] tracking-wider font-manrope">Dilaporkan</p>
-            <p className="text-3xl font-bold text-[#A33E3E] mt-1 font-manrope">{stats.dilaporkan}</p>
+          <div className="neon-card p-5 text-left">
+            <p className="text-[10px] uppercase font-bold text-neon-red tracking-wider font-mono">Dilaporkan</p>
+            <p className="text-3xl font-bold text-neon-red mt-1.5 font-mono tabular-nums">{stats.dilaporkan}</p>
           </div>
-          <div className="bg-[#E2A43B]/5 border border-[#E2A43B]/15 p-6 rounded-[20px] text-left shadow-sm">
-            <p className="text-[10px] uppercase font-bold text-[#8F5E13] tracking-wider font-manrope">Investigasi</p>
-            <p className="text-3xl font-bold text-[#8F5E13] mt-1 font-manrope">{stats.investigasi}</p>
+          <div className="neon-card p-5 text-left">
+            <p className="text-[10px] uppercase font-bold text-neon-amber tracking-wider font-mono">Investigasi</p>
+            <p className="text-3xl font-bold text-neon-amber mt-1.5 font-mono tabular-nums">{stats.investigasi}</p>
           </div>
-          <div className="bg-forest-50 border border-border-custom p-6 rounded-[20px] text-left shadow-sm">
-            <p className="text-[10px] uppercase font-bold text-[#4D7C5A] tracking-wider font-manrope">Tindakan Korektif</p>
-            <p className="text-3xl font-bold text-[#2F5A46] mt-1 font-manrope">{stats.korektif}</p>
+          <div className="neon-card p-5 text-left">
+            <p className="text-[10px] uppercase font-bold text-neon-violet tracking-wider font-mono">Tindakan Korektif</p>
+            <p className="text-3xl font-bold text-neon-violet mt-1.5 font-mono tabular-nums">{stats.korektif}</p>
           </div>
-          <div className="bg-[#3FA66B]/5 border border-[#3FA66B]/15 p-6 rounded-[20px] text-left shadow-sm">
-            <p className="text-[10px] uppercase font-bold text-[#2F5A46] tracking-wider font-manrope">Selesai Ditutup</p>
-            <p className="text-3xl font-bold text-[#2F5A46] mt-1 font-manrope">{stats.ditutup}</p>
+          <div className="neon-card p-5 text-left">
+            <p className="text-[10px] uppercase font-bold text-neon-green tracking-wider font-mono">Selesai Ditutup</p>
+            <p className="text-3xl font-bold text-neon-green mt-1.5 font-mono tabular-nums">{stats.ditutup}</p>
           </div>
         </div>
 
         {/* Filters */}
         <div className="flex flex-col md:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6D7B73] h-4.5 w-4.5" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-low h-4.5 w-4.5" />
             <input 
               type="text" 
               placeholder="Cari lokasi atau kronologi..." 
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-border-custom rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] text-text-primary shadow-sm placeholder-[#6D7B73]/60"
+              className="w-full pl-10 pr-4 py-2.5 text-sm"
             />
           </div>
           <div className="flex flex-wrap gap-2.5">
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
-              className="px-4 py-2.5 bg-white border border-border-custom rounded-xl text-xs font-semibold text-[#2F5A46] focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] cursor-pointer shadow-sm"
+              className="px-4 py-2.5 text-xs font-semibold cursor-pointer"
             >
               <option value="All">Semua Kategori</option>
               <option value="Tumpahan Hidrokarbon">Tumpahan Hidrokarbon</option>
@@ -197,7 +207,7 @@ export default function IncidentView({
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="px-4 py-2.5 bg-white border border-border-custom rounded-xl text-xs font-semibold text-[#2F5A46] focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] cursor-pointer shadow-sm"
+              className="px-4 py-2.5 text-xs font-semibold cursor-pointer"
             >
               <option value="All">Semua Status</option>
               <option value="Dilaporkan">Dilaporkan</option>
@@ -211,63 +221,62 @@ export default function IncidentView({
         {/* Data List */}
         <div className="space-y-4">
           {isLoading ? (
-            <div className="p-12 text-center text-text-secondary animate-pulse bg-white rounded-[20px] border border-border-custom shadow-custom">
-              Memuat data insiden...
+            <div className="glass-panel p-6 rounded-2xl">
+              <TableSkeleton columns={4} rows={4} />
             </div>
           ) : filteredData.length === 0 ? (
-            <div className="p-16 text-center text-text-secondary bg-white rounded-[20px] border border-border-custom shadow-custom">
-              Tidak ada data insiden yang sesuai dengan filter.
+            <div className="glass-panel p-6 rounded-2xl">
+              <EmptyState
+                title="Belum ada data insiden"
+                description="Tidak ada data insiden yang sesuai dengan filter."
+                icon={Flame}
+              />
             </div>
           ) : (
             filteredData.map(item => (
-              <div key={item.id} className="bg-white p-6 rounded-[20px] border border-border-custom hover:border-forest-200 transition-all duration-200 shadow-custom text-left">
+              <div key={item.id} className="glass-panel p-6 rounded-2xl hover:border-neon-cyan/40 transition-all duration-200 text-left">
                 <div className="flex flex-col lg:flex-row gap-5 justify-between">
                   <div className="flex-1 space-y-3.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
-                        item.status === 'Ditutup' ? 'bg-[#3FA66B]/10 border-[#3FA66B]/15 text-[#2F5A46]' :
-                        item.status === 'Tindakan Korektif' ? 'bg-forest-50 border-border-custom text-[#4D7C5A]' :
-                        item.status === 'Investigasi' ? 'bg-[#E2A43B]/10 border-[#E2A43B]/15 text-[#8F5E13]' :
-                        'bg-[#A33E3E]/10 border-[#A33E3E]/15 text-[#A33E3E]'
-                      }`}>
-                        {item.status}
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[#2E4B3D] text-white">
+                      <StatusBadge status={mapIncidentStatus(item.status)} label={item.status} />
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-bg-2 border border-border-neon text-neon-cyan">
                         {item.category}
                       </span>
-                      <span className="text-xs text-text-secondary font-manrope font-semibold whitespace-nowrap">
-                        📅 {item.date} • 🕒 {item.time} WIB
+                      <span className="text-xs text-text-mid font-mono tabular-nums font-semibold whitespace-nowrap inline-flex items-center gap-1.5">
+                        <Calendar size={12} className="text-neon-cyan" /> {item.date}
+                        <span className="text-text-low">•</span>
+                        <Clock size={12} className="text-neon-cyan" /> {item.time} WIB
                       </span>
                     </div>
                     
                     <div>
-                      <h3 className="text-base font-bold text-text-primary">{item.location}</h3>
-                      <p className="text-xs text-text-secondary mt-1">Dilaporkan oleh: <span className="font-semibold text-text-primary">{item.reporter}</span></p>
+                      <h3 className="text-base font-bold text-text-hi font-heading">{item.location}</h3>
+                      <p className="text-xs text-text-mid mt-1">Dilaporkan oleh: <span className="font-semibold text-text-hi">{item.reporter}</span></p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-forest-50/50 p-4 rounded-[15px] border border-[#E6ECE6]">
-                        <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-1.5 font-manrope">Kronologi Kejadian</p>
-                        <p className="text-xs text-text-primary whitespace-pre-wrap leading-relaxed">{item.chronology}</p>
+                      <div className="bg-bg-0/60 p-4 rounded-xl border border-border-subtle">
+                        <p className="text-[10px] font-bold text-text-mid uppercase tracking-wider mb-1.5 font-mono">Kronologi Kejadian</p>
+                        <p className="text-xs text-text-hi whitespace-pre-wrap leading-relaxed">{item.chronology}</p>
                       </div>
                       <div className="space-y-3">
-                        <div className="bg-[#A33E3E]/5 p-4 rounded-[15px] border border-[#A33E3E]/10">
-                          <p className="text-[10px] font-bold text-[#A33E3E] uppercase tracking-wider mb-1.5 font-manrope">Dampak / Kerugian Lingkungan</p>
-                          <p className="text-xs text-text-primary whitespace-pre-wrap leading-relaxed">{item.environmentalLoss}</p>
+                        <div className="bg-neon-red/5 p-4 rounded-xl border border-neon-red/25">
+                          <p className="text-[10px] font-bold text-neon-red uppercase tracking-wider mb-1.5 font-mono">Dampak / Kerugian Lingkungan</p>
+                          <p className="text-xs text-text-hi whitespace-pre-wrap leading-relaxed">{item.environmentalLoss}</p>
                         </div>
-                        <div className="bg-forest-50/30 p-4 rounded-[15px] border border-border-custom">
-                          <p className="text-[10px] font-bold text-[#2F5A46] uppercase tracking-wider mb-1.5 font-manrope">Tindakan Pertama (Respons Cepat)</p>
-                          <p className="text-xs text-text-primary whitespace-pre-wrap leading-relaxed">{item.firstAction}</p>
+                        <div className="bg-neon-green/5 p-4 rounded-xl border border-neon-green/25">
+                          <p className="text-[10px] font-bold text-neon-green uppercase tracking-wider mb-1.5 font-mono">Tindakan Pertama (Respons Cepat)</p>
+                          <p className="text-xs text-text-hi whitespace-pre-wrap leading-relaxed">{item.firstAction}</p>
                         </div>
                       </div>
                     </div>
 
                     {item.documentationUrl && (
-                      <div className="flex gap-4 pt-3 border-t border-[#E6ECE6]">
+                      <div className="flex gap-4 pt-3 border-t border-border-subtle">
                         <div className="flex items-center gap-1.5">
-                          <LinkIcon size={12} className="text-[#A33E3E]"/>
-                          <a href={item.documentationUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#A33E3E] hover:underline">
-                            Dokumentasi Insiden & Investigasi →
+                          <LinkIcon size={12} className="text-neon-cyan"/>
+                          <a href={item.documentationUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-neon-cyan hover:underline">
+                            Dokumentasi Insiden &amp; Investigasi →
                           </a>
                         </div>
                       </div>
@@ -282,9 +291,9 @@ export default function IncidentView({
                         setFormData(item);
                         setFormOpen(true);
                       }}
-                      className="px-3.5 py-2 border border-border-custom hover:bg-forest-50 text-text-primary text-xs font-bold rounded-xl transition-all flex justify-center items-center gap-1.5 cursor-pointer shadow-sm bg-white"
+                      className="px-3.5 py-2 border border-border-neon bg-bg-1 hover:bg-bg-2 text-text-hi text-xs font-bold rounded-xl transition-all flex justify-center items-center gap-1.5 cursor-pointer"
                     >
-                      <Edit size={12}/> Edit & Update
+                      <Edit size={12} className="text-neon-cyan"/> Edit &amp; Update
                     </button>
                     <button 
                       onClick={() => {
@@ -294,7 +303,7 @@ export default function IncidentView({
                           message: `Apakah Anda yakin ingin menghapus laporan insiden secara permanen? Tindakan ini tidak dapat dibatalkan.`
                         });
                       }}
-                      className="px-3.5 py-2 border border-[#D95C5C]/20 hover:bg-[#D95C5C]/5 text-[#A33E3E] text-xs font-bold rounded-xl transition-all flex justify-center items-center gap-1.5 cursor-pointer shadow-sm"
+                      className="px-3.5 py-2 neon-btn-danger text-xs rounded-xl transition-all flex justify-center items-center gap-1.5 cursor-pointer"
                     >
                       <Trash2 size={12}/> Hapus
                     </button>
@@ -308,14 +317,14 @@ export default function IncidentView({
         {/* Add/Edit Form Modal */}
         {formOpen && (
           <ModalPortal>
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-3xl max-h-[90vh] flex flex-col animate-fade-in">
-                <div className="px-6 py-4 border-b border-[#E6ECE6] flex justify-between items-center shrink-0">
-                  <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
-                    <AlertTriangle className="text-[#A33E3E] h-5 w-5" />
+            <div className="fixed inset-0 bg-bg-0/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+              <div className="glass-panel rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in">
+                <div className="px-6 py-4 bg-bg-2/60 border-b border-border-neon flex justify-between items-center shrink-0">
+                  <h3 className="text-base font-bold text-text-hi font-heading flex items-center gap-2">
+                    <AlertTriangle className="text-neon-red h-5 w-5" />
                     {editingId ? 'Update Insiden Lingkungan' : 'Lapor Insiden Kedaruratan Baru'}
                   </h3>
-                  <button onClick={() => setFormOpen(false)} className="p-2 bg-forest-50 hover:bg-[#DCE5DA] rounded-full text-[#2F5A46] cursor-pointer transition-colors">
+                  <button onClick={() => setFormOpen(false)} className="p-2 bg-bg-1 hover:bg-bg-2 border border-border-subtle rounded-full text-text-mid hover:text-text-hi cursor-pointer transition-colors">
                     <X size={16} />
                   </button>
                 </div>
@@ -323,16 +332,16 @@ export default function IncidentView({
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TANGGAL INSIDEN</label>
-                      <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" />
+                      <label className="block text-[10px] font-bold text-text-mid mb-1.5 tracking-wider font-mono">TANGGAL INSIDEN</label>
+                      <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 text-sm font-mono" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">JAM KEJADIAN</label>
-                      <input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" />
+                      <label className="block text-[10px] font-bold text-text-mid mb-1.5 tracking-wider font-mono">JAM KEJADIAN</label>
+                      <input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-2.5 text-sm font-mono" />
                     </div>
                     <div className="col-span-2">
-                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KATEGORI INSIDEN</label>
-                      <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as any})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] cursor-pointer font-medium">
+                      <label className="block text-[10px] font-bold text-text-mid mb-1.5 tracking-wider font-mono">KATEGORI INSIDEN</label>
+                      <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as any})} className="w-full p-2.5 text-sm cursor-pointer font-medium">
                         <option value="Tumpahan Hidrokarbon">Tumpahan Hidrokarbon</option>
                         <option value="Tanggul Jebol">Tanggul Jebol / Longsor</option>
                         <option value="Air Asam Tambang">Limpasan Air Asam Tambang</option>
@@ -345,35 +354,35 @@ export default function IncidentView({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">LOKASI KEJADIAN</label>
-                      <input type="text" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" placeholder="Workshop / KM 12 / Settling Pond..." />
+                      <label className="block text-[10px] font-bold text-text-mid mb-1.5 tracking-wider font-mono">LOKASI KEJADIAN</label>
+                      <input type="text" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full p-2.5 text-sm" placeholder="Workshop / KM 12 / Settling Pond..." />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">NAMA PELAPOR & DEPARTEMEN</label>
-                      <input type="text" value={formData.reporter} onChange={e => setFormData({...formData, reporter: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" placeholder="Nama Lengkap / Dept HSE..." />
+                      <label className="block text-[10px] font-bold text-text-mid mb-1.5 tracking-wider font-mono">NAMA PELAPOR &amp; DEPARTEMEN</label>
+                      <input type="text" value={formData.reporter} onChange={e => setFormData({...formData, reporter: e.target.value})} className="w-full p-2.5 text-sm" placeholder="Nama Lengkap / Dept HSE..." />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">KRONOLOGI KEJADIAN (SECARA DETAIL)</label>
-                    <textarea value={formData.chronology} onChange={e => setFormData({...formData, chronology: e.target.value})} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] resize-none" placeholder="Jelaskan secara kronologis bagaimana insiden terjadi di area operasional..." />
+                    <label className="block text-[10px] font-bold text-text-mid mb-1.5 tracking-wider font-mono">KRONOLOGI KEJADIAN (SECARA DETAIL)</label>
+                    <textarea value={formData.chronology} onChange={e => setFormData({...formData, chronology: e.target.value})} rows={3} className="w-full p-2.5 text-sm resize-none" placeholder="Jelaskan secara kronologis bagaimana insiden terjadi di area operasional..." />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TINDAKAN PERTAMA (RESPONS CEPAT)</label>
-                      <textarea value={formData.firstAction} onChange={e => setFormData({...formData, firstAction: e.target.value})} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] resize-none" placeholder="Isolasi area tumpahan, memasang oil boom, penyebaran absorbent..." />
+                      <label className="block text-[10px] font-bold text-text-mid mb-1.5 tracking-wider font-mono">TINDAKAN PERTAMA (RESPONS CEPAT)</label>
+                      <textarea value={formData.firstAction} onChange={e => setFormData({...formData, firstAction: e.target.value})} rows={3} className="w-full p-2.5 text-sm resize-none" placeholder="Isolasi area tumpahan, memasang oil boom, penyebaran absorbent..." />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">DAMPAK / ESTIMASI KERUGIAN LINGKUNGAN</label>
-                      <textarea value={formData.environmentalLoss} onChange={e => setFormData({...formData, environmentalLoss: e.target.value})} rows={3} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] resize-none" placeholder="Luas tanah terkontaminasi +/- 5m2, ceceran solar ke drainase..." />
+                      <label className="block text-[10px] font-bold text-text-mid mb-1.5 tracking-wider font-mono">DAMPAK / ESTIMASI KERUGIAN LINGKUNGAN</label>
+                      <textarea value={formData.environmentalLoss} onChange={e => setFormData({...formData, environmentalLoss: e.target.value})} rows={3} className="w-full p-2.5 text-sm resize-none" placeholder="Luas tanah terkontaminasi +/- 5m2, ceceran solar ke drainase..." />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">STATUS PENANGANAN</label>
-                      <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A] cursor-pointer font-medium">
+                      <label className="block text-[10px] font-bold text-text-mid mb-1.5 tracking-wider font-mono">STATUS PENANGANAN</label>
+                      <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2.5 text-sm cursor-pointer font-medium">
                         <option value="Dilaporkan">Baru Dilaporkan</option>
                         <option value="Investigasi">Dalam Investigasi</option>
                         <option value="Tindakan Korektif">Tindakan Korektif Berjalan</option>
@@ -381,18 +390,18 @@ export default function IncidentView({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-text-secondary mb-1.5 tracking-wider font-manrope">TAUTAN DOKUMENTASI & BUKTI (URL FOTO/PDF)</label>
-                      <input type="url" value={formData.documentationUrl} onChange={e => setFormData({...formData, documentationUrl: e.target.value})} className="w-full p-2.5 text-sm border border-border-custom rounded-xl bg-white text-text-primary focus:outline-none focus:ring-1 focus:ring-[#4D7C5A] focus:border-[#4D7C5A]" placeholder="https://drive.google.com/..." />
+                      <label className="block text-[10px] font-bold text-text-mid mb-1.5 tracking-wider font-mono">TAUTAN DOKUMENTASI &amp; BUKTI (URL FOTO/PDF)</label>
+                      <input type="url" value={formData.documentationUrl} onChange={e => setFormData({...formData, documentationUrl: e.target.value})} className="w-full p-2.5 text-sm" placeholder="https://drive.google.com/..." />
                     </div>
                   </div>
 
                 </div>
-                <div className="p-4 border-t border-[#E6ECE6] flex justify-end gap-2.5 shrink-0 bg-white rounded-b-[20px]">
-                  <button onClick={() => setFormOpen(false)} className="px-5 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all cursor-pointer">Batal</button>
+                <div className="p-4 bg-bg-2/60 border-t border-border-neon flex justify-end gap-2.5 shrink-0">
+                  <button onClick={() => setFormOpen(false)} className="px-5 py-2.5 text-xs font-bold text-text-mid hover:text-text-hi bg-bg-1 hover:bg-bg-2 border border-border-subtle rounded-xl transition-all cursor-pointer">Batal</button>
                   <button 
                     onClick={handleSave}
                     disabled={!formData.location || !formData.chronology || !formData.environmentalLoss}
-                    className="px-5 py-2.5 text-xs font-bold text-white bg-[#4D7C5A] hover:bg-[#2F5A46] disabled:opacity-40 rounded-xl transition-all cursor-pointer shadow-sm"
+                    className="px-5 py-2.5 text-xs neon-btn-primary disabled:opacity-40 rounded-xl transition-all cursor-pointer"
                   >
                     Simpan Laporan
                   </button>
@@ -405,16 +414,16 @@ export default function IncidentView({
         {/* Delete Confirm Modal */}
         {deleteConfirm && (
           <ModalPortal>
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-[20px] shadow-2xl border border-border-custom w-full max-w-md p-6 text-left animate-fade-in">
-                <h3 className="text-sm font-bold text-text-primary flex items-center gap-2.5">
-                  <span className="p-2 rounded-xl bg-[#A33E3E]/10 text-[#A33E3E]"><Trash2 size={16}/></span>
+            <div className="fixed inset-0 bg-bg-0/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+              <div className="glass-panel rounded-2xl w-full max-w-md p-6 text-left animate-fade-in">
+                <h3 className="text-sm font-bold text-text-hi font-heading flex items-center gap-2.5">
+                  <span className="p-2 rounded-xl bg-neon-red/10 border border-neon-red/30 text-neon-red"><Trash2 size={16}/></span>
                   Konfirmasi Hapus Laporan
                 </h3>
-                <p className="text-xs text-text-secondary mt-4 leading-relaxed">{deleteConfirm.message}</p>
+                <p className="text-xs text-text-mid mt-4 leading-relaxed">{deleteConfirm.message}</p>
                 <div className="flex gap-2.5 justify-end mt-6">
-                  <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2.5 text-xs font-bold text-text-secondary hover:bg-forest-50 rounded-xl transition-all">Batal</button>
-                  <button onClick={() => handleDelete(deleteConfirm.id)} className="px-4 py-2.5 text-xs font-bold text-white bg-[#A33E3E] hover:bg-[#853030] rounded-xl transition-all shadow-sm">Hapus Permanen</button>
+                  <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2.5 text-xs font-bold text-text-mid hover:text-text-hi bg-bg-1 hover:bg-bg-2 border border-border-subtle rounded-xl transition-all cursor-pointer">Batal</button>
+                  <button onClick={() => handleDelete(deleteConfirm.id)} className="px-4 py-2.5 text-xs font-bold bg-neon-red/15 hover:bg-neon-red/25 text-neon-red border border-neon-red/45 rounded-xl transition-all cursor-pointer">Hapus Permanen</button>
                 </div>
               </div>
             </div>

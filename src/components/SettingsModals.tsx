@@ -343,57 +343,57 @@ export default function SettingsModals({
     <div id="settings-modals-container">
       {/* GOOGLE DRIVE BACKUP & RESTORE MODAL */}
       {syncModalOpen && (
-        <div id="google-sync-settings-modal" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in text-slate-700">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-2xl shadow-2xl space-y-5 text-left animate-slide-up max-h-[90vh] overflow-y-auto">
+        <div id="google-sync-settings-modal" className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in text-text-mid">
+          <div className="glass-panel border border-border-neon rounded-3xl p-6 w-full max-w-2xl shadow-2xl space-y-5 text-left animate-slide-up max-h-[90vh] overflow-y-auto">
             
-            <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
+            <div className="flex items-center justify-between pb-3.5 border-b border-border-subtle">
               <div className="flex items-center gap-2">
-                <Database className="text-teal-600 h-5 w-5" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">Ekspor/Import Google Drive</h3>
+                <Database className="text-neon-cyan h-5 w-5" />
+                <h3 className="text-sm font-bold uppercase tracking-wider text-text-hi font-heading">Ekspor/Import Google Drive</h3>
               </div>
               <button 
                 id="sync-modal-close"
                 onClick={() => setSyncModalOpen(false)} 
-                className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+                className="p-1.5 hover:bg-bg-2 rounded-lg text-text-low hover:text-text-hi transition-colors cursor-pointer"
               >
                 <X className="h-4.5 w-4.5" />
               </button>
             </div>
 
             <div className="space-y-4 text-xs font-sans">
-              <p className="text-slate-500 leading-relaxed">
+              <p className="text-text-mid leading-relaxed">
                 Modul ini mengizinkan pencadangan aman seluruh isi database kepatuhan pertambangan pertambangan langsung ke akun **Google Drive** Anda. File cadangan disimpan dalam format struktural JSON terenkripsi dan dapat dipulihkan kapan saja.
               </p>
 
               {/* Akun Google status/login panel */}
-              <div className="p-4 bg-white/60 border border-slate-200/80 rounded-2xl flex flex-col gap-3">
+              <div className="p-4 bg-bg-1/60 border border-border-neon rounded-2xl flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Akses Otoritas Google Drive</span>
-                  <span className="text-[10px] font-mono bg-white px-2 py-0.5 rounded text-teal-600">
+                  <span className="text-[10px] font-bold text-text-low uppercase tracking-wider">Akses Otoritas Google Drive</span>
+                  <span className={`text-[10px] font-mono bg-bg-0/80 border border-border-subtle px-2.5 py-0.5 rounded-full ${googleUser ? 'text-neon-green' : 'text-text-mid'}`}>
                     {googleUser ? '🟢 Terkoneksi' : '⚪ Standalone'}
                   </span>
                 </div>
 
                 {googleUser ? (
-                  <div className="flex items-center justify-between p-3 bg-teal-500/5 border border-teal-500/20 rounded-xl">
+                  <div className="flex items-center justify-between p-3 bg-neon-cyan/10 border border-neon-cyan/30 rounded-xl">
                     <div className="flex items-center gap-2.5">
                       {googleUser.photoURL ? (
-                        <img src={googleUser.photoURL} alt="Avatar" className="w-8 h-8 rounded-full border border-teal-500/20" referrerPolicy="no-referrer" />
+                        <img src={googleUser.photoURL} alt="Avatar" className="w-8 h-8 rounded-full border border-neon-cyan/35" referrerPolicy="no-referrer" />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center text-teal-600 font-bold uppercase text-xs">
+                        <div className="w-8 h-8 rounded-full bg-neon-cyan/20 flex items-center justify-center text-neon-cyan font-bold uppercase text-xs">
                           {googleUser.email?.slice(0, 1) || 'G'}
                         </div>
                       )}
                       <div>
-                        <p className="font-bold text-slate-700 text-xs">{googleUser.displayName || 'Pengawas Lapangan'}</p>
-                        <p className="text-[10px] text-slate-500 font-mono">{googleUser.email}</p>
+                        <p className="font-bold text-text-hi text-xs">{googleUser.displayName || 'Pengawas Lapangan'}</p>
+                        <p className="text-[10px] text-text-mid font-mono">{googleUser.email}</p>
                       </div>
                     </div>
                     <button
                       id="google-disconnect-btn"
                       type="button"
                       onClick={handleGoogleLogout}
-                      className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 font-semibold rounded-lg text-[10.5px] transition-colors cursor-pointer flex items-center gap-1"
+                      className="px-2.5 py-1.5 bg-neon-red/15 hover:bg-neon-red/25 text-neon-red border border-neon-red/35 font-semibold rounded-lg text-[10.5px] transition-colors cursor-pointer flex items-center gap-1"
                     >
                       <LogOut className="h-3 w-3" />
                       Putuskan Akun
@@ -401,8 +401,8 @@ export default function SettingsModals({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="flex flex-col items-center justify-center py-5 bg-white border border-slate-900 rounded-xl text-center gap-3">
-                      <p className="text-[11px] text-slate-500 max-w-sm leading-relaxed">
+                    <div className="flex flex-col items-center justify-center py-5 bg-bg-0/60 border border-border-neon rounded-xl text-center gap-3">
+                      <p className="text-[11px] text-text-mid max-w-sm leading-relaxed">
                         Hubungkan ke Google Drive untuk mengunggah salinan database atau mengunduh cadangan aktif.
                       </p>
                       <button 
@@ -410,7 +410,7 @@ export default function SettingsModals({
                         type="button"
                         disabled={isGAuthLoading}
                         onClick={handleGoogleLogin}
-                        className="inline-flex items-center justify-center gap-2 bg-white hover:bg-white text-slate-900 duration-150 px-4 py-2 rounded-xl text-xs font-bold font-sans cursor-pointer shadow-md disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-2 bg-bg-1 hover:bg-bg-2 border border-border-neon text-text-hi duration-150 px-4 py-2 rounded-xl text-xs font-bold font-sans cursor-pointer shadow-glow-cyan disabled:opacity-50"
                       >
                         <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-4 w-4">
                           <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
@@ -423,22 +423,22 @@ export default function SettingsModals({
                     </div>
 
                     {authError && (
-                      <p className="text-rose-600 text-[11px] text-center font-mono">{authError}</p>
+                      <p className="text-neon-red text-[11px] text-center font-mono">{authError}</p>
                     )}
 
                     {/* OAuth Verification Walkthrough */}
-                    <div id="google-auth-error-guide" className="p-3.5 bg-amber-950/40 rounded-2xl border border-amber-800/30 leading-relaxed text-slate-600 text-[11px] space-y-1.5">
-                      <div className="flex items-center gap-1.5 font-bold text-amber-600">
-                        <HelpCircle className="h-4 w-4 shrink-0 text-amber-500" />
+                    <div id="google-auth-error-guide" className="p-3.5 bg-neon-amber/10 rounded-2xl border border-neon-amber/30 leading-relaxed text-text-mid text-[11px] space-y-1.5">
+                      <div className="flex items-center gap-1.5 font-bold text-neon-amber">
+                        <HelpCircle className="h-4 w-4 shrink-0 text-neon-amber" />
                         <span>Panduan Menyelesaikan Kendala Login Google (Testing Mode)</span>
                       </div>
-                      <p className="text-slate-600">
-                        Jika Anda diarahkan ke layar error <strong>"Access Blocked"</strong>, hal ini terjadi karena Google Client ID Anda dideploy dalam status <strong>"Testing"</strong>. Silakan mendaftarkan akun email pendukung Anda ke Console:
+                      <p className="text-text-mid">
+                        Jika Anda diarahkan ke layar error <strong className="text-text-hi">"Access Blocked"</strong>, hal ini terjadi karena Google Client ID Anda dideploy dalam status <strong className="text-text-hi">"Testing"</strong>. Silakan mendaftarkan akun email pendukung Anda ke Console:
                       </p>
-                      <ul className="list-decimal pl-4 space-y-1 text-slate-500">
-                        <li>Buka akun <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline font-semibold">Google Cloud Console</a>.</li>
-                        <li>Pergi ke menu <strong>APIs & Services</strong> &gt; <strong>OAuth consent screen</strong>.</li>
-                        <li>Scroll ke bagian <strong>Test users</strong> dan klik tombol <strong>+ ADD USERS</strong>.</li>
+                      <ul className="list-decimal pl-4 space-y-1 text-text-mid">
+                        <li>Buka akun <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-neon-cyan hover:underline font-semibold">Google Cloud Console</a>.</li>
+                        <li>Pergi ke menu <strong className="text-text-hi">APIs & Services</strong> &gt; <strong className="text-text-hi">OAuth consent screen</strong>.</li>
+                        <li>Scroll ke bagian <strong className="text-text-hi">Test users</strong> dan klik tombol <strong className="text-text-hi">+ ADD USERS</strong>.</li>
                         <li>Tambahkan email Anda, klik simpan, lalu coba Hubungkan kembali!</li>
                       </ul>
                     </div>
@@ -450,24 +450,24 @@ export default function SettingsModals({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
                   {/* EXPORT CADANGAN BARU */}
-                  <div className="p-4 bg-white/40 border border-slate-200 rounded-2xl space-y-3">
+                  <div className="p-4 bg-bg-1/50 border border-border-neon rounded-2xl space-y-3">
                     <div className="flex items-center gap-1.5">
-                      <Upload className="h-4 w-4 text-emerald-600" />
-                      <h4 className="font-bold text-slate-700">Buat Cadangan Baru</h4>
+                      <Upload className="h-4 w-4 text-neon-green" />
+                      <h4 className="font-bold text-text-hi font-heading">Buat Cadangan Baru</h4>
                     </div>
-                    <p className="text-[11px] text-slate-500 leading-normal">
+                    <p className="text-[11px] text-text-mid leading-normal">
                       Kirim seluruh 23 koleksi data (air limbah, AAT, udara/emisi, topsoil, kehati, limbah B3, sampah, IADL, CAPA, insiden, PROPER/RKAB, dokumen, dan anggaran) ke Google Drive.
                     </p>
                     
                     <div className="space-y-2">
-                      <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-500">Nama File (Opsional)</label>
+                      <label className="block text-[10px] uppercase font-bold tracking-wider text-text-low">Nama File (Opsional)</label>
                       <input
                         id="custom-filename-backup"
                         type="text"
                         placeholder="Contoh: cadangan_mei_2026"
                         value={customFileName}
                         onChange={(e) => setCustomFileName(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-700"
+                        className="w-full px-3 py-2 text-xs"
                       />
                     </div>
 
@@ -475,7 +475,7 @@ export default function SettingsModals({
                       id="export-backup-btn"
                       onClick={handleExportBackup}
                       disabled={backupActionStatus.status === 'syncing'}
-                      className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-white disabled:text-slate-500 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      className="neon-btn-primary w-full py-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       {backupActionStatus.status === 'syncing' ? (
                         <>
@@ -491,21 +491,18 @@ export default function SettingsModals({
                     </button>
 
                     {/* Tombol Export Spreadsheet */}
-                    <div className="mt-4 pt-4 border-t border-slate-300/50">
-                      <p className="text-xs text-slate-500 mb-3 font-mono uppercase tracking-widest font-bold">
+                    <div className="mt-4 pt-4 border-t border-border-subtle">
+                      <p className="text-xs text-text-low mb-3 font-mono uppercase tracking-widest font-bold">
                         Export Data Mentah
                       </p>
                       <button
                         onClick={handleExportXLSX}
                         disabled={isExportingXLSX}
-                        className="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl
-                          bg-emerald-600 hover:bg-emerald-600 disabled:bg-slate-200 disabled:cursor-not-allowed
-                          text-slate-900 font-semibold text-xs transition-all duration-200
-                          border border-emerald-500/40 shadow-lg shadow-emerald-900/20 cursor-pointer"
+                        className="neon-btn-primary w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isExportingXLSX ? (
                           <>
-                            <span className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span className="h-3.5 w-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
                             Mengambil data dari Firestore...
                           </>
                         ) : (
@@ -517,27 +514,27 @@ export default function SettingsModals({
                       </button>
 
                       {xlsxExportStatus === 'success' && (
-                        <p className="mt-2 text-[11px] text-emerald-600 text-center flex items-center justify-center gap-1.5 font-bold">
+                        <p className="mt-2 text-[11px] text-neon-green text-center flex items-center justify-center gap-1.5 font-bold">
                           <Check size={12} /> File berhasil diunduh ke perangkat Anda.
                         </p>
                       )}
                       {xlsxExportStatus === 'error' && (
-                        <p className="mt-2 text-[11px] text-rose-600 text-center flex items-center justify-center gap-1.5 font-bold">
+                        <p className="mt-2 text-[11px] text-neon-red text-center flex items-center justify-center gap-1.5 font-bold">
                           <AlertTriangle size={12} /> Gagal mengekspor. Cek koneksi dan coba lagi.
                         </p>
                       )}
 
-                      <p className="mt-2 text-[10px] text-slate-500 text-center leading-relaxed font-sans">
+                      <p className="mt-2 text-[10px] text-text-low text-center leading-relaxed font-sans">
                         Mengunduh 10 sheet: Kualitas Air, Curah Hujan, Nursery, Reklamasi,
                         Jaminan, Limbah B3, Dokumen, Agenda, dan Biaya Lingkungan.
                       </p>
                     </div>
 
                     {backupActionStatus.message && (
-                      <p className={`p-2 rounded text-[10px] font-mono leading-relaxed ${
-                        backupActionStatus.status === 'error' ? 'bg-rose-50/80 border border-rose-200 text-rose-600' :
-                        backupActionStatus.status === 'synced' ? 'bg-emerald-950/40 border border-emerald-800/30 text-emerald-300' :
-                        'bg-white border border-slate-200 text-slate-600'
+                      <p className={`p-2 rounded-lg text-[10px] font-mono leading-relaxed border ${
+                        backupActionStatus.status === 'error' ? 'bg-neon-red/10 border-neon-red/35 text-neon-red' :
+                        backupActionStatus.status === 'synced' ? 'bg-neon-green/10 border-neon-green/35 text-neon-green' :
+                        'bg-bg-0/60 border-border-subtle text-text-mid'
                       }`}>
                         {backupActionStatus.message}
                       </p>
@@ -545,38 +542,38 @@ export default function SettingsModals({
                   </div>
 
                   {/* LISTING & RESTORE CADANGAN */}
-                  <div className="p-4 bg-white/40 border border-slate-200 rounded-2xl flex flex-col space-y-3">
+                  <div className="p-4 bg-bg-1/50 border border-border-neon rounded-2xl flex flex-col space-y-3">
                     <div className="flex items-center gap-1.5">
-                      <Download className="h-4 w-4 text-cyan-600" />
-                      <h4 className="font-bold text-slate-700">Dua Puluh Sembilan Cadangan Terakhir</h4>
+                      <Download className="h-4 w-4 text-neon-cyan" />
+                      <h4 className="font-bold text-text-hi font-heading">Dua Puluh Sembilan Cadangan Terakhir</h4>
                     </div>
 
                     <div className="flex-1 overflow-y-auto max-h-[160px] space-y-2 pr-1 custom-scrollbar">
                       {isLoadingBackups ? (
-                        <div className="flex flex-col items-center justify-center py-8 text-slate-500 gap-1.5">
-                          <RefreshCw className="h-4 w-4 animate-spin text-slate-500" />
+                        <div className="flex flex-col items-center justify-center py-8 text-text-low gap-1.5">
+                          <RefreshCw className="h-4 w-4 animate-spin text-neon-cyan" />
                           <span className="text-[10px]">Memindai Google Drive...</span>
                         </div>
                       ) : backupFiles.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-8 text-slate-500 text-center gap-1 max-w-xs mx-auto">
-                          <Clock className="h-4 w-4 text-slate-600" />
-                          <span className="text-[10px] font-semibold text-slate-500">Tidak ada file cadangan</span>
-                          <p className="text-[9.5px] leading-relaxed text-slate-500">Folder 'DEM system Backups' di Google Drive kosong atau belum dibuat.</p>
+                        <div className="flex flex-col items-center justify-center py-8 text-text-low text-center gap-1 max-w-xs mx-auto">
+                          <Clock className="h-4 w-4 text-text-low" />
+                          <span className="text-[10px] font-semibold text-text-mid">Tidak ada file cadangan</span>
+                          <p className="text-[9.5px] leading-relaxed text-text-low">Folder 'DEM system Backups' di Google Drive kosong atau belum dibuat.</p>
                         </div>
                       ) : (
                         backupFiles.map((file) => (
-                          <div key={file.id} className="p-2 border border-slate-200/80 rounded-lg flex items-center justify-between text-[11px] hover:border-slate-300 transition-colors bg-white">
+                          <div key={file.id} className="p-2.5 border border-border-subtle rounded-xl flex items-center justify-between text-[11px] hover:border-border-neon transition-colors bg-bg-0/60">
                             <div className="space-y-0.5 max-w-[70%]">
-                              <p className="font-semibold text-slate-700 truncate font-mono" title={file.name}>{file.name}</p>
-                              <div className="flex items-center gap-1 text-[9.5px] text-slate-500 font-mono">
-                                <Calendar className="h-3 w-3 text-slate-500" />
+                              <p className="font-semibold text-text-hi truncate font-mono" title={file.name}>{file.name}</p>
+                              <div className="flex items-center gap-1 text-[9.5px] text-text-low font-mono tabular-nums">
+                                <Calendar className="h-3 w-3 text-text-low" />
                                 <span>{new Date(file.createdTime).toLocaleString('id-ID')}</span>
                               </div>
                             </div>
                             <button
                               id={`restore-btn-${file.id}`}
                               onClick={() => setConfirmRestoreFile(file)}
-                              className="px-2.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-900 rounded font-bold text-[10px] transition-colors cursor-pointer"
+                              className="px-2.5 py-1.5 bg-neon-cyan/15 hover:bg-neon-cyan/25 text-neon-cyan border border-neon-cyan/40 rounded-lg font-bold text-[10px] transition-colors cursor-pointer"
                             >
                               Pulihkan
                             </button>
@@ -590,15 +587,15 @@ export default function SettingsModals({
               )}
             </div>
 
-            <div className="flex items-center justify-between pt-3.5 border-t border-slate-200 text-[10px]">
-              <span className="text-slate-500 font-mono">
+            <div className="flex items-center justify-between pt-3.5 border-t border-border-subtle text-[10px]">
+              <span className="text-text-low font-mono">
                 Penyimpanan Utama: Firestore (Cloud Database)
               </span>
               <button
                 id="sync-modal-footer-close"
                 type="button"
                 onClick={() => setSyncModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-teal-600 hover:text-teal-300 transform duration-100 cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-neon-cyan hover:text-text-hi transition-colors cursor-pointer"
               >
                 Selesai
               </button>
@@ -609,23 +606,23 @@ export default function SettingsModals({
 
       {/* RESTORE CONFIRMATION PANEL (IFRAME/ZERO PROTECTION INTERCEPTOR) */}
       {confirmRestoreFile && (
-        <div id="restore-confirm-dialog" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fade-in text-slate-700">
-          <div className="bg-white border border-rose-800/60 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4 text-center">
+        <div id="restore-confirm-dialog" className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-[60] animate-fade-in text-text-mid">
+          <div className="glass-panel border border-neon-red/45 shadow-glow-red rounded-3xl p-6 w-full max-w-lg space-y-4 text-center">
             <div className="flex justify-center flex-col items-center gap-2">
-              <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 animate-pulse">
+              <div className="w-12 h-12 rounded-full bg-neon-red/15 border border-neon-red/40 flex items-center justify-center text-neon-red animate-pulse">
                 <AlertTriangle className="h-6 w-6" />
               </div>
-              <h3 className="text-slate-800 font-bold uppercase tracking-wider text-sm mt-1">Konfirmasi Pemulihan Database</h3>
+              <h3 className="text-text-hi font-heading font-bold uppercase tracking-wider text-sm mt-1">Konfirmasi Pemulihan Database</h3>
             </div>
 
-            <div className="space-y-2.5 text-xs text-slate-600 leading-relaxed text-left">
-              <p className="bg-rose-500/5 p-3 rounded-2xl text-rose-600 border border-rose-950 text-center font-semibold">
+            <div className="space-y-2.5 text-xs text-text-mid leading-relaxed text-left">
+              <p className="bg-neon-red/10 p-3 rounded-2xl text-neon-red border border-neon-red/30 text-center font-semibold">
                 ⚠️ PERINGATAN: Seluruh data lokal dan cloud (Firestore) aktif di konsesi saat ini akan ditimpa secara permanen!
               </p>
-              <p className="text-slate-600">
+              <p className="text-text-mid">
                 Aplikasi akan memuat isi dokumen JSON dari Google Drive dan menulis ulang data pada koleksi berikut:
               </p>
-              <ul className="list-disc pl-4.5 space-y-1 text-slate-500 text-[11px] font-mono">
+              <ul className="list-disc pl-4.5 space-y-1 text-text-low text-[11px] font-mono">
                 <li>wastewater (Kualitas Air Limbah)</li>
                 <li>rainfall (Curah Hujan)</li>
                 <li>nursery & reclamation (Sektor Pemulihan & Pembibitan)</li>
@@ -633,15 +630,15 @@ export default function SettingsModals({
                 <li>documents & calendar (AMDAL & Kalender Kepatuhan)</li>
                 <li>costs (Opex & Capex)</li>
               </ul>
-              <div className="p-3 bg-white border border-slate-900 rounded-xl space-y-1 font-mono text-[10.5px]">
-                <p className="text-slate-500">File Sumber di Google Drive:</p>
-                <p className="font-bold text-slate-700">{confirmRestoreFile.name}</p>
-                <p className="text-[9.5px] text-slate-500">ID: {confirmRestoreFile.id}</p>
+              <div className="p-3 bg-bg-0/70 border border-border-neon rounded-xl space-y-1 font-mono text-[10.5px]">
+                <p className="text-text-low">File Sumber di Google Drive:</p>
+                <p className="font-bold text-text-hi">{confirmRestoreFile.name}</p>
+                <p className="text-[9.5px] text-text-low">ID: {confirmRestoreFile.id}</p>
               </div>
             </div>
 
             {restoreProgress && (
-              <div className="p-3 bg-white border border-slate-200 rounded-xl font-mono text-[11px] text-teal-600 text-center flex items-center justify-center gap-2">
+              <div className="p-3 bg-bg-0/70 border border-border-neon rounded-xl font-mono text-[11px] text-neon-cyan text-center flex items-center justify-center gap-2">
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                 <span>{restoreProgress}</span>
               </div>
@@ -652,7 +649,7 @@ export default function SettingsModals({
                 id="restore-cancel-btn"
                 disabled={!!restoreProgress}
                 onClick={() => setConfirmRestoreFile(null)}
-                className="flex-1 py-2.5 bg-white hover:bg-slate-100 disabled:opacity-50 text-slate-700 rounded-xl font-bold font-sans text-xs cursor-pointer text-center"
+                className="flex-1 py-2.5 bg-bg-1 hover:bg-bg-2 border border-border-subtle disabled:opacity-50 text-text-mid hover:text-text-hi rounded-xl font-bold font-sans text-xs cursor-pointer text-center"
               >
                 Batal
               </button>
@@ -660,7 +657,7 @@ export default function SettingsModals({
                 id="restore-submit-btn"
                 disabled={!!restoreProgress}
                 onClick={() => handleManualRestore(confirmRestoreFile)}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-slate-900 rounded-xl font-bold font-sans text-xs cursor-pointer text-center"
+                className="neon-btn-danger flex-1 py-2.5 disabled:opacity-50 rounded-xl font-bold font-sans text-xs cursor-pointer text-center"
               >
                 Lanjutkan Pemulihan
               </button>
@@ -671,17 +668,17 @@ export default function SettingsModals({
 
       {/* USER PROFILE MODAL */}
       {userModalOpen && (
-        <div id="user-profile-modal" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-55 animate-fade-in text-slate-700">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-5 text-left animate-slide-up">
-            <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
+        <div id="user-profile-modal" className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-55 animate-fade-in text-text-mid">
+          <div className="glass-panel border border-border-neon rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-5 text-left animate-slide-up max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3.5 border-b border-border-subtle">
               <div className="flex items-center gap-2">
-                <User className="text-teal-600 h-5 w-5" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 font-sans">Kelola Kredensial Pengawas</h3>
+                <User className="text-neon-cyan h-5 w-5" />
+                <h3 className="text-sm font-bold uppercase tracking-wider text-text-hi font-heading">Kelola Kredensial Pengawas</h3>
               </div>
               <button 
                 id="user-modal-close"
                 onClick={() => setUserModalOpen(false)} 
-                className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+                className="p-1.5 hover:bg-bg-2 rounded-lg text-text-low hover:text-text-hi transition-colors cursor-pointer"
               >
                 <X className="h-4.5 w-4.5" />
               </button>
@@ -689,78 +686,78 @@ export default function SettingsModals({
 
             <div className="space-y-4">
               <div>
-                <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase font-sans">Nama Lengkap Pengawas</label>
+                <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase font-sans">Nama Lengkap Pengawas</label>
                 <input
                   id="user-field-name"
                   type="text"
                   required
                   value={uName}
                   onChange={(e) => setUName(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                  className="w-full px-3 py-2 text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase font-sans">Email Kepatuhan Lapangan</label>
+                <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase font-sans">Email Kepatuhan Lapangan</label>
                 <input
                   id="user-field-email"
                   type="email"
                   disabled
                   value={uEmail}
-                  className="w-full bg-white/60 border border-slate-200/80 rounded-xl px-3 py-2 text-xs outline-none text-slate-500 font-mono"
+                  className="w-full px-3 py-2 text-xs opacity-70 cursor-not-allowed font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase font-sans">Nama Perusahaan / Konsesi Tambang</label>
+                <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase font-sans">Nama Perusahaan / Konsesi Tambang</label>
                 <input
                   id="user-field-company"
                   type="text"
                   required
                   value={uCompany}
                   onChange={(e) => setUCompany(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                  className="w-full px-3 py-2 text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase font-sans">Jabatan Sektor</label>
+                <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase font-sans">Jabatan Sektor</label>
                 <input
                   id="user-field-role"
                   type="text"
                   disabled
                   value={uRole}
-                  className="w-full bg-white/60 border border-slate-200/80 rounded-xl px-3 py-2 text-xs outline-none text-slate-500 cursor-not-allowed"
+                  className="w-full px-3 py-2 text-xs opacity-70 cursor-not-allowed"
                 />
               </div>
 
               {userSaveError && (
-                <p className="text-rose-600 text-[10px] font-mono leading-relaxed bg-rose-50 p-2 rounded-xl border border-rose-200">{userSaveError}</p>
+                <p className="text-neon-red text-[10px] font-mono leading-relaxed bg-neon-red/10 p-2 rounded-xl border border-neon-red/30">{userSaveError}</p>
               )}
             </div>
             
             {/* ROLE MANAGEMENT (Admin Only UI Mockup) */}
-            <div className="mt-6 pt-4 border-t border-slate-200">
-              <h4 className="text-[11px] text-slate-500 font-bold mb-3 uppercase font-sans flex items-center gap-2">
-                <Shield className="h-3.5 w-3.5" />
+            <div className="mt-6 pt-4 border-t border-border-subtle">
+              <h4 className="text-[11px] text-text-low font-bold mb-3 uppercase font-sans flex items-center gap-2">
+                <Shield className="h-3.5 w-3.5 text-neon-cyan" />
                 Manajemen Akses (Admin)
               </h4>
               {roleUpdateMsg && (
-                <div className={`p-2 rounded text-[10px] font-semibold mb-2 ${roleUpdateMsg.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                <div className={`p-2 rounded-lg text-[10px] font-semibold mb-2 border ${roleUpdateMsg.type === 'success' ? 'bg-neon-green/10 border-neon-green/35 text-neon-green' : 'bg-neon-red/10 border-neon-red/35 text-neon-red'}`}>
                   {roleUpdateMsg.msg}
                 </div>
               )}
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                 {isLoadingRoles ? (
-                  <p className="text-[10px] text-slate-500 animate-pulse">Memuat daftar akses...</p>
+                  <p className="text-[10px] text-text-low animate-pulse">Memuat daftar akses...</p>
                 ) : rolesList.length === 0 ? (
-                  <p className="text-[10px] text-slate-500">Belum ada data akses lain.</p>
+                  <p className="text-[10px] text-text-low">Belum ada data akses lain.</p>
                 ) : (
                   rolesList.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 border border-slate-100 rounded-lg">
-                      <span className="text-[10px] font-mono text-slate-600">{item.email}</span>
+                    <div key={idx} className="flex items-center justify-between p-2 bg-bg-0/60 border border-border-subtle rounded-xl">
+                      <span className="text-[10px] font-mono text-text-mid">{item.email}</span>
                       <select 
-                        className="text-[10px] font-bold uppercase bg-white border border-slate-200 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-teal-500 text-slate-700"
+                        className="text-[10px] font-bold uppercase px-2 py-1"
                         value={item.role}
                         onChange={(e) => handleRoleChange(item.email, e.target.value)}
                       >
@@ -775,7 +772,7 @@ export default function SettingsModals({
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-4 border-t border-slate-200 mt-4 flex-wrap gap-2">
+            <div className="flex items-center justify-between pt-4 border-t border-border-subtle mt-4 flex-wrap gap-2">
               {onLogout ? (
                 <button
                   id="user-modal-logout-btn"
@@ -784,7 +781,7 @@ export default function SettingsModals({
                     setUserModalOpen(false);
                     onLogout();
                   }}
-                  className="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                  className="px-3.5 py-2 bg-neon-red/15 hover:bg-neon-red/25 text-neon-red border border-neon-red/35 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   <X className="h-3.5 w-3.5" />
                   Keluar / Logout
@@ -797,7 +794,7 @@ export default function SettingsModals({
                   type="button"
                   disabled={isSavingUser}
                   onClick={() => setUserModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-900 cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-text-mid hover:text-text-hi cursor-pointer"
                 >
                   Batal
                 </button>
@@ -806,7 +803,7 @@ export default function SettingsModals({
                   type="button"
                   disabled={isSavingUser}
                   onClick={handleUserSave}
-                  className="px-5 py-2.5 bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer flex items-center gap-1.5 transition-all"
+                  className="neon-btn-primary px-5 py-2.5 disabled:opacity-50 font-bold text-xs rounded-xl cursor-pointer flex items-center gap-1.5 transition-all"
                 >
                   {isSavingUser ? (
                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />

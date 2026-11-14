@@ -55,11 +55,8 @@ export function resolveStatusTone(rawStatus?: string | null): CanonicalStatusTon
       'dalam tindak lanjut',
       'segera habis',
       'biru',
-      'merah',
     ].includes(s)
   ) {
-    // Note: PROPER 'Merah' vs critical failure
-    if (s === 'merah') return 'tidak_memenuhi';
     return 'mendekati';
   }
 
@@ -73,6 +70,7 @@ export function resolveStatusTone(rawStatus?: string | null): CanonicalStatusTon
       'expired',
       'overdue',
       'hitam',
+      'merah',
       'open',
       'terbuka',
       'nc mayor',

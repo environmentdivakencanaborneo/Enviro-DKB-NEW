@@ -10,16 +10,13 @@ import {
   Search, 
   Trash2, 
   Coins, 
-  ArrowUpRight, 
   TrendingUp, 
   TrendingDown, 
-  DollarSign, 
   CheckCircle, 
-  Calendar,
   Layers,
-  FileSpreadsheet,
   Pencil
 } from 'lucide-react';
+import EmptyState from './EmptyState';
 
 interface EnvironmentalCostsViewProps {
   costs: EnvironmentalCost[];
@@ -217,23 +214,27 @@ export default function EnvironmentalCostsView({
   }).filter(c => c.plan > 0 || c.realized > 0);
 
   return (
-    <div id="environmental-costs-dashboard" className="space-y-6">
+    <div id="environmental-costs-dashboard" className="space-y-6 text-text-hi">
       {/* Header and Add Button */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <Coins className="h-5 w-5 text-emerald-600" />
-            Biaya Pengelolaan Lingkungan Hidup
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Manajemen alokasi budget Rencana vs Realisasi OPEX & CAPEX pengelolaan tambang batubara (PT Diva Kencana Borneo)
-          </p>
+      <div className="glass-panel rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5 text-left">
+          <div className="p-3 bg-neon-green/15 text-neon-green border border-neon-green/35 rounded-xl shadow-glow-green shrink-0">
+            <Coins className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-text-hi font-heading">
+              Biaya Pengelolaan Lingkungan Hidup
+            </h2>
+            <p className="text-xs text-text-mid mt-1">
+              Manajemen alokasi budget Rencana vs Realisasi OPEX &amp; CAPEX pengelolaan tambang batubara (PT Diva Kencana Borneo)
+            </p>
+          </div>
         </div>
 
         <button 
           id="btn-add-environmental-cost"
           onClick={() => setShowCostForm(!showCostForm)}
-          className="flex items-center justify-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-all shadow-lg hover:shadow-emerald-500/10 cursor-pointer"
+          className="flex items-center justify-center gap-1.5 px-4.5 py-2.5 rounded-xl neon-btn-primary text-xs transition-all cursor-pointer shrink-0"
         >
           <Plus className="h-4 w-4 stroke-[2.5]" />
           {showCostForm ? "Tutup Form" : "Entri Anggaran & Realisasi"}
@@ -242,17 +243,17 @@ export default function EnvironmentalCostsView({
 
       {/* Slide down Input Form */}
       {showCostForm && (
-        <div className="bg-white shadow-sm p-6 rounded-2xl text-left space-y-5 animate-slide-down border border-slate-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-black/5">
+        <div className="glass-panel p-6 rounded-2xl text-left space-y-5 animate-slide-down">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border-neon">
             <div className="flex items-center gap-2">
-              <Coins className="h-4 w-4 text-emerald-600" />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+              <Coins className="h-4 w-4 text-neon-green" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-text-mid font-mono">
                 {editingCostId ? 'Edit Anggaran & Realisasi Lingkungan' : 'Entri Anggaran Pengelolaan Lingkungan'}
               </h4>
             </div>
             
             {/* Split Form Switcher Tabs */}
-            <div className="flex p-1 bg-white rounded-xl border border-slate-200">
+            <div className="flex p-1 bg-bg-0 rounded-xl border border-border-subtle">
               <button
                 type="button"
                 onClick={() => {
@@ -264,8 +265,8 @@ export default function EnvironmentalCostsView({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   formTab === 'rencana'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-neon-green text-[#04121A] shadow-glow-green'
+                    : 'text-text-mid hover:text-text-hi'
                 }`}
               >
                 Form Rencana (Budget)
@@ -281,8 +282,8 @@ export default function EnvironmentalCostsView({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   formTab === 'realisasi'
-                    ? 'bg-amber-500 text-slate-950 shadow-md'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-neon-amber text-[#04121A] shadow-glow-amber'
+                    : 'text-text-mid hover:text-text-hi'
                 }`}
               >
                 Form Realisasi (Spending)
@@ -294,104 +295,100 @@ export default function EnvironmentalCostsView({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Year field */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Tahun Anggaran</label>
+                <label className="text-[11px] font-bold text-text-mid uppercase tracking-wider block font-mono">Tahun Anggaran</label>
                 <select 
                   value={cYear}
                   onChange={(e) => setCYear(Number(e.target.value))}
-                  className="w-full bg-white border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full px-3.5 py-2 text-xs font-mono"
                 >
-                  <option value={2026} className="bg-white">2026</option>
-                  <option value={2027} className="bg-white">2027</option>
-                  <option value={2028} className="bg-white">2028</option>
+                  <option value={2026}>2026</option>
+                  <option value={2027}>2027</option>
+                  <option value={2028}>2028</option>
                 </select>
               </div>
 
               {/* Monthly Period field */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Bulan Pelaporan</label>
+                <label className="text-[11px] font-bold text-text-mid uppercase tracking-wider block font-mono">Bulan Pelaporan</label>
                 <select 
                   value={cPeriod}
                   onChange={(e) => setCPeriod(e.target.value)}
-                  className="w-full bg-white border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full px-3.5 py-2 text-xs"
                 >
                   {periods.map(p => (
-                    <option key={p} value={p} className="bg-white">{p}</option>
+                    <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
               </div>
 
               {/* Category field */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Kategori Anggaran</label>
+                <label className="text-[11px] font-bold text-text-mid uppercase tracking-wider block font-mono">Kategori Anggaran</label>
                 <select 
                   value={cCategory}
                   onChange={(e) => setCCategory(e.target.value)}
-                  className="w-full bg-white border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full px-3.5 py-2 text-xs"
                 >
                   {categories.map(c => (
-                    <option key={c} value={c} className="bg-white">{c}</option>
+                    <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
               </div>
 
               {/* Jenis Klasifikasi Biaya (Dropdown) */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Jenis Biaya</label>
+                <label className="text-[11px] font-bold text-text-mid uppercase tracking-wider block font-mono">Jenis Biaya</label>
                 <select 
                   value={costType}
                   onChange={(e) => setCostType(e.target.value as 'OPEX' | 'CAPEX')}
-                  className={`w-full bg-white border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none transition-colors ${
-                    formTab === 'rencana' ? 'focus:border-emerald-500' : 'focus:border-amber-500'
-                  }`}
+                  className="w-full px-3.5 py-2 text-xs"
                 >
-                  <option value="OPEX" className="bg-white">OPEX (Biaya Operasional Kegiatan)</option>
-                  <option value="CAPEX" className="bg-white">CAPEX (Investasi Aset / Infrastruktur)</option>
+                  <option value="OPEX">OPEX (Biaya Operasional Kegiatan)</option>
+                  <option value="CAPEX">CAPEX (Investasi Aset / Infrastruktur)</option>
                 </select>
               </div>
 
               {/* Nominal Biaya */}
               <div className="space-y-1.5">
-                <label className={`text-[11px] font-bold uppercase tracking-wider block ${
-                  formTab === 'rencana' ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'
+                <label className={`text-[11px] font-bold uppercase tracking-wider block font-mono ${
+                  formTab === 'rencana' ? 'text-neon-green' : 'text-neon-amber'
                 }`}>
                   Nominal {formTab === 'rencana' ? 'Rencana' : 'Realisasi'} (IDR)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-slate-500 text-xs font-semibold">Rp</span>
+                  <span className="absolute left-3 top-2 text-text-low text-xs font-mono font-semibold">Rp</span>
                   <input 
                     type="number"
                     value={cNominal}
                     onChange={(e) => setCNominal(e.target.value)}
                     placeholder={formTab === 'rencana' ? "Masukkan nominal rencana..." : "Masukkan nominal realisasi..."}
                     required
-                    className={`w-full bg-white border-slate-200 rounded-xl pl-8 pr-3.5 py-2 text-xs text-slate-800 focus:outline-none transition-colors ${
-                      formTab === 'rencana' ? 'focus:border-emerald-500' : 'focus:border-amber-500'
-                    }`}
+                    className="w-full pl-8 pr-3.5 py-2 text-xs font-mono"
                   />
                 </div>
               </div>
 
               {/* Officer */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Petugas PIC Anggaran</label>
+                <label className="text-[11px] font-bold text-text-mid uppercase tracking-wider block font-mono">Petugas PIC Anggaran</label>
                 <input 
                   type="text"
                   value={cOfficer}
                   onChange={(e) => setCOfficer(e.target.value)}
                   placeholder="cth. Aditya Perkasa"
                   required
-                  className="w-full bg-white border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full px-3.5 py-2 text-xs"
                 />
               </div>
 
               {/* Kode Anggaran field */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Kode Mata Anggaran</label>
+                  <label className="text-[11px] font-bold text-text-mid uppercase tracking-wider block font-mono">Kode Mata Anggaran</label>
                   <button
                     type="button"
                     onClick={() => setCBudgetCode(buildBudgetCode(Number(cYear), costType, cCategory))}
-                    className="text-[10px] font-bold text-emerald-600 hover:underline cursor-pointer"
+                    className="text-[10px] font-bold text-neon-cyan hover:underline cursor-pointer"
                   >
                     Auto-Generate
                   </button>
@@ -401,37 +398,37 @@ export default function EnvironmentalCostsView({
                   value={cBudgetCode}
                   onChange={(e) => setCBudgetCode(e.target.value)}
                   placeholder={`cth. ${buildBudgetCode(Number(cYear), costType, cCategory)}`}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full px-3.5 py-2 text-xs font-mono"
                 />
               </div>
 
               {/* Notes field */}
               <div className="space-y-1.5 sm:col-span-2 lg:col-span-2">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Keterangan Anggaran</label>
+                <label className="text-[11px] font-bold text-text-mid uppercase tracking-wider block font-mono">Keterangan Anggaran</label>
                 <input 
                   type="text"
                   value={cNotes}
                   onChange={(e) => setCNotes(e.target.value)}
                   placeholder="Tambahkan penjelasan rinci mengenai kegiatan atau tujuan pembiayaan..."
-                  className="w-full bg-white border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full px-3.5 py-2 text-xs"
                 />
               </div>
             </div>
 
-            <div className="pt-3 border-t border-black/5 flex justify-end gap-3">
+            <div className="pt-3 border-t border-border-neon flex justify-end gap-3">
               <button
                 type="button" 
                 onClick={() => setShowCostForm(false)}
-                className="px-4 py-2 border border-slate-200 hover:bg-black/5 rounded-xl text-xs text-slate-600 font-semibold cursor-pointer"
+                className="px-4 py-2 border border-border-subtle bg-bg-1 hover:bg-bg-2 rounded-xl text-xs text-text-mid hover:text-text-hi font-semibold cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="submit" 
-                className={`px-5 py-2 font-bold text-xs rounded-xl transition-all shadow-lg cursor-pointer text-slate-950 ${
+                className={`px-5 py-2 font-bold text-xs rounded-xl transition-all cursor-pointer ${
                   formTab === 'rencana' 
-                    ? 'bg-emerald-500 hover:bg-emerald-400 shadow-emerald-500/10' 
-                    : 'bg-amber-500 hover:bg-amber-400 shadow-amber-500/10'
+                    ? 'neon-btn-primary' 
+                    : 'bg-neon-amber hover:brightness-110 text-[#04121A] shadow-glow-amber'
                 }`}
               >
                 {formTab === 'rencana' ? 'Simpan Rencana Anggaran' : 'Simpan Realisasi Pengeluaran'}
@@ -444,84 +441,82 @@ export default function EnvironmentalCostsView({
       {/* KPI Financial Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {/* OPEX CARD */}
-        <div className="bg-white border border-slate-200 shadow-sm p-5 rounded-2xl space-y-4">
+        <div className="neon-card p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-lg bg-neon-violet/15 text-neon-violet border border-neon-violet/30 flex items-center justify-center">
                 <Layers className="h-4 w-4" />
               </div>
-              <span className="text-xs text-slate-500 font-bold uppercase tracking-wider font-mono">Biaya Kegiatan (OPEX)</span>
+              <span className="text-xs text-text-mid font-bold uppercase tracking-wider font-mono">Biaya Kegiatan (OPEX)</span>
             </div>
-            <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-500/15 px-2 py-0.5 rounded-full">
+            <span className="text-[11px] font-semibold text-neon-violet bg-neon-violet/15 border border-neon-violet/30 px-2.5 py-0.5 rounded-full font-mono tabular-nums">
               {opexPercentage.toFixed(1)}% Realized
             </span>
           </div>
 
           <div className="space-y-1.5 text-left">
-            <p className="text-[10px] text-slate-500 font-medium tracking-wide">REALISASI PENYALURAN</p>
-            <h3 className="text-xl font-bold font-sans text-slate-800">
+            <p className="text-[10px] text-text-low font-medium tracking-wide font-mono">REALISASI PENYALURAN</p>
+            <h3 className="text-xl font-bold font-mono tabular-nums text-text-hi">
               {formatCurrency(totalOpexRealized)}
             </h3>
-            <p className="text-[11px] text-slate-500">
-              Rencana Anggaran: <span className="font-semibold text-slate-600">{formatCurrency(totalOpexPlanned)}</span>
+            <p className="text-[11px] text-text-mid">
+              Rencana Anggaran: <span className="font-semibold font-mono tabular-nums text-text-hi">{formatCurrency(totalOpexPlanned)}</span>
             </p>
           </div>
 
           {/* Simple percentage bar */}
-          <div className="w-full h-1.5 bg-black/5 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-bg-2 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+              className="h-full bg-neon-violet rounded-full transition-all duration-300"
               style={{ width: `${Math.min(100, opexPercentage)}%` }}
             />
           </div>
         </div>
 
         {/* CAPEX CARD */}
-        <div className="bg-white border border-slate-200 shadow-sm p-5 rounded-2xl space-y-4">
+        <div className="neon-card p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-lg bg-neon-amber/15 text-neon-amber border border-neon-amber/30 flex items-center justify-center">
                 <TrendingUp className="h-4 w-4" />
               </div>
-              <span className="text-xs text-slate-500 font-bold uppercase tracking-wider font-mono">Investasi Aset (CAPEX)</span>
+              <span className="text-xs text-text-mid font-bold uppercase tracking-wider font-mono">Investasi Aset (CAPEX)</span>
             </div>
-            <span className="text-[11px] font-semibold text-amber-600 bg-amber-500/15 px-2 py-0.5 rounded-full">
+            <span className="text-[11px] font-semibold text-neon-amber bg-neon-amber/15 border border-neon-amber/30 px-2.5 py-0.5 rounded-full font-mono tabular-nums">
               {capexPercentage.toFixed(1)}% Realized
             </span>
           </div>
 
           <div className="space-y-1.5 text-left">
-            <p className="text-[10px] text-slate-500 font-medium tracking-wide">REALISASI PENYALURAN</p>
-            <h3 className="text-xl font-bold font-sans text-slate-800">
+            <p className="text-[10px] text-text-low font-medium tracking-wide font-mono">REALISASI PENYALURAN</p>
+            <h3 className="text-xl font-bold font-mono tabular-nums text-text-hi">
               {formatCurrency(totalCapexRealized)}
             </h3>
-            <p className="text-[11px] text-slate-500">
-              Rencana Anggaran: <span className="font-semibold text-slate-600">{formatCurrency(totalCapexPlanned)}</span>
+            <p className="text-[11px] text-text-mid">
+              Rencana Anggaran: <span className="font-semibold font-mono tabular-nums text-text-hi">{formatCurrency(totalCapexPlanned)}</span>
             </p>
           </div>
 
           {/* Simple percentage bar */}
-          <div className="w-full h-1.5 bg-black/5 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-bg-2 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-amber-500 rounded-full transition-all duration-300"
+              className="h-full bg-neon-amber rounded-full transition-all duration-300"
               style={{ width: `${Math.min(100, capexPercentage)}%` }}
             />
           </div>
         </div>
 
         {/* TOTAL BUDGET CARD */}
-        <div className="bg-white border-slate-200 shadow-sm p-5 rounded-2xl border border-emerald-500/30 relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-[-25px] right-[-25px] h-20 w-20 bg-emerald-500/5 blur-xl rounded-full" />
-          
+        <div className="neon-card p-5 relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-lg bg-neon-green/15 text-neon-green border border-neon-green/30 flex items-center justify-center">
                 <Coins className="h-4 w-4" />
               </div>
-              <span className="text-xs text-slate-500 font-bold uppercase tracking-wider font-mono">Total Biaya Lingkungan</span>
+              <span className="text-xs text-text-mid font-bold uppercase tracking-wider font-mono">Total Biaya Lingkungan</span>
             </div>
-            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-              overallPercentage > 100 ? 'bg-red-500/15 text-red-600' : 'bg-emerald-500/15 text-emerald-600'
+            <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 font-mono tabular-nums ${
+              overallPercentage > 100 ? 'badge-exceeded' : 'badge-safe'
             }`}>
               {overallPercentage > 100 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
               {overallPercentage.toFixed(1)}% Alokasi
@@ -529,28 +524,28 @@ export default function EnvironmentalCostsView({
           </div>
 
           <div className="my-3 text-left">
-            <p className="text-[10px] text-slate-500 font-medium tracking-wide">TOTAL REALISASI TAMBANG</p>
-            <h3 className="text-2xl font-black font-sans text-emerald-600">
+            <p className="text-[10px] text-text-low font-medium tracking-wide font-mono">TOTAL REALISASI TAMBANG</p>
+            <h3 className="text-2xl font-black font-mono tabular-nums text-neon-green">
               {formatCurrency(overallBudgetRealized)}
             </h3>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Rencana Pagu: <span className="font-bold text-slate-700">{formatCurrency(overallBudgetPlanned)}</span>
+            <p className="text-[11px] text-text-mid mt-1">
+              Rencana Pagu: <span className="font-bold font-mono tabular-nums text-text-hi">{formatCurrency(overallBudgetPlanned)}</span>
             </p>
           </div>
 
           {/* Combined progress */}
           <div className="space-y-1">
-            <div className="w-full h-1.5 bg-black/5 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-bg-2 rounded-full overflow-hidden">
               <div 
                 className={`h-full rounded-full transition-all duration-300 ${
-                  overallPercentage > 100 ? 'bg-red-500' : 'bg-emerald-500'
+                  overallPercentage > 100 ? 'bg-neon-red' : 'bg-neon-green'
                 }`}
                 style={{ width: `${Math.min(100, overallPercentage)}%` }}
               />
             </div>
-            <div className="flex justify-between items-center text-[9px] text-slate-500 font-mono mt-1">
+            <div className="flex justify-between items-center text-[9px] text-text-mid font-mono tabular-nums mt-1">
               <span>SISA ALOKASI TERPAKAI</span>
-              <span className={overallBudgetPlanned < overallBudgetRealized ? 'text-red-600 font-semibold' : 'text-emerald-600'}>
+              <span className={overallBudgetPlanned < overallBudgetRealized ? 'text-neon-red font-semibold' : 'text-neon-green font-semibold'}>
                 {overallBudgetPlanned >= overallBudgetRealized 
                   ? `${formatCurrency(overallBudgetPlanned - overallBudgetRealized)} tersisa`
                   : `Over Budget ${formatCurrency(overallBudgetRealized - overallBudgetPlanned)}`}
@@ -563,18 +558,17 @@ export default function EnvironmentalCostsView({
       {/* Breakdown and Visual charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Category Budget Share graph bar */}
-        <div className="bg-white border border-slate-200 shadow-sm p-6 rounded-2xl text-left space-y-4">
+        <div className="glass-panel p-6 rounded-2xl text-left space-y-4">
           <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-mono">Breakdown Berdasarkan Kategori</h4>
-            <p className="text-[10px] text-slate-500 mt-0.5">Kumulatif Budget: Planned vs Realized tiap segmen</p>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-text-mid font-mono">Breakdown Berdasarkan Kategori</h4>
+            <p className="text-[10px] text-text-low mt-0.5">Kumulatif Budget: Planned vs Realized tiap segmen</p>
           </div>
 
           <div className="space-y-4 pt-2">
             {categorySummary.length === 0 ? (
-              <div className="text-center py-10 text-xs text-slate-500">Belum ada pengeluaran terdaftar.</div>
+              <div className="text-center py-10 text-xs text-text-mid">Belum ada pengeluaran terdaftar.</div>
             ) : (
               categorySummary.map((cat, idx) => {
-                const totalCatVal = cat.realized || 1;
                 const maxBudgetVal = Math.max(...categorySummary.map(x => Math.max(x.plan, x.realized)), 1);
                 const percentOfMaxPlan = (cat.plan / maxBudgetVal) * 100;
                 const percentOfMaxRealized = (cat.realized / maxBudgetVal) * 100;
@@ -582,34 +576,32 @@ export default function EnvironmentalCostsView({
                 return (
                   <div key={idx} className="space-y-2">
                     <div className="flex items-center justify-between text-xs font-sans">
-                      <span className="font-semibold text-slate-600 truncate pr-2" title={cat.name}>{cat.name}</span>
-                      <span className="text-[10px] text-emerald-600 font-bold shrink-0">{((cat.realized / (cat.plan || 1)) * 100).toFixed(0)}% Realized</span>
+                      <span className="font-semibold text-text-hi truncate pr-2" title={cat.name}>{cat.name}</span>
+                      <span className="text-[10px] text-neon-green font-bold font-mono tabular-nums shrink-0">{((cat.realized / (cat.plan || 1)) * 100).toFixed(0)}% Realized</span>
                     </div>
 
                     <div className="space-y-1">
                       {/* Budget row */}
-                      <div className="relative w-full h-2.5 bg-black/5 rounded-full flex overflow-hidden">
-                        {/* Planned in slate/blue */}
+                      <div className="relative w-full h-2 bg-bg-2 rounded-full flex overflow-hidden">
                         <div 
-                          className="h-full bg-slate-600/50 rounded-l transition-all border-r border-slate-200"
+                          className="h-full bg-text-mid/50 rounded-l transition-all"
                           style={{ width: `${percentOfMaxPlan}%` }}
                           title={`Plan: ${formatCurrency(cat.plan)}`}
                         />
                       </div>
                       {/* Realized row */}
-                      <div className="relative w-full h-2.5 bg-black/5 rounded-full flex overflow-hidden">
-                        {/* Realized in emerald */}
+                      <div className="relative w-full h-2 bg-bg-2 rounded-full flex overflow-hidden">
                         <div 
-                          className="h-full bg-gradient-to-r from-emerald-500/85 to-teal-500 rounded-l transition-all"
+                          className="h-full bg-gradient-to-r from-neon-cyan to-neon-green rounded-l transition-all"
                           style={{ width: `${percentOfMaxRealized}%` }}
                           title={`Realized: ${formatCurrency(cat.realized)}`}
                         />
                       </div>
                     </div>
 
-                    <div className="flex justify-between items-center text-[10px] font-mono text-slate-500">
-                      <span>Rencana: <b className="text-slate-500 font-medium">{formatCurrency(cat.plan)}</b></span>
-                      <span>Realisasi: <b className="text-emerald-600 font-semibold">{formatCurrency(cat.realized)}</b></span>
+                    <div className="flex justify-between items-center text-[10px] font-mono tabular-nums text-text-mid">
+                      <span>Rencana: <b className="text-text-hi font-medium">{formatCurrency(cat.plan)}</b></span>
+                      <span>Realisasi: <b className="text-neon-green font-semibold">{formatCurrency(cat.realized)}</b></span>
                     </div>
                   </div>
                 );
@@ -619,13 +611,13 @@ export default function EnvironmentalCostsView({
         </div>
 
         {/* Core items list Table */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 shadow-sm p-6 rounded-2xl text-left flex flex-col justify-between">
+        <div className="lg:col-span-2 glass-panel p-6 rounded-2xl text-left flex flex-col justify-between">
           <div className="space-y-4">
             {/* Search and Category Filter triggers */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-black/5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border-neon">
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-mono">Daftar Audit Pengeluaran Rencana & Realisasi</h4>
-                <p className="text-[10px] text-slate-500 mt-0.5">Pemantauan kepatuhan operasional mine superintendent</p>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-text-mid font-mono">Daftar Audit Pengeluaran Rencana &amp; Realisasi</h4>
+                <p className="text-[10px] text-text-low mt-0.5">Pemantauan kepatuhan operasional mine superintendent</p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -633,7 +625,7 @@ export default function EnvironmentalCostsView({
                 <select
                   value={yearFilter}
                   onChange={(e) => setYearFilter(e.target.value)}
-                  className="bg-white border-slate-200 rounded-lg px-2 py-1 text-[11px] text-slate-600 focus:outline-none"
+                  className="px-2.5 py-1.5 text-[11px] font-mono"
                 >
                   <option value="">Semua Tahun</option>
                   <option value="2026">2026</option>
@@ -645,7 +637,7 @@ export default function EnvironmentalCostsView({
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="bg-white border-slate-200 rounded-lg px-2 py-1 text-[11px] text-slate-600 focus:outline-none max-w-[150px] sm:max-w-none"
+                  className="px-2.5 py-1.5 text-[11px] max-w-[150px] sm:max-w-none"
                 >
                   <option value="">Semua Kategori</option>
                   {categories.map(c => (
@@ -655,13 +647,13 @@ export default function EnvironmentalCostsView({
 
                 {/* Search query box */}
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500" />
+                  <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-text-low" />
                   <input
                     type="text"
                     value={searchFilter}
                     onChange={(e) => setSearchFilter(e.target.value)}
                     placeholder="Cari biaya..."
-                    className="bg-white border-slate-200 rounded-lg pl-8 pr-3 py-1 text-[11px] text-slate-600 focus:outline-none focus:border-emerald-500/50 w-full xs:w-36"
+                    className="pl-8 pr-3 py-1.5 text-[11px] w-full xs:w-36"
                   />
                 </div>
               </div>
@@ -669,71 +661,79 @@ export default function EnvironmentalCostsView({
 
             {/* List items representation table */}
             <div className="overflow-x-auto min-h-64">
-              <p className="text-[10px] text-slate-400 mb-1 md:hidden">
+              <p className="text-[10px] text-text-low mb-1 md:hidden">
                 Geser tabel ke kanan untuk melihat kolom Aksi.
               </p>
-              <table className="w-full text-left border-separate border-spacing-0">
+              <table className="neon-table w-full text-left">
                 <thead>
-                  <tr className="border-b border-black/5 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">
-                    <th className="py-2 px-3">Periode</th>
-                    <th className="py-2 px-3">Kategori</th>
-                    <th className="py-2 px-3 text-right">Rencana (Opex/Capex)</th>
-                    <th className="py-2 px-3 text-right">Realisasi (Opex/Capex)</th>
-                    <th className="py-2 px-3">Keterangan</th>
-                    <th className="py-2 px-3 text-right sticky right-0 bg-white z-10">Aksi</th>
+                  <tr className="text-[10px] font-bold uppercase tracking-widest font-mono">
+                    <th className="py-2.5 px-3">Periode</th>
+                    <th className="py-2.5 px-3">Kategori</th>
+                    <th className="py-2.5 px-3 text-right">Rencana (Opex/Capex)</th>
+                    <th className="py-2.5 px-3 text-right">Realisasi (Opex/Capex)</th>
+                    <th className="py-2.5 px-3">Keterangan</th>
+                    <th className="py-2.5 px-3 text-right sticky right-0 bg-bg-2 z-20">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5 text-[11px] text-slate-600">
+                <tbody className="text-[11px] text-text-mid">
                   {filteredCosts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-12 text-slate-500">Tidak ada pengeluaran terdaftar.</td>
+                      <td colSpan={6} className="p-4">
+                        <EmptyState
+                          title="Belum ada pengeluaran terdaftar"
+                          description="Entri rencana anggaran atau realisasi biaya pengelolaan lingkungan untuk mulai memantau alokasi."
+                          icon={Coins}
+                        />
+                      </td>
                     </tr>
                   ) : (
                     filteredCosts.map((c) => (
-                      <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
-                        <td className="py-2.5 px-3 whitespace-nowrap font-mono">
-                          <span className="font-bold text-slate-700">{c.period}</span>
-                          <span className="text-slate-500 ml-1">({c.year})</span>
+                      <tr key={c.id} className="transition-colors group">
+                        <td className="py-2.5 px-3 whitespace-nowrap font-mono tabular-nums">
+                          <span className="font-bold text-text-hi">{c.period}</span>
+                          <span className="text-text-mid ml-1">({c.year})</span>
                           {c.budgetCode && (
-                            <span className="block text-[9.5px] text-emerald-700 font-semibold mt-0.5">{c.budgetCode}</span>
+                            <span className="block text-[9.5px] text-neon-cyan font-semibold mt-0.5">{c.budgetCode}</span>
                           )}
                         </td>
                         <td className="py-2.5 px-3">
-                          <p className="font-semibold text-slate-700">{c.category}</p>
-                          <p className="text-[9.5px] text-slate-500">PIC: {c.officer}</p>
+                          <p className="font-semibold text-text-hi">{c.category}</p>
+                          <p className="text-[9.5px] text-text-low">PIC: {c.officer}</p>
                         </td>
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          <p className="text-indigo-600">O: {formatCurrency(c.plannedOpex)}</p>
-                          <p className="text-amber-500">C: {formatCurrency(c.plannedCapex)}</p>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap font-mono tabular-nums">
+                          <p className="text-neon-violet">O: {formatCurrency(c.plannedOpex)}</p>
+                          <p className="text-neon-amber">C: {formatCurrency(c.plannedCapex)}</p>
                         </td>
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap font-bold">
-                          <p className="text-emerald-600">O: {formatCurrency(c.realizedOpex)}</p>
-                          <p className="text-teal-600">C: {formatCurrency(c.realizedCapex)}</p>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap font-bold font-mono tabular-nums">
+                          <p className="text-neon-green">O: {formatCurrency(c.realizedOpex)}</p>
+                          <p className="text-neon-cyan">C: {formatCurrency(c.realizedCapex)}</p>
                         </td>
-                        <td className="py-2.5 px-3 text-slate-500 italic max-w-xs truncate" title={c.notes}>
+                        <td className="py-2.5 px-3 text-text-mid italic max-w-xs truncate" title={c.notes}>
                           {c.notes || '-'}
                         </td>
-                        <td className="py-2.5 px-3 text-right flex items-center justify-end gap-1.5 sticky right-0 bg-white z-10 border-l border-slate-100">
-                          <button
-                            onClick={() => {
-                              if (!allowed) return onUnauthorizedAction("Edit Biaya Lingkungan");
-                              startEditCost(c);
-                            }}
-                            className="p-1 px-1.5 hover:bg-blue-500/10 text-slate-500 hover:text-blue-600 rounded-lg transition-colors cursor-pointer"
-                            title="Edit baris biaya ini"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (!allowedDelete) return onUnauthorizedAction("Hapus Biaya Lingkungan");
-                              onDeleteCost(c.id);
-                            }}
-                            className="p-1 px-1.5 hover:bg-red-500/10 text-slate-500 hover:text-red-500 rounded-lg transition-colors cursor-pointer"
-                            title="Hapus baris biaya ini"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                        <td className="py-2.5 px-3 text-right sticky right-0 bg-bg-1 z-10 border-l border-border-subtle">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => {
+                                if (!allowed) return onUnauthorizedAction("Edit Biaya Lingkungan");
+                                startEditCost(c);
+                              }}
+                              className="p-1.5 hover:bg-neon-cyan/15 text-text-mid hover:text-neon-cyan rounded-lg transition-colors cursor-pointer"
+                              title="Edit baris biaya ini"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (!allowedDelete) return onUnauthorizedAction("Hapus Biaya Lingkungan");
+                                onDeleteCost(c.id);
+                              }}
+                              className="p-1.5 hover:bg-neon-red/15 text-text-mid hover:text-neon-red rounded-lg transition-colors cursor-pointer"
+                              title="Hapus baris biaya ini"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -743,12 +743,12 @@ export default function EnvironmentalCostsView({
             </div>
           </div>
 
-          <div className="bg-black/5 px-4 py-3 rounded-xl border-slate-200 flex items-center justify-between text-xs text-slate-500 mt-4">
-            <span className="flex items-center gap-1.5">
-              <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+          <div className="bg-bg-2/70 px-4 py-3 rounded-xl border border-border-subtle flex items-center justify-between text-xs text-text-mid mt-4">
+            <span className="flex items-center gap-1.5 font-mono tabular-nums">
+              <CheckCircle className="h-3.5 w-3.5 text-neon-green" />
               Menampilkan {filteredCosts.length} item anggaran terverifikasi.
             </span>
-            <span className="text-[10px] font-mono text-slate-500 uppercase">PT Diva Kencana Borneo</span>
+            <span className="text-[10px] font-mono text-text-low uppercase">PT Diva Kencana Borneo</span>
           </div>
         </div>
       </div>

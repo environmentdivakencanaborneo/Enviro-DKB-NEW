@@ -5,11 +5,20 @@
 
 import React, { useMemo, useState } from 'react';
 import ModalPortal from './ModalPortal';
+import StatusBadge from './StatusBadge';
+import TableSkeleton from './TableSkeleton';
+import EmptyState from './EmptyState';
 import { BiodiversityData } from '../types';
 import { biodiversityService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
 import { formatConservationStatus, isProtectedConservationStatus } from '../data/regulations';
 import { todayLocalISO } from '../utils/dateUtils';
+import {
+  NEON_CHART,
+  NEON_TOOLTIP_CONTENT_STYLE,
+  NEON_TOOLTIP_LABEL_STYLE,
+  NEON_TOOLTIP_ITEM_STYLE,
+} from '../utils/chartTheme';
 import {
   ResponsiveContainer,
   BarChart,
@@ -176,16 +185,16 @@ export default function BiodiversityView({
 
   return (
     <div className="space-y-6 text-left">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-[#E4EDE6] shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel p-6 rounded-3xl">
         <div>
-          <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#4D7C5A]">
+          <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-neon-cyan">
             Permen LHK No. P.106/2018 &amp; UU No. 5/1990 jo. UU No. 32/2024 • Kementerian Kehutanan
           </span>
-          <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1 flex items-center gap-2.5">
-            <Trees className="h-6 w-6 text-[#2E4B3D]" />
+          <h2 className="text-xl md:text-2xl font-bold font-heading text-text-hi mt-1 flex items-center gap-2.5">
+            <Trees className="h-6 w-6 text-neon-green" />
             Keanekaragaman Hayati (Flora, Fauna &amp; Koridor Satwa)
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-text-mid mt-1">
             Inventarisasi spesies flora endemik reklamasi, pemantauan fauna liar, dan perlindungan satwa dilindungi di area konsesi.
           </p>
         </div>
@@ -210,12 +219,12 @@ export default function BiodiversityView({
               )
             }
             disabled={filteredData.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-bg-1 border border-border-neon hover:border-neon-cyan/40 hover:bg-bg-2 text-text-hi text-xs font-bold cursor-pointer disabled:opacity-50 transition-colors"
           >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            <FileSpreadsheet className="h-4 w-4 text-neon-green" />
             Ekspor Excel
           </button>
-          <button onClick={openCreate} className="flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-[#2E4B3D] hover:bg-[#233A2F] text-white text-xs font-bold shadow-md cursor-pointer">
+          <button onClick={openCreate} className="flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl neon-btn-primary text-xs cursor-pointer">
             <Plus className="h-4 w-4" />
             Catat Observasi Kehati
           </button>
@@ -224,53 +233,57 @@ export default function BiodiversityView({
 
       {/* KPI */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase">
+        <div className="neon-card p-5">
+          <div className="flex items-center justify-between text-xs text-text-mid font-bold uppercase">
             <span>Ragam Spesies Terdata</span>
-            <Trees className="h-4 w-4 text-emerald-600" />
+            <Trees className="h-4 w-4 text-neon-green" />
           </div>
-          <p className="text-2xl font-black text-[#2E4B3D] mt-2">{kpis.uniqueSpecies} Jenis</p>
-          <p className="text-[11px] text-slate-500 mt-1">{data.length} catatan pengamatan</p>
+          <p className="text-2xl font-bold font-mono tabular-nums text-neon-green mt-2">{kpis.uniqueSpecies} Jenis</p>
+          <p className="text-[11px] text-text-low mt-1">{data.length} catatan pengamatan</p>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase">
+        <div className="neon-card p-5">
+          <div className="flex items-center justify-between text-xs text-text-mid font-bold uppercase">
             <span>Total Individu</span>
-            <Bird className="h-4 w-4 text-sky-600" />
+            <Bird className="h-4 w-4 text-neon-cyan" />
           </div>
-          <p className="text-2xl font-black text-slate-800 mt-2">{kpis.totalIndividuals.toLocaleString('id-ID')}</p>
-          <p className="text-[11px] text-slate-500 mt-1">Akumulasi flora &amp; fauna dijumpai</p>
+          <p className="text-2xl font-bold font-mono tabular-nums text-text-hi mt-2">{kpis.totalIndividuals.toLocaleString('id-ID')}</p>
+          <p className="text-[11px] text-text-low mt-1">Akumulasi flora &amp; fauna dijumpai</p>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase">
+        <div className="neon-card p-5">
+          <div className="flex items-center justify-between text-xs text-text-mid font-bold uppercase">
             <span>Spesies Dilindungi / IUCN</span>
-            <ShieldAlert className="h-4 w-4 text-amber-600" />
+            <ShieldAlert className="h-4 w-4 text-neon-amber" />
           </div>
-          <p className="text-2xl font-black text-amber-700 mt-2">{kpis.protectedCount}</p>
-          <p className="text-[11px] text-slate-500 mt-1">Status Permen LHK P.106/2018 atau IUCN</p>
+          <p className="text-2xl font-bold font-mono tabular-nums text-neon-amber mt-2">{kpis.protectedCount}</p>
+          <p className="text-[11px] text-text-low mt-1">Status Permen LHK P.106/2018 atau IUCN</p>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <span className="text-xs text-slate-500 font-bold uppercase">Kondisi Terancam</span>
-          <p className="text-2xl font-black text-rose-600 mt-2">{kpis.endangered}</p>
-          <p className="text-[11px] text-slate-500 mt-1">Memerlukan perlindungan koridor</p>
+        <div className="neon-card p-5">
+          <span className="text-xs text-text-mid font-bold uppercase">Kondisi Terancam</span>
+          <p className="text-2xl font-bold font-mono tabular-nums text-neon-red mt-2">{kpis.endangered}</p>
+          <p className="text-[11px] text-text-low mt-1">Memerlukan perlindungan koridor</p>
         </div>
       </div>
 
       {/* Chart */}
       {filteredData.length > 0 && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">
+        <div className="glass-panel p-6 rounded-2xl">
+          <h3 className="text-sm font-bold font-heading text-text-hi uppercase tracking-wider mb-3">
             Distribusi Pengamatan Flora, Fauna &amp; Koridor Satwa
           </h3>
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="category" fontSize={11} tickLine={false} />
-                <YAxis fontSize={10} tickLine={false} />
-                <RechartsTooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="Spesies" name="Jumlah Catatan" fill="#2E4B3D" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="Individu" name="Jumlah Individu" fill="#3FA66B" radius={[6, 6, 0, 0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke={NEON_CHART.gridStroke} />
+                <XAxis dataKey="category" stroke={NEON_CHART.tickFill} tick={{ fill: NEON_CHART.tickFill, fontSize: 11 }} tickLine={false} />
+                <YAxis stroke={NEON_CHART.tickFill} tick={{ fill: NEON_CHART.tickFill, fontSize: 10 }} tickLine={false} />
+                <RechartsTooltip
+                  contentStyle={NEON_TOOLTIP_CONTENT_STYLE}
+                  labelStyle={NEON_TOOLTIP_LABEL_STYLE}
+                  itemStyle={NEON_TOOLTIP_ITEM_STYLE}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, color: NEON_CHART.tickFill }} />
+                <Bar dataKey="Spesies" name="Jumlah Catatan" fill={NEON_CHART.cyan} radius={[6, 6, 0, 0]} />
+                <Bar dataKey="Individu" name="Jumlah Individu" fill={NEON_CHART.green} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -278,22 +291,22 @@ export default function BiodiversityView({
       )}
 
       {/* Table */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div className="glass-panel p-5 rounded-2xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-text-low pointer-events-none" />
             <input
               type="text"
               placeholder="Cari nama spesies, ilmiah, atau zona..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none"
+              className="w-full pl-9 pr-3 py-2 text-xs"
             />
           </div>
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700"
+            className="px-3 py-2 text-xs"
           >
             <option value="ALL">Semua Kategori</option>
             <option value="Flora">Flora</option>
@@ -303,9 +316,9 @@ export default function BiodiversityView({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="neon-table text-left text-xs">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
+              <tr className="text-[10px] font-bold uppercase tracking-wider font-mono">
                 <th className="p-3">Tanggal</th>
                 <th className="p-3">Spesies &amp; Nama Ilmiah</th>
                 <th className="p-3">Zona &amp; Metode</th>
@@ -318,56 +331,68 @@ export default function BiodiversityView({
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={8} className="p-8 text-center text-slate-400">Memuat data keanekaragaman hayati...</td></tr>
+                <tr>
+                  <td colSpan={8} className="p-4">
+                    <TableSkeleton columns={8} rows={5} />
+                  </td>
+                </tr>
               ) : filteredData.length === 0 ? (
-                <tr><td colSpan={8} className="p-10 text-center text-slate-400">Belum ada data observasi keanekaragaman hayati.</td></tr>
+                <tr>
+                  <td colSpan={8} className="p-4">
+                    <EmptyState
+                      icon={Trees}
+                      title="Belum ada data observasi keanekaragaman hayati"
+                      description="Tambahkan catatan inventarisasi flora, fauna, atau pemantauan koridor satwa."
+                    />
+                  </td>
+                </tr>
               ) : (
-                filteredData.map((item) => (
-                  <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="p-3 font-mono font-semibold text-slate-700">{item.date}</td>
-                    <td className="p-3">
-                      <p className="font-bold text-slate-800">{item.speciesName}</p>
-                      <p className="text-[10px] italic text-slate-500">{item.scientificName || '-'}</p>
-                    </td>
-                    <td className="p-3">
-                      <p className="font-semibold text-slate-700">{item.zone}</p>
-                      <p className="text-[10px] text-slate-500">{item.observationMethod} • {item.officer}</p>
-                    </td>
-                    <td className="p-3 text-center font-semibold text-slate-700">{item.category}</td>
-                    <td className="p-3 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                        item.conservationStatus === 'Umum' ? 'bg-slate-50 text-slate-600 border-slate-200' :
-                        'bg-amber-50 text-amber-700 border-amber-200'
-                      }`}>
-                        {formatConservationStatus(item.conservationStatus)}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center font-mono font-bold">{item.count}</td>
-                    <td className="p-3 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                        item.condition === 'Sehat' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        item.condition === 'Bermigrasi' ? 'bg-sky-50 text-sky-700 border-sky-200' :
-                        'bg-rose-50 text-rose-700 border-rose-200'
-                      }`}>
-                        {item.condition}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button onClick={() => openEdit(item)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg cursor-pointer"><Pencil className="h-3.5 w-3.5" /></button>
-                        <button
-                          onClick={() => {
-                            if (!canDelete) return onUnauthorizedAction('Hapus Observasi Kehati');
-                            setDeleteTarget(item);
-                          }}
-                          className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filteredData.map((item) => {
+                  const condTone =
+                    item.condition === 'Sehat'
+                      ? 'Memenuhi'
+                      : item.condition === 'Bermigrasi'
+                      ? 'Dipantau'
+                      : 'Tidak Memenuhi';
+                  const consLabel = formatConservationStatus(item.conservationStatus);
+                  const consTone = item.conservationStatus === 'Umum' ? 'Dipantau' : 'Mendekati';
+                  return (
+                    <tr key={item.id}>
+                      <td className="p-3 font-mono font-semibold text-text-hi tabular-nums">{item.date}</td>
+                      <td className="p-3">
+                        <p className="font-bold text-text-hi">{item.speciesName}</p>
+                        <p className="text-[10px] italic text-text-mid">{item.scientificName || '-'}</p>
+                      </td>
+                      <td className="p-3">
+                        <p className="font-semibold text-text-hi">{item.zone}</p>
+                        <p className="text-[10px] text-text-mid">{item.observationMethod} • {item.officer}</p>
+                      </td>
+                      <td className="p-3 text-center font-semibold text-text-hi">{item.category}</td>
+                      <td className="p-3 text-center">
+                        <StatusBadge status={consTone} label={consLabel} />
+                      </td>
+                      <td className="p-3 text-center font-mono font-bold text-text-hi tabular-nums">{item.count}</td>
+                      <td className="p-3 text-center">
+                        <StatusBadge status={condTone} label={item.condition} />
+                      </td>
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button onClick={() => openEdit(item)} className="p-1.5 text-neon-cyan bg-neon-cyan/10 hover:bg-neon-cyan/20 rounded-lg cursor-pointer transition-colors" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button
+                            onClick={() => {
+                              if (!canDelete) return onUnauthorizedAction('Hapus Observasi Kehati');
+                              setDeleteTarget(item);
+                            }}
+                            className="p-1.5 text-neon-red bg-neon-red/10 hover:bg-neon-red/20 rounded-lg cursor-pointer transition-colors"
+                            title="Hapus"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -377,48 +402,48 @@ export default function BiodiversityView({
       {/* Modal */}
       {showModal && (
         <ModalPortal>
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-[#2E4B3D]">
+          <div className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-50">
+            <div className="glass-panel rounded-3xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-border-neon">
+                <h3 className="text-sm font-bold font-heading uppercase tracking-wider text-neon-cyan">
                   {editingId ? 'Edit Observasi Keanekaragaman Hayati' : 'Input Observasi Flora & Fauna'}
                 </h3>
-                <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"><X className="h-4 w-4" /></button>
+                <button onClick={() => setShowModal(false)} className="p-1 text-text-low hover:text-text-hi cursor-pointer"><X className="h-4 w-4" /></button>
               </div>
-              {errorMsg && <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">{errorMsg}</div>}
+              {errorMsg && <div className="p-3 rounded-xl bg-neon-red/10 border border-neon-red/30 text-xs text-neon-red">{errorMsg}</div>}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Tanggal</label>
-                    <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Tanggal</label>
+                    <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Kategori</label>
-                    <select value={category} onChange={(e) => setCategory(e.target.value as any)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs">
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Kategori</label>
+                    <select value={category} onChange={(e) => setCategory(e.target.value as any)} className="w-full px-3 py-2 text-xs">
                       <option value="Flora">Flora</option>
                       <option value="Fauna">Fauna</option>
                       <option value="Koridor Satwa">Koridor Satwa</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Zona Pengamatan</label>
-                    <input type="text" required value={zone} onChange={(e) => setZone(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Zona Pengamatan</label>
+                    <input type="text" required value={zone} onChange={(e) => setZone(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nama Spesies Lokal</label>
-                    <input type="text" required value={speciesName} onChange={(e) => setSpeciesName(e.target.value)} placeholder="cth. Ulin / Rangkong Badak" className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Nama Spesies Lokal</label>
+                    <input type="text" required value={speciesName} onChange={(e) => setSpeciesName(e.target.value)} placeholder="cth. Ulin / Rangkong Badak" className="w-full px-3 py-2 text-xs" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nama Ilmiah</label>
-                    <input type="text" value={scientificName} onChange={(e) => setScientificName(e.target.value)} placeholder="cth. Eusideroxylon zwageri" className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs italic" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Nama Ilmiah</label>
+                    <input type="text" value={scientificName} onChange={(e) => setScientificName(e.target.value)} placeholder="cth. Eusideroxylon zwageri" className="w-full px-3 py-2 text-xs italic" />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Status Konservasi</label>
-                    <select value={conservationStatus} onChange={(e) => setConservationStatus(e.target.value as any)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs">
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Status Konservasi</label>
+                    <select value={conservationStatus} onChange={(e) => setConservationStatus(e.target.value as any)} className="w-full px-3 py-2 text-xs">
                       <option value="Umum">Umum</option>
                       <option value="Endemik">Endemik</option>
                       <option value="IUCN Threatened">IUCN Threatened</option>
@@ -429,12 +454,12 @@ export default function BiodiversityView({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Jumlah Individu</label>
-                    <input type="number" min="0" required value={count} onChange={(e) => setCount(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Jumlah Individu</label>
+                    <input type="number" min="0" required value={count} onChange={(e) => setCount(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Kondisi</label>
-                    <select value={condition} onChange={(e) => setCondition(e.target.value as any)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs">
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Kondisi</label>
+                    <select value={condition} onChange={(e) => setCondition(e.target.value as any)} className="w-full px-3 py-2 text-xs">
                       <option value="Sehat">Sehat</option>
                       <option value="Bermigrasi">Bermigrasi</option>
                       <option value="Terancam">Terancam</option>
@@ -443,21 +468,21 @@ export default function BiodiversityView({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Metode Pengamatan</label>
-                    <input type="text" required value={observationMethod} onChange={(e) => setObservationMethod(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Metode Pengamatan</label>
+                    <input type="text" required value={observationMethod} onChange={(e) => setObservationMethod(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Pengamat / Biologist</label>
-                    <input type="text" required value={officer} onChange={(e) => setOfficer(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Pengamat / Biologist</label>
+                    <input type="text" required value={officer} onChange={(e) => setOfficer(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Catatan</label>
-                  <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                  <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Catatan</label>
+                  <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 text-xs" />
                 </div>
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold cursor-pointer">Batal</button>
-                  <button type="submit" disabled={isSaving} className="px-5 py-2 rounded-xl bg-[#2E4B3D] text-white text-xs font-bold cursor-pointer disabled:opacity-50">
+                <div className="flex justify-end gap-2 pt-3 border-t border-border-subtle">
+                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-xl border border-border-subtle text-text-mid hover:text-text-hi text-xs font-semibold cursor-pointer">Batal</button>
+                  <button type="submit" disabled={isSaving} className="px-5 py-2 rounded-xl neon-btn-primary text-xs cursor-pointer disabled:opacity-50">
                     {isSaving ? 'Menyimpan...' : 'Simpan Observasi'}
                   </button>
                 </div>
@@ -469,13 +494,13 @@ export default function BiodiversityView({
 
       {deleteTarget && (
         <ModalPortal>
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-              <h3 className="text-sm font-bold text-slate-800">Hapus Catatan Kehati?</h3>
-              <p className="text-xs text-slate-500">Hapus data spesies {deleteTarget.speciesName} di {deleteTarget.zone}?</p>
+          <div className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-50">
+            <div className="glass-panel rounded-3xl max-w-sm w-full p-6 space-y-4">
+              <h3 className="text-sm font-bold font-heading text-text-hi">Hapus Catatan Kehati?</h3>
+              <p className="text-xs text-text-mid">Hapus data spesies <strong className="text-text-hi">{deleteTarget.speciesName}</strong> di {deleteTarget.zone}?</p>
               <div className="flex justify-end gap-2">
-                <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold cursor-pointer">Batal</button>
-                <button onClick={async () => { await biodiversityService.delete(deleteTarget.id); setDeleteTarget(null); }} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold cursor-pointer">Hapus</button>
+                <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl border border-border-subtle text-text-mid hover:text-text-hi text-xs font-semibold cursor-pointer">Batal</button>
+                <button onClick={async () => { await biodiversityService.delete(deleteTarget.id); setDeleteTarget(null); }} className="px-4 py-2 rounded-xl neon-btn-danger text-xs cursor-pointer">Hapus</button>
               </div>
             </div>
           </div>

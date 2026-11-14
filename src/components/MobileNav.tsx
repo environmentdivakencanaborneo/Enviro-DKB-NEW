@@ -4,12 +4,7 @@
  */
 
 import { useState } from 'react';
-import { 
-  Menu, 
-  X,
-  LogOut,
-  Search
-} from 'lucide-react';
+import { Menu, X, LogOut, Search } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { GoogleSyncConfig } from '../types';
 import DivaLogo from './DivaLogo';
@@ -36,16 +31,18 @@ export default function MobileNav({
   setSyncModalOpen,
   setUserModalOpen,
   onLogout,
-  onOpenSearch
+  onOpenSearch,
 }: MobileNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { profile } = useAuth();
 
-  const primaryTabs = APP_TABS.filter(t => MOBILE_PRIMARY_TABS.includes(t.id) && canAccessModule(profile, t.id));
-  const groupedDrawerTabs = APP_MENU_GROUPS.map(g => ({
+  const primaryTabs = APP_TABS.filter(
+    (t) => MOBILE_PRIMARY_TABS.includes(t.id) && canAccessModule(profile, t.id)
+  );
+  const groupedDrawerTabs = APP_MENU_GROUPS.map((g) => ({
     ...g,
-    items: g.items.filter(item => canAccessModule(profile, item.id))
-  })).filter(g => g.items.length > 0);
+    items: g.items.filter((item) => canAccessModule(profile, item.id)),
+  })).filter((g) => g.items.length > 0);
 
   const handleTabClick = (id: string) => {
     setCurrentTab(id);
@@ -55,32 +52,36 @@ export default function MobileNav({
   return (
     <>
       {/* Floating Bottom Nav Bar */}
-      <div 
+      <div
         id="mobile-nav-bar"
-        className="fixed bottom-0 left-0 right-0 z-40 nav-glass border-t border-slate-200/50 md:hidden px-4 py-2.5 flex justify-around items-center shadow-[0_-8px_30px_rgba(0,0,0,0.06)] safe-bottom"
+        className="fixed bottom-0 left-0 right-0 z-40 nav-glass no-print md:hidden px-3 py-1.5 flex justify-around items-center safe-bottom"
       >
-        {primaryTabs.map(tab => {
+        {primaryTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = currentTab === tab.id;
           return (
-            <motion.button whileTap={{ scale: 0.95 }}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
               key={tab.id}
               onClick={() => handleTabClick(tab.id)}
-              className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all duration-300 cursor-pointer ${
-                isActive ? 'text-emerald-600 font-bold scale-105' : 'text-slate-500 hover:text-slate-700'
+              className={`min-h-[44px] min-w-[44px] flex flex-col items-center justify-center gap-1 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
+                isActive ? 'text-neon-cyan font-bold' : 'text-text-mid hover:text-text-hi'
               }`}
             >
-              <Icon size={20} className={isActive ? 'text-emerald-600' : 'text-slate-500'} />
-              <span className="text-[10px] tracking-wide font-medium max-w-[68px] truncate">{tab.name}</span>
+              <Icon size={20} className={isActive ? 'text-neon-cyan' : 'text-text-mid'} />
+              <span className="text-[10px] tracking-wide font-medium max-w-[68px] truncate">
+                {tab.name}
+              </span>
             </motion.button>
           );
         })}
 
         {/* More Menu Toggle Button */}
-        <motion.button whileTap={{ scale: 0.95 }}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => setMenuOpen(true)}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all duration-300 cursor-pointer ${
-            menuOpen ? 'text-emerald-600 font-bold scale-105' : 'text-slate-500 hover:text-slate-700'
+          className={`min-h-[44px] min-w-[44px] flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            menuOpen ? 'text-neon-cyan font-bold' : 'text-text-mid hover:text-text-hi'
           }`}
         >
           <Menu size={20} />
@@ -95,10 +96,10 @@ export default function MobileNav({
             {/* Scrim Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.6 }}
+              animate={{ opacity: 0.72 }}
               exit={{ opacity: 0 }}
               onClick={() => setMenuOpen(false)}
-              className="fixed inset-0 bg-white z-[45] md:hidden"
+              className="fixed inset-0 bg-bg-0 z-[45] md:hidden no-print"
             />
 
             {/* Bottom Drawer Content */}
@@ -106,21 +107,23 @@ export default function MobileNav({
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[rgba(0,0,0,0.08)] rounded-t-3xl max-h-[85vh] overflow-y-auto pb-12 md:hidden text-slate-700 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]"
+              transition={{ type: 'spring', damping: 26, stiffness: 240 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-bg-1 border-t border-border-neon rounded-t-3xl max-h-[85vh] overflow-y-auto pb-12 md:hidden no-print text-text-hi shadow-glow-cyan"
             >
               {/* Header Indicator Pull bar */}
-              <div className="w-12 h-1.5 bg-slate-700/50 rounded-full mx-auto my-3.5" />
+              <div className="w-12 h-1.5 bg-border-neon rounded-full mx-auto my-3.5" />
 
-              <div className="px-6 pb-4 flex items-center justify-between border-b border-[rgba(0,0,0,0.05)]">
-                <div className="flex items-center gap-2.5">
+              <div className="px-6 pb-4 flex items-center justify-between border-b border-border-neon">
+                <div className="flex items-center gap-2.5 dark:drop-shadow-[0_0_10px_rgba(57,255,136,0.35)]">
                   <DivaLogo variant="full" size={36} />
                 </div>
-                <motion.button whileTap={{ scale: 0.95 }}
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setMenuOpen(false)}
-                  className="p-1.5 bg-[rgba(0,0,0,0.05)] hover:bg-[rgba(0,0,0,0.1)] text-slate-500 hover:text-slate-900 rounded-full cursor-pointer transition-colors"
+                  aria-label="Tutup Menu"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center bg-bg-2 border border-border-neon text-text-mid hover:text-text-hi rounded-full cursor-pointer transition-colors"
                 >
-                  <X size={16} />
+                  <X size={18} />
                 </motion.button>
               </div>
 
@@ -132,9 +135,9 @@ export default function MobileNav({
                       setMenuOpen(false);
                       onOpenSearch();
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 font-medium cursor-pointer"
+                    className="w-full min-h-[44px] flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-bg-0 border border-border-neon text-xs text-text-mid font-medium cursor-pointer"
                   >
-                    <Search className="w-4 h-4 text-[#4D7C5A]" />
+                    <Search className="w-4 h-4 text-neon-cyan" />
                     <span>Cari modul atau dasar regulasi...</span>
                   </button>
                 </div>
@@ -142,32 +145,35 @@ export default function MobileNav({
 
               {/* Grouped Drawer Links */}
               <div className="p-5 space-y-5">
-                {groupedDrawerTabs.map(group => (
+                {groupedDrawerTabs.map((group) => (
                   <div key={group.group} className="space-y-2.5">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-low px-1">
                       {group.group}
                     </div>
                     <div className="grid grid-cols-2 gap-2.5">
-                      {group.items.map(tab => {
+                      {group.items.map((tab) => {
                         const Icon = tab.icon;
                         const isActive = currentTab === tab.id;
                         return (
-                          <motion.button whileTap={{ scale: 0.95 }}
+                          <motion.button
+                            whileTap={{ scale: 0.96 }}
                             key={tab.id}
                             onClick={() => handleTabClick(tab.id)}
-                            className={`flex flex-col justify-center items-center gap-2 p-3.5 rounded-2xl border transition-all cursor-pointer relative ${
+                            className={`min-h-[56px] flex flex-col justify-center items-center gap-2 p-3.5 rounded-2xl border transition-all cursor-pointer relative ${
                               isActive
-                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                                : 'bg-white border-slate-100 hover:bg-slate-50 text-slate-600'
+                                ? 'bg-neon-cyan/10 border-neon-cyan/50 text-neon-cyan shadow-glow-cyan'
+                                : 'bg-bg-2/70 border-border-subtle hover:border-border-neon text-text-mid hover:text-text-hi'
                             }`}
                           >
                             {tab.isNew && (
-                              <span className="absolute top-2 right-2 text-[8px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 uppercase">
+                              <span className="absolute top-2 right-2 text-[8px] font-bold px-1.5 py-0.5 rounded bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/35 uppercase font-mono">
                                 BARU
                               </span>
                             )}
-                            <Icon size={20} className={isActive ? 'text-emerald-600' : 'text-slate-500'} />
-                            <span className="text-[11px] font-semibold tracking-wide text-center leading-tight">{tab.name}</span>
+                            <Icon size={20} className={isActive ? 'text-neon-cyan' : 'text-text-mid'} />
+                            <span className="text-[11px] font-semibold tracking-wide text-center leading-tight">
+                              {tab.name}
+                            </span>
                           </motion.button>
                         );
                       })}
@@ -177,58 +183,75 @@ export default function MobileNav({
               </div>
 
               {/* Settings, Sync & Profile Panel */}
-              <div className="mx-5 mb-6 mt-1 p-4 bg-white border border-[rgba(0,0,0,0.04)] rounded-2xl space-y-4">
+              <div className="mx-5 mb-6 mt-1 p-4 bg-bg-2 border border-border-neon rounded-2xl space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[9px] text-slate-500 font-mono font-bold tracking-widest uppercase">Sync Status</p>
+                    <p className="text-[10px] text-text-low font-mono font-bold tracking-widest uppercase">
+                      Sync Status
+                    </p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <div className={`h-2.5 w-2.5 rounded-full ${
-                        syncConfig.syncStatus === 'synced' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' :
-                        syncConfig.syncStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'
-                      }`} />
-                      <p className="text-xs font-semibold text-slate-600 capitalize">
-                        {syncConfig.syncStatus === 'synced' ? 'Online & Synced' :
-                         syncConfig.syncStatus === 'syncing' ? 'Syncing...' : 'Local (Offline)'}
+                      <div
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          syncConfig.syncStatus === 'synced'
+                            ? 'bg-neon-green'
+                            : syncConfig.syncStatus === 'syncing'
+                            ? 'bg-neon-amber animate-pulse'
+                            : 'bg-neon-red'
+                        }`}
+                      />
+                      <p className="text-xs font-semibold text-text-hi capitalize">
+                        {syncConfig.syncStatus === 'synced'
+                          ? 'Online & Synced'
+                          : syncConfig.syncStatus === 'syncing'
+                          ? 'Syncing...'
+                          : 'Local (Offline)'}
                       </p>
                     </div>
                   </div>
-                  <motion.button whileTap={{ scale: 0.95 }}
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       setMenuOpen(false);
                       setSyncModalOpen(true);
                     }}
-                    className="px-3.5 py-2 bg-[rgba(0,0,0,0.05)] hover:bg-[rgba(0,0,0,0.1)] text-slate-600 text-xs rounded-xl font-bold border border-[rgba(0,0,0,0.05)] cursor-pointer transition-colors"
+                    className="min-h-[44px] px-4 py-2 bg-bg-0 hover:border-neon-cyan text-text-hi text-xs rounded-xl font-bold border border-border-neon cursor-pointer transition-colors"
                   >
                     CONFIG
                   </motion.button>
                 </div>
 
-                {/* Profile info nested */}
-                <div className="pt-4 border-t border-[rgba(0,0,0,0.04)] flex items-center justify-between">
-                  <div 
+                {/* Profile info */}
+                <div className="pt-4 border-t border-border-subtle flex items-center justify-between gap-2">
+                  <div
                     onClick={() => {
                       setMenuOpen(false);
                       setUserModalOpen(true);
                     }}
-                    className="flex items-center gap-3 overflow-hidden cursor-pointer group"
+                    className="flex items-center gap-3 overflow-hidden cursor-pointer group min-h-[44px]"
                   >
-                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-700/20 flex items-center justify-center text-[13px] font-bold text-emerald-600 border border-emerald-500/30 group-hover:border-emerald-500/50 transition-colors shrink-0">
+                    <div className="h-9 w-9 rounded-full bg-neon-cyan/15 flex items-center justify-center text-[13px] font-bold text-neon-cyan border border-neon-cyan/35 shrink-0 font-mono">
                       {user?.name?.slice(0, 2).toUpperCase() || 'US'}
                     </div>
                     <div className="overflow-hidden">
-                      <p className="text-sm font-bold text-slate-700 truncate group-hover:text-slate-900 transition-colors">{user?.name || 'Administrator'}</p>
-                      <p className="text-[10px] text-slate-500 font-mono truncate">{user?.company || 'PT Diva Kencana Borneo'}</p>
+                      <p className="text-sm font-bold text-text-hi truncate">
+                        {user?.name || 'Administrator'}
+                      </p>
+                      <p className="text-[10px] text-text-mid font-mono truncate">
+                        {user?.company || 'PT Diva Kencana Borneo'}
+                      </p>
                     </div>
                   </div>
 
                   {onLogout && (
-                    <motion.button whileTap={{ scale: 0.95 }}
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => {
                         setMenuOpen(false);
                         onLogout();
                       }}
-                      className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-xl font-bold border border-red-500/20 flex items-center justify-center cursor-pointer ml-2 transition-colors shrink-0"
+                      className="min-h-[44px] min-w-[44px] p-2.5 neon-btn-danger rounded-xl flex items-center justify-center cursor-pointer ml-2 shrink-0"
                       title="Log Out"
+                      aria-label="Keluar"
                     >
                       <LogOut size={16} />
                     </motion.button>

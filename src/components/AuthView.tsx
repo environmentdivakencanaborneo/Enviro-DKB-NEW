@@ -232,47 +232,57 @@ export default function AuthView() {
   return (
     <div 
       id="auth-view-container"
-      className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden font-sans select-none"
+      className="min-h-screen app-grid-bg bg-bg-0 text-text-hi flex items-center justify-center p-4 relative overflow-hidden font-sans select-none"
     >
-      {/* Background ambient lighting */}
-      <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full bg-emerald-500/10 blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full bg-teal-500/10 blur-[140px] pointer-events-none" />
+      {/* Background ambient corner radial lighting + lightweight CSS particles */}
+      <div aria-hidden="true" className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-24 -left-24 w-[440px] h-[440px] rounded-full bg-neon-cyan/10 blur-[130px]" />
+        <div className="absolute -bottom-24 -right-24 w-[440px] h-[440px] rounded-full bg-neon-green/10 blur-[130px]" />
+        <span className="auth-particle absolute top-[18%] left-[14%] w-1.5 h-1.5 rounded-full bg-neon-cyan/60 shadow-glow-cyan" />
+        <span className="auth-particle absolute top-[28%] right-[18%] w-2 h-2 rounded-full bg-neon-green/50 shadow-glow-green [animation-delay:1.8s]" />
+        <span className="auth-particle absolute bottom-[22%] left-[24%] w-1.5 h-1.5 rounded-full bg-neon-violet/60 [animation-delay:3.2s]" />
+        <span className="auth-particle absolute bottom-[18%] right-[26%] w-1 h-1 rounded-full bg-neon-cyan/70 [animation-delay:4.5s]" />
+        <span className="auth-particle absolute top-[55%] left-[10%] w-1 h-1 rounded-full bg-neon-green/60 [animation-delay:2.4s]" />
+        <span className="auth-particle absolute top-[45%] right-[12%] w-1.5 h-1.5 rounded-full bg-neon-cyan/50 [animation-delay:5.1s]" />
+      </div>
 
       {/* Main Glass Card Container */}
-      <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 sm:p-10 w-full max-w-xl shadow-2xl space-y-6 relative z-10 backdrop-blur-md">
+      <div className="glass-panel rounded-3xl p-6 sm:p-10 w-full max-w-xl shadow-glow-cyan space-y-6 relative z-10">
         
-        {/* Brand Header */}
+        {/* Brand Header with Neon Green DivaLogo Glow */}
         <div className="text-center space-y-3 flex flex-col items-center justify-center">
-          <div className="flex items-center justify-center gap-3 p-3 bg-slate-900/60 rounded-2xl border border-slate-700/60 shadow-inner">
-            <DivaLogo variant="full" size={54} />
-            <div className="h-9 w-[1px] bg-slate-700/80" />
+          <div className="flex items-center justify-center gap-3 p-3.5 bg-bg-1/80 rounded-2xl border border-border-neon shadow-inner">
+            <div className="dark:drop-shadow-[0_0_18px_rgba(57,255,136,0.45)]">
+              <DivaLogo variant="full" size={54} />
+            </div>
+            <div className="h-9 w-[1px] bg-border-neon" />
             <div className="flex items-center gap-2 pr-1">
               <MiningEnvIcon type="emblem" size={42} />
               <div className="text-left hidden sm:block">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold block leading-none">
-                  Mining Eco
+                <span className="text-[10px] font-mono uppercase tracking-widest text-neon-green font-bold block leading-none">
+                  Mining Ops
                 </span>
-                <span className="text-[9px] text-slate-400 block font-sans mt-0.5">
+                <span className="text-[10px] text-text-mid block font-sans mt-0.5">
                   DEM Console
                 </span>
               </div>
             </div>
           </div>
-          <p className="text-[11px] font-mono tracking-widest text-emerald-400 font-semibold uppercase">
-            Enterprise Environmental Management System (EEMS)
+          <p className="text-[11px] font-mono tracking-widest text-neon-cyan font-semibold uppercase">
+            Enterprise Environmental Management System
           </p>
         </div>
 
         {(errorMsg || authError) && (
-          <div className="p-3.5 bg-red-500/15 border border-red-500/30 rounded-xl text-center text-xs text-red-400 font-medium leading-relaxed flex items-center justify-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+          <div className="p-3.5 badge-exceeded rounded-xl text-center text-xs font-medium leading-relaxed flex items-center justify-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMsg || authError}</span>
           </div>
         )}
 
         {successMsg && (
-          <div className="p-3.5 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-center text-xs text-emerald-300 font-medium leading-relaxed flex items-center justify-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+          <div className="p-3.5 badge-safe rounded-xl text-center text-xs font-medium leading-relaxed flex items-center justify-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{successMsg}</span>
           </div>
         )}
@@ -280,41 +290,41 @@ export default function AuthView() {
         {/* STATE 1: PENDING / REJECTED / DISABLED FOR LOGGED IN USER */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-10 space-y-3">
-            <RefreshCw className="h-8 w-8 text-emerald-400 animate-spin" />
-            <p className="text-xs text-slate-400 font-mono">Memverifikasi Enclave Autentikasi...</p>
+            <RefreshCw className="h-8 w-8 text-neon-cyan animate-spin" />
+            <p className="text-xs text-text-mid font-mono">Memverifikasi Enclave Autentikasi...</p>
           </div>
         ) : isPendingUser ? (
           /* MENUNGGU PERSETUJUAN ADMINISTRATOR SCREEN */
           <div className="space-y-6 text-center animate-fade-in py-2">
-            <div className="w-16 h-16 bg-amber-500/20 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
-              <Clock className="w-8 h-8 animate-pulse" />
+            <div className="w-16 h-16 badge-warning rounded-2xl flex items-center justify-center mx-auto">
+              <Clock className="w-8 h-8" />
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-xl font-bold text-slate-100">Registration Successful</h2>
-              <p className="text-xs text-slate-300 leading-relaxed max-w-md mx-auto">
+              <h2 className="text-xl font-bold text-text-hi font-heading">Registration Successful</h2>
+              <p className="text-xs text-text-mid leading-relaxed max-w-md mx-auto">
                 Your account is awaiting administrator approval.
               </p>
             </div>
 
-            <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-4 text-left text-xs space-y-2 text-slate-300">
-              <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                <span className="text-slate-400">Status:</span>
-                <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            <div className="bg-bg-1/80 border border-border-neon rounded-2xl p-4 text-left text-xs space-y-2 text-text-mid">
+              <div className="flex justify-between border-b border-border-subtle pb-1.5">
+                <span className="text-text-low">Status:</span>
+                <span className="px-2.5 py-0.5 rounded text-[11px] font-bold badge-warning">
                   Pending
                 </span>
               </div>
-              <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                <span className="text-slate-400">Email:</span>
-                <span className="font-semibold text-slate-200">{user?.email}</span>
+              <div className="flex justify-between border-b border-border-subtle pb-1.5">
+                <span className="text-text-low">Email:</span>
+                <span className="font-semibold text-text-hi font-mono">{user?.email}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Role:</span>
-                <span className="text-slate-200">{profile?.role || 'User'}</span>
+                <span className="text-text-low">Role:</span>
+                <span className="text-text-hi">{profile?.role || 'User'}</span>
               </div>
             </div>
 
-            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 font-medium">
+            <div className="p-3 badge-warning rounded-xl text-xs font-medium">
               Please contact the system administrator.
             </div>
 
@@ -322,7 +332,7 @@ export default function AuthView() {
               <button
                 type="button"
                 onClick={refreshProfile}
-                className="py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                className="py-3 neon-btn-primary rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
                 Cek Status Approval
@@ -330,7 +340,7 @@ export default function AuthView() {
               <button
                 type="button"
                 onClick={handleReturnToLogin}
-                className="py-3 bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                className="py-3 bg-bg-2 hover:border-neon-cyan border border-border-neon text-text-hi font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Keluar
@@ -340,27 +350,27 @@ export default function AuthView() {
         ) : isRejectedUser ? (
           /* PENDAFTARAN DITOLAK SCREEN */
           <div className="space-y-6 text-center animate-fade-in py-2">
-            <div className="w-16 h-16 bg-red-500/20 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto text-red-400">
+            <div className="w-16 h-16 badge-exceeded rounded-2xl flex items-center justify-center mx-auto">
               <AlertCircle className="w-8 h-8" />
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-xl font-bold text-slate-100">Pendaftaran Ditolak</h2>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <h2 className="text-xl font-bold text-text-hi font-heading">Pendaftaran Ditolak</h2>
+              <p className="text-xs text-text-mid leading-relaxed">
                 Permohonan akun Anda telah ditolak oleh Administrator.
               </p>
             </div>
 
             {profile?.rejectReason && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-left text-xs text-red-300 space-y-1">
-                <p className="font-semibold text-red-400 text-[11px] uppercase tracking-wider">Alasan Penolakan:</p>
+              <div className="badge-exceeded rounded-2xl p-4 text-left text-xs space-y-1">
+                <p className="font-semibold text-[11px] uppercase tracking-wider">Alasan Penolakan:</p>
                 <p className="leading-relaxed">{profile.rejectReason}</p>
               </div>
             )}
 
             <button
               onClick={handleReturnToLogin}
-              className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+              className="w-full py-3 bg-bg-2 hover:border-neon-cyan border border-border-neon text-text-hi font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               Kembali ke Login
@@ -369,20 +379,20 @@ export default function AuthView() {
         ) : isDisabledUser ? (
           /* AKUN NONAKTIF SCREEN */
           <div className="space-y-6 text-center animate-fade-in py-2">
-            <div className="w-16 h-16 bg-slate-700 border border-slate-600 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
+            <div className="w-16 h-16 bg-bg-2 border border-border-neon rounded-2xl flex items-center justify-center mx-auto text-text-mid">
               <Lock className="w-8 h-8" />
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-xl font-bold text-slate-100">Akun Nonaktif</h2>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <h2 className="text-xl font-bold text-text-hi font-heading">Akun Nonaktif</h2>
+              <p className="text-xs text-text-mid leading-relaxed">
                 Akun Anda telah dinonaktifkan oleh Administrator sistem. Silakan hubungi tim K3LH / Super Admin untuk informasi lebih lanjut.
               </p>
             </div>
 
             <button
               onClick={handleReturnToLogin}
-              className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+              className="w-full py-3 bg-bg-2 hover:border-neon-cyan border border-border-neon text-text-hi font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               Kembali ke Login
@@ -391,28 +401,28 @@ export default function AuthView() {
         ) : mode === 'registered_success' ? (
           /* SUCCESS SCREEN JUST AFTER REGISTERING */
           <div className="space-y-6 text-center animate-fade-in py-2">
-            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto text-emerald-400">
+            <div className="w-16 h-16 badge-safe rounded-2xl flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-2xl font-bold text-slate-100">Pendaftaran Berhasil</h2>
-              <p className="text-xs text-slate-300 leading-relaxed max-w-md mx-auto">
+              <h2 className="text-2xl font-bold text-text-hi font-heading">Pendaftaran Berhasil</h2>
+              <p className="text-xs text-text-mid leading-relaxed max-w-md mx-auto">
                 Akun Anda berhasil dibuat. Saat ini akun masih menunggu persetujuan Administrator. Anda akan dapat menggunakan aplikasi setelah akun disetujui.
               </p>
             </div>
 
-            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-xs text-emerald-300 text-left leading-relaxed">
-              <p className="font-semibold mb-1">Catatan Keamanan & Hak Akses:</p>
-              <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-300">
-                <li>Peran default diawali sebagai <strong className="text-emerald-400">Viewer</strong>.</li>
+            <div className="p-4 bg-bg-1 border border-border-neon rounded-2xl text-xs text-text-mid text-left leading-relaxed">
+              <p className="font-semibold text-neon-green mb-1">Catatan Keamanan &amp; Hak Akses:</p>
+              <ul className="list-disc list-inside space-y-1 text-[11px]">
+                <li>Peran default diawali sebagai <strong className="text-neon-cyan">Viewer</strong>.</li>
                 <li>Administrator akan meninjau Departemen, Jabatan, dan NIK Anda sebelum memberikan otorisasi penuh.</li>
               </ul>
             </div>
 
             <button
               onClick={handleReturnToLogin}
-              className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
+              className="w-full py-3.5 neon-btn-primary rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
             >
               <ArrowLeft className="w-4 h-4" />
               Kembali ke Login
@@ -421,29 +431,30 @@ export default function AuthView() {
         ) : mode === 'reset_password' ? (
           /* RESET PASSWORD FORM */
           <div className="space-y-5 animate-fade-in">
-            <div className="flex items-center gap-2 text-slate-200">
+            <div className="flex items-center gap-2 text-text-hi">
               <button 
                 onClick={() => setMode('login')} 
-                className="p-1 hover:bg-slate-700/50 rounded-lg text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                className="p-1.5 hover:bg-bg-2 rounded-lg text-text-mid hover:text-neon-cyan transition-colors cursor-pointer"
+                aria-label="Kembali ke Login"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <h2 className="text-base font-bold text-slate-100">Reset Password</h2>
+              <h2 className="text-base font-bold text-text-hi font-heading">Reset Password</h2>
             </div>
 
             <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
               <div>
-                <label className="block text-[11px] text-slate-400 font-semibold mb-1.5 uppercase tracking-wide">
+                <label className="block text-[11px] text-text-mid font-semibold mb-1.5 uppercase tracking-wide">
                   Masukkan Alamat Email Terdaftar
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-500" />
+                  <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-text-low" />
                   <input
                     type="email"
                     required
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
-                    className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-3 text-xs outline-none text-slate-100 placeholder:text-slate-500 transition-all"
+                    className="w-full bg-bg-0 border border-border-neon rounded-xl pl-10 pr-4 py-3 text-xs text-text-hi font-mono"
                     placeholder="nama@divaborneo.co.id"
                   />
                 </div>
@@ -452,10 +463,10 @@ export default function AuthView() {
               <button
                 type="submit"
                 disabled={submitting || resetSent}
-                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wide disabled:opacity-50"
+                className="w-full py-3.5 neon-btn-primary rounded-xl text-xs cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wide disabled:opacity-50"
               >
                 {submitting ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
                     <KeyRound className="w-4 h-4" />
@@ -467,15 +478,15 @@ export default function AuthView() {
           </div>
         ) : mode === 'register' ? (
           /* REGISTER FORM */
-          <div className="space-y-5 animate-fade-in max-h-[75vh] overflow-y-auto pr-1 custom-scrollbar">
-            <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <User className="w-5 h-5 text-emerald-400" />
+          <div className="space-y-5 animate-fade-in max-h-[75vh] overflow-y-auto pr-1">
+            <div className="flex items-center justify-between border-b border-border-neon pb-3">
+              <h2 className="text-base font-bold text-text-hi flex items-center gap-2 font-heading">
+                <User className="w-5 h-5 text-neon-cyan" />
                 Pendaftaran Akun Baru
               </h2>
               <button
                 onClick={() => setMode('login')}
-                className="text-xs text-emerald-400 hover:underline font-semibold cursor-pointer flex items-center gap-1"
+                className="text-xs text-neon-cyan hover:underline font-semibold cursor-pointer flex items-center gap-1"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Sudah punya akun?
@@ -485,17 +496,17 @@ export default function AuthView() {
             <form onSubmit={handleRegisterSubmit} className="space-y-3.5 text-left">
               {/* Nama Lengkap */}
               <div>
-                <label className="block text-[11px] text-slate-300 font-semibold mb-1">
-                  Nama Lengkap <span className="text-red-400">*</span>
+                <label className="block text-[11px] text-text-mid font-semibold mb-1">
+                  Nama Lengkap <span className="text-neon-red">*</span>
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+                  <User className="w-4 h-4 absolute left-3.5 top-3 text-text-low" />
                   <input
                     type="text"
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none text-slate-100 placeholder:text-slate-500 transition-all"
+                    className="w-full bg-bg-0 border border-border-neon rounded-xl pl-10 pr-4 py-2.5 text-xs text-text-hi"
                     placeholder="Contoh: Perkasa Utama"
                   />
                 </div>
@@ -503,17 +514,17 @@ export default function AuthView() {
 
               {/* Email */}
               <div>
-                <label className="block text-[11px] text-slate-300 font-semibold mb-1">
-                  Email Perusahaan / Resmi <span className="text-red-400">*</span>
+                <label className="block text-[11px] text-text-mid font-semibold mb-1">
+                  Email Perusahaan / Resmi <span className="text-neon-red">*</span>
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+                  <Mail className="w-4 h-4 absolute left-3.5 top-3 text-text-low" />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none text-slate-100 placeholder:text-slate-500 transition-all font-mono"
+                    className="w-full bg-bg-0 border border-border-neon rounded-xl pl-10 pr-4 py-2.5 text-xs text-text-hi font-mono"
                     placeholder="nama@divaborneo.co.id"
                   />
                 </div>
@@ -522,34 +533,34 @@ export default function AuthView() {
               {/* Password & Confirm Password */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-slate-300 font-semibold mb-1">
-                    Password <span className="text-red-400">*</span>
+                  <label className="block text-[11px] text-text-mid font-semibold mb-1">
+                    Password <span className="text-neon-red">*</span>
                   </label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+                    <Lock className="w-4 h-4 absolute left-3.5 top-3 text-text-low" />
                     <input
                       type="password"
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none text-slate-100 transition-all"
+                      className="w-full bg-bg-0 border border-border-neon rounded-xl pl-10 pr-4 py-2.5 text-xs text-text-hi"
                       placeholder="Min. 8 kar, Aa1"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-300 font-semibold mb-1">
-                    Konfirmasi Password <span className="text-red-400">*</span>
+                  <label className="block text-[11px] text-text-mid font-semibold mb-1">
+                    Konfirmasi Password <span className="text-neon-red">*</span>
                   </label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+                    <Lock className="w-4 h-4 absolute left-3.5 top-3 text-text-low" />
                     <input
                       type="password"
                       required
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none text-slate-100 transition-all"
+                      className="w-full bg-bg-0 border border-border-neon rounded-xl pl-10 pr-4 py-2.5 text-xs text-text-hi"
                       placeholder="Ulangi password"
                     />
                   </div>
@@ -559,33 +570,33 @@ export default function AuthView() {
               {/* Phone & NIK */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-slate-300 font-semibold mb-1">
-                    Nomor HP <span className="text-red-400">*</span>
+                  <label className="block text-[11px] text-text-mid font-semibold mb-1">
+                    Nomor HP <span className="text-neon-red">*</span>
                   </label>
                   <div className="relative">
-                    <Phone className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+                    <Phone className="w-4 h-4 absolute left-3.5 top-3 text-text-low" />
                     <input
                       type="tel"
                       required
                       value={phone}
                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                      className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none text-slate-100 placeholder:text-slate-500 transition-all font-mono"
+                      className="w-full bg-bg-0 border border-border-neon rounded-xl pl-10 pr-4 py-2.5 text-xs text-text-hi font-mono"
                       placeholder="081234567890"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-300 font-semibold mb-1">
-                    NIK / Nomor Induk Karyawan <span className="text-slate-500">(Opsional)</span>
+                  <label className="block text-[11px] text-text-mid font-semibold mb-1">
+                    NIK / Nomor Induk Karyawan <span className="text-text-low">(Opsional)</span>
                   </label>
                   <div className="relative">
-                    <CreditCard className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+                    <CreditCard className="w-4 h-4 absolute left-3.5 top-3 text-text-low" />
                     <input
                       type="text"
                       value={nik}
                       onChange={(e) => setNik(e.target.value)}
-                      className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none text-slate-100 placeholder:text-slate-500 transition-all font-mono"
+                      className="w-full bg-bg-0 border border-border-neon rounded-xl pl-10 pr-4 py-2.5 text-xs text-text-hi font-mono"
                       placeholder="620101..."
                     />
                   </div>
@@ -595,34 +606,34 @@ export default function AuthView() {
               {/* Department & Position */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-slate-300 font-semibold mb-1">
-                    Departemen <span className="text-red-400">*</span>
+                  <label className="block text-[11px] text-text-mid font-semibold mb-1">
+                    Departemen <span className="text-neon-red">*</span>
                   </label>
                   <select
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-2.5 text-xs outline-none text-slate-100 transition-all cursor-pointer font-sans"
+                    className="w-full bg-bg-0 border border-border-neon rounded-xl px-3 py-2.5 text-xs text-text-hi cursor-pointer font-sans"
                   >
                     <option value="KPL / Environmental">KPL / Environmental</option>
                     <option value="Mining Operations">Mining Operations</option>
-                    <option value="Health & Safety (HSE)">Health & Safety (HSE)</option>
+                    <option value="Health & Safety (HSE)">Health &amp; Safety (HSE)</option>
                     <option value="Processing Plant">Processing Plant</option>
-                    <option value="Maintenance & Asset">Maintenance & Asset</option>
-                    <option value="Engineering & Geology">Engineering & Geology</option>
-                    <option value="HR & General Affairs">HR & General Affairs</option>
-                    <option value="Finance & Supply Chain">Finance & Supply Chain</option>
+                    <option value="Maintenance & Asset">Maintenance &amp; Asset</option>
+                    <option value="Engineering & Geology">Engineering &amp; Geology</option>
+                    <option value="HR & General Affairs">HR &amp; General Affairs</option>
+                    <option value="Finance & Supply Chain">Finance &amp; Supply Chain</option>
                     <option value="Executive Management">Executive Management</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-300 font-semibold mb-1">
-                    Jabatan <span className="text-red-400">*</span>
+                  <label className="block text-[11px] text-text-mid font-semibold mb-1">
+                    Jabatan <span className="text-neon-red">*</span>
                   </label>
                   <select
                     value={position}
                     onChange={(e) => setPosition(e.target.value)}
-                    className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-2.5 text-xs outline-none text-slate-100 transition-all cursor-pointer font-sans"
+                    className="w-full bg-bg-0 border border-border-neon rounded-xl px-3 py-2.5 text-xs text-text-hi cursor-pointer font-sans"
                   >
                     <option value="General Manager">General Manager</option>
                     <option value="Manager">Manager</option>
@@ -638,34 +649,34 @@ export default function AuthView() {
 
               {/* Site Location */}
               <div>
-                <label className="block text-[11px] text-slate-300 font-semibold mb-1">
-                  Lokasi Site Tambang <span className="text-red-400">*</span>
+                <label className="block text-[11px] text-text-mid font-semibold mb-1">
+                  Lokasi Site Tambang <span className="text-neon-red">*</span>
                 </label>
                 <select
                   value={site}
                   onChange={(e) => setSite(e.target.value)}
-                  className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-2.5 text-xs outline-none text-slate-100 transition-all cursor-pointer font-sans"
+                  className="w-full bg-bg-0 border border-border-neon rounded-xl px-3 py-2.5 text-xs text-text-hi cursor-pointer font-sans"
                 >
                   <option value="Site Muara Teweh">Site Muara Teweh (Kalteng)</option>
                   <option value="Site Lahat">Site Lahat (Sumsel)</option>
                   <option value="Site Kutai Barat">Site Kutai Barat (Kaltim)</option>
                   <option value="Head Office Jakarta">Head Office Jakarta</option>
-                  <option value="Port & Transshipment">Port & Transshipment Terminal</option>
+                  <option value="Port & Transshipment">Port &amp; Transshipment Terminal</option>
                 </select>
               </div>
 
               {/* Photo URL optional */}
               <div>
-                <label className="block text-[11px] text-slate-300 font-semibold mb-1">
-                  URL Foto Profil <span className="text-slate-500">(Opsional)</span>
+                <label className="block text-[11px] text-text-mid font-semibold mb-1">
+                  URL Foto Profil <span className="text-text-low">(Opsional)</span>
                 </label>
                 <div className="relative">
-                  <Camera className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+                  <Camera className="w-4 h-4 absolute left-3.5 top-3 text-text-low" />
                   <input
                     type="url"
                     value={photoURL}
                     onChange={(e) => setPhotoURL(e.target.value)}
-                    className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 text-xs outline-none text-slate-100 placeholder:text-slate-500 transition-all"
+                    className="w-full bg-bg-0 border border-border-neon rounded-xl pl-10 pr-4 py-2.5 text-xs text-text-hi"
                     placeholder="https://..."
                   />
                 </div>
@@ -676,12 +687,12 @@ export default function AuthView() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider disabled:opacity-50"
+                  className="w-full py-3.5 neon-btn-primary rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider disabled:opacity-50"
                 >
                   {submitting ? (
-                    <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                    <RefreshCw className="w-4 h-4 animate-spin" />
                   ) : (
-                    "Daftar Akun Baru"
+                    'Daftar Akun Baru'
                   )}
                 </button>
               </div>
@@ -692,17 +703,17 @@ export default function AuthView() {
           <div className="space-y-5 animate-fade-in text-left">
             <form onSubmit={handleEmailLogin} className="space-y-4">
               <div>
-                <label className="block text-[11px] text-slate-300 font-semibold mb-1.5 uppercase tracking-wide">
+                <label className="block text-[11px] text-text-mid font-semibold mb-1.5 uppercase tracking-wide">
                   Email Terdaftar
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-500" />
+                  <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-text-low" />
                   <input
                     type="email"
                     required
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-3 text-xs outline-none text-slate-100 placeholder:text-slate-500 transition-all font-mono"
+                    className="w-full bg-bg-0 border border-border-neon rounded-xl pl-10 pr-4 py-3 text-xs text-text-hi font-mono"
                     placeholder="nama@divaborneo.co.id"
                   />
                 </div>
@@ -710,25 +721,25 @@ export default function AuthView() {
 
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-[11px] text-slate-300 font-semibold uppercase tracking-wide">
+                  <label className="block text-[11px] text-text-mid font-semibold uppercase tracking-wide">
                     Password
                   </label>
                   <button
                     type="button"
                     onClick={() => setMode('reset_password')}
-                    className="text-[11px] text-emerald-400 hover:underline font-semibold cursor-pointer"
+                    className="text-[11px] text-neon-cyan hover:underline font-semibold cursor-pointer"
                   >
                     Lupa Password?
                   </button>
                 </div>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-500" />
+                  <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-text-low" />
                   <input
                     type="password"
                     required
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full bg-slate-900/80 border border-slate-700 focus:border-emerald-500 rounded-xl pl-10 pr-4 py-3 text-xs outline-none text-slate-100 transition-all"
+                    className="w-full bg-bg-0 border border-border-neon rounded-xl pl-10 pr-4 py-3 text-xs text-text-hi"
                     placeholder="Masukkan password"
                   />
                 </div>
@@ -737,19 +748,19 @@ export default function AuthView() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider disabled:opacity-50"
+                className="w-full py-3.5 neon-btn-primary rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider disabled:opacity-50"
               >
                 {submitting ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
-                  "Masuk ke Sistem"
+                  'Masuk ke Sistem'
                 )}
               </button>
             </form>
 
             <div className="relative my-4 flex items-center justify-center">
-              <div className="border-t border-slate-700/80 w-full" />
-              <span className="bg-slate-800 px-3 text-[10px] text-slate-400 font-mono uppercase tracking-widest absolute">
+              <div className="border-t border-border-neon w-full" />
+              <span className="bg-bg-2 px-3 text-[10px] text-text-mid font-mono uppercase tracking-widest absolute rounded-full border border-border-subtle">
                 atau
               </span>
             </div>
@@ -757,7 +768,7 @@ export default function AuthView() {
             <button
               id="google-sign-in-btn"
               onClick={handleGoogleLogin}
-              className="w-full py-3 bg-slate-900/90 text-slate-100 border border-slate-700 hover:bg-slate-900 font-semibold rounded-xl text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2.5 uppercase tracking-wide"
+              className="w-full py-3 bg-bg-0 text-text-hi border border-border-neon hover:border-neon-cyan font-semibold rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-2.5 uppercase tracking-wide"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24">
                 <path
@@ -769,8 +780,8 @@ export default function AuthView() {
             </button>
 
             {/* REGISTER BUTTON LINK */}
-            <div className="pt-3 text-center border-t border-slate-700/60">
-              <p className="text-xs text-slate-400">
+            <div className="pt-3 text-center border-t border-border-subtle">
+              <p className="text-xs text-text-mid">
                 Belum memiliki akun?{' '}
                 <button
                   type="button"
@@ -778,7 +789,7 @@ export default function AuthView() {
                     setErrorMsg('');
                     setMode('register');
                   }}
-                  className="text-emerald-400 hover:text-emerald-300 font-bold hover:underline cursor-pointer ml-1 inline-flex items-center gap-1"
+                  className="text-neon-cyan hover:underline font-bold cursor-pointer ml-1 inline-flex items-center gap-1"
                 >
                   Daftar
                 </button>

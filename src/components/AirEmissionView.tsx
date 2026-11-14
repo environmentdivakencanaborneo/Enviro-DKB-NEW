@@ -9,6 +9,10 @@ import { AirEmissionData } from '../types';
 import { airEmissionService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
 import { todayLocalISO } from '../utils/dateUtils';
+import StatusBadge from './StatusBadge';
+import TableSkeleton from './TableSkeleton';
+import EmptyState from './EmptyState';
+import { NEON_CHART, NEON_TOOLTIP_CONTENT_STYLE } from '../utils/chartTheme';
 import {
   ResponsiveContainer,
   BarChart,
@@ -17,7 +21,8 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
-  Legend
+  Legend,
+  ReferenceLine,
 } from 'recharts';
 import {
   Wind,
@@ -29,7 +34,7 @@ import {
   Volume2,
   CheckCircle2,
   AlertTriangle,
-  X
+  X,
 } from 'lucide-react';
 
 interface AirEmissionViewProps {
@@ -45,7 +50,7 @@ export default function AirEmissionView({
   isLoading,
   canEdit,
   canDelete,
-  onUnauthorizedAction
+  onUnauthorizedAction,
 }: AirEmissionViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -69,7 +74,6 @@ export default function AirEmissionView({
   const [labRef, setLabRef] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Evaluasi mengacu PP No. 22/2021 Lamp VII (PM10 <= 75, PM2.5 <= 55, TSP <= 230, SO2 <= 150, NO2 <= 200, CO <= 10000) & Kepmen LH 48/1996 (Kebisingan <= 70 dBA area tambang)
   const evaluateAirStatus = (
     p10: number,
     p25: number,
@@ -139,7 +143,13 @@ export default function AirEmissionView({
     setErrorMsg(null);
     try {
       const status = evaluateAirStatus(
-        Number(pm10), Number(pm25), Number(tsp), Number(so2), Number(no2), Number(co), Number(noiseDb)
+        Number(pm10),
+        Number(pm25),
+        Number(tsp),
+        Number(so2),
+        Number(no2),
+        Number(co),
+        Number(noiseDb)
       );
       const payload: Omit<AirEmissionData, 'id'> = {
         date,
@@ -211,22 +221,23 @@ export default function AirEmissionView({
 
   return (
     <div className="space-y-6 text-left">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-[#E4EDE6] shadow-sm">
+      <div className="glass-panel rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#4D7C5A]">
+          <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-neon-cyan">
             PP No. 22/2021 Lampiran VII &amp; Kepmen LH No. 48/1996
           </span>
-          <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1 flex items-center gap-2.5">
-            <Wind className="h-6 w-6 text-[#2E4B3D]" />
+          <h2 className="text-xl md:text-2xl font-bold font-heading text-text-hi mt-1 flex items-center gap-2.5">
+            <Wind className="h-6 w-6 text-neon-cyan" />
             Kualitas Udara Ambien, Emisi &amp; Kebisingan
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-text-mid mt-1">
             Pemantauan partikulat debu (PM10, PM2.5, TSP), gas buang (SO2, NO2, CO), emisi genset/alat berat, serta tingkat kebisingan.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
+            type="button"
             onClick={() =>
               exportToExcel(
                 filteredData.map((d) => ({
@@ -249,14 +260,15 @@ export default function AirEmissionView({
               )
             }
             disabled={filteredData.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-bg-2/80 border border-border-neon hover:border-neon-cyan/50 text-text-hi text-xs font-bold cursor-pointer disabled:opacity-50"
           >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            <FileSpreadsheet className="h-4 w-4 text-neon-green" />
             Ekspor Excel
           </button>
           <button
+            type="button"
             onClick={openCreate}
-            className="flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-[#2E4B3D] hover:bg-[#233A2F] text-white text-xs font-bold shadow-md cursor-pointer"
+            className="neon-btn-primary flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             Input Pengujian Udara / Emisi
@@ -266,60 +278,70 @@ export default function AirEmissionView({
 
       {/* KPI */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase">
+        <div className="neon-card p-5">
+          <div className="flex items-center justify-between text-[11px] text-text-mid font-bold uppercase tracking-wider">
             <span>Kepatuhan Udara</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <CheckCircle2 className="h-4 w-4 text-neon-green" />
           </div>
-          <p className="text-2xl font-black text-[#2E4B3D] mt-2">{kpis.compliancePct}%</p>
-          <p className="text-[11px] text-slate-500 mt-1">{kpis.total} titik pengukuran</p>
+          <p className="text-3xl font-bold font-mono tabular-nums text-neon-green mt-2">{kpis.compliancePct}%</p>
+          <p className="text-[11px] text-text-low mt-1 font-mono">{kpis.total} titik pengukuran</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase">
+        <div className="neon-card p-5">
+          <div className="flex items-center justify-between text-[11px] text-text-mid font-bold uppercase tracking-wider">
             <span>Rata-rata PM10</span>
-            <Wind className="h-4 w-4 text-sky-600" />
+            <Wind className="h-4 w-4 text-neon-cyan" />
           </div>
-          <p className="text-2xl font-black text-slate-800 mt-2">{kpis.avgPm10} µg/Nm³</p>
-          <p className="text-[11px] text-slate-500 mt-1">Baku Mutu PP 22/2021: ≤ 75 µg/Nm³</p>
+          <p className="text-3xl font-bold font-mono tabular-nums text-text-hi mt-2">
+            {kpis.avgPm10} <span className="text-xs text-text-mid">µg/Nm³</span>
+          </p>
+          <p className="text-[11px] text-text-low mt-1 font-mono">Baku Mutu PP 22/2021: ≤ 75 µg/Nm³</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase">
+        <div className="neon-card p-5">
+          <div className="flex items-center justify-between text-[11px] text-text-mid font-bold uppercase tracking-wider">
             <span>Rata-rata Kebisingan</span>
-            <Volume2 className="h-4 w-4 text-amber-600" />
+            <Volume2 className="h-4 w-4 text-neon-amber" />
           </div>
-          <p className="text-2xl font-black text-slate-800 mt-2">{kpis.avgNoise} dBA</p>
-          <p className="text-[11px] text-slate-500 mt-1">Batas Area Industri: ≤ 70 dBA</p>
+          <p className="text-3xl font-bold font-mono tabular-nums text-text-hi mt-2">
+            {kpis.avgNoise} <span className="text-xs text-text-mid">dBA</span>
+          </p>
+          <p className="text-[11px] text-text-low mt-1 font-mono">Batas Area Industri: ≤ 70 dBA</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase">
+        <div className="neon-card p-5">
+          <div className="flex items-center justify-between text-[11px] text-text-mid font-bold uppercase tracking-wider">
             <span>Pelampauan Baku Mutu</span>
-            <AlertTriangle className="h-4 w-4 text-rose-600" />
+            <AlertTriangle className="h-4 w-4 text-neon-red" />
           </div>
-          <p className="text-2xl font-black text-rose-600 mt-2">{kpis.exceeded}</p>
-          <p className="text-[11px] text-slate-500 mt-1">Kejadian Exceeded tercatat</p>
+          <p className="text-3xl font-bold font-mono tabular-nums text-neon-red mt-2">{kpis.exceeded}</p>
+          <p className="text-[11px] text-text-low mt-1">Kejadian Exceeded tercatat</p>
         </div>
       </div>
 
       {/* Chart */}
       {chartData.length > 0 && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">
+        <div className="glass-panel p-6 rounded-2xl">
+          <h3 className="text-sm font-bold text-text-hi uppercase tracking-wider mb-3 font-heading">
             Perbandingan Partikulat (PM10, PM2.5) &amp; Kebisingan
           </h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="label" fontSize={10} tickLine={false} />
-                <YAxis fontSize={10} tickLine={false} />
-                <RechartsTooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="PM10" fill="#2E4B3D" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="PM2.5" fill="#0EA5E9" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="Kebisingan (dBA)" fill="#E2A43B" radius={[6, 6, 0, 0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke={NEON_CHART.gridStroke} />
+                <XAxis dataKey="label" stroke={NEON_CHART.tickFill} fontSize={10} tickLine={false} />
+                <YAxis stroke={NEON_CHART.tickFill} fontSize={10} tickLine={false} />
+                <RechartsTooltip contentStyle={NEON_TOOLTIP_CONTENT_STYLE} />
+                <Legend wrapperStyle={{ fontSize: 11, color: NEON_CHART.tickFill }} />
+                <ReferenceLine
+                  y={75}
+                  stroke={NEON_CHART.red}
+                  strokeDasharray="4 4"
+                  label={{ value: 'Max PM10 (75)', position: 'insideTopRight', fill: NEON_CHART.red, fontSize: 9 }}
+                />
+                <Bar dataKey="PM10" fill={NEON_CHART.green} radius={[6, 6, 0, 0]} />
+                <Bar dataKey="PM2.5" fill={NEON_CHART.cyan} radius={[6, 6, 0, 0]} />
+                <Bar dataKey="Kebisingan (dBA)" fill={NEON_CHART.amber} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -327,23 +349,19 @@ export default function AirEmissionView({
       )}
 
       {/* Table */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div className="glass-panel p-5 rounded-2xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-text-low" />
             <input
               type="text"
               placeholder="Cari lokasi, petugas, atau nomor lab..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none"
+              className="w-full pl-9 pr-3 py-2 text-xs"
             />
           </div>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700"
-          >
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-2 text-xs">
             <option value="ALL">Semua Kategori</option>
             <option value="Udara Ambien">Udara Ambien</option>
             <option value="Emisi Genset">Emisi Genset</option>
@@ -352,92 +370,119 @@ export default function AirEmissionView({
           </select>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
-                <th className="p-3">Tanggal</th>
-                <th className="p-3">Kategori &amp; Lokasi</th>
-                <th className="p-3 text-center">PM10</th>
-                <th className="p-3 text-center">PM2.5</th>
-                <th className="p-3 text-center">TSP</th>
-                <th className="p-3 text-center">SO2 / NO2</th>
-                <th className="p-3 text-center">Bising (dBA)</th>
-                <th className="p-3 text-center">Status</th>
-                <th className="p-3 text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr><td colSpan={9} className="p-8 text-center text-slate-400">Memuat data udara &amp; emisi...</td></tr>
-              ) : filteredData.length === 0 ? (
-                <tr><td colSpan={9} className="p-10 text-center text-slate-400">Belum ada data pemantauan udara, emisi, atau kebisingan.</td></tr>
-              ) : (
-                filteredData.map((item) => (
-                  <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="p-3 font-mono font-semibold text-slate-700">{item.date}</td>
+        <div className="overflow-x-auto max-h-[540px]">
+          {isLoading ? (
+            <TableSkeleton rows={5} columns={8} />
+          ) : filteredData.length === 0 ? (
+            <EmptyState
+              icon={Wind}
+              title="Belum ada data pemantauan udara, emisi, atau kebisingan"
+              description="Catat pengukuran partikulat ambien, emisi genset/alat berat, dan tingkat kebisingan."
+              actionLabel={canEdit ? 'Input Pengujian Udara / Emisi' : undefined}
+              onAction={canEdit ? openCreate : undefined}
+            />
+          ) : (
+            <table className="neon-table text-left text-xs">
+              <thead>
+                <tr className="text-[10px] font-bold uppercase tracking-wider font-mono">
+                  <th className="p-3">Tanggal</th>
+                  <th className="p-3">Kategori &amp; Lokasi</th>
+                  <th className="p-3 text-right">PM10</th>
+                  <th className="p-3 text-right">PM2.5</th>
+                  <th className="p-3 text-right">TSP</th>
+                  <th className="p-3 text-right">SO2 / NO2</th>
+                  <th className="p-3 text-right">Bising (dBA)</th>
+                  <th className="p-3 text-center">Status</th>
+                  <th className="p-3 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredData.map((item) => (
+                  <tr key={item.id}>
+                    <td className="p-3 font-mono font-semibold text-text-hi tabular-nums">{item.date}</td>
                     <td className="p-3">
-                      <span className="text-[10px] font-bold text-[#2E4B3D] uppercase">{item.monitoringCategory}</span>
-                      <p className="font-bold text-slate-800">{item.location}</p>
-                      <p className="text-[10px] text-slate-500">Petugas: {item.officer} {item.labRef ? `• Lab: ${item.labRef}` : ''}</p>
-                    </td>
-                    <td className={`p-3 text-center font-mono font-bold ${item.pm10 > 75 ? 'text-rose-600' : 'text-slate-700'}`}>{item.pm10}</td>
-                    <td className={`p-3 text-center font-mono font-bold ${item.pm25 > 55 ? 'text-rose-600' : 'text-slate-700'}`}>{item.pm25}</td>
-                    <td className={`p-3 text-center font-mono font-bold ${item.tsp > 230 ? 'text-rose-600' : 'text-slate-700'}`}>{item.tsp}</td>
-                    <td className="p-3 text-center font-mono text-slate-600">{item.so2} / {item.no2}</td>
-                    <td className={`p-3 text-center font-mono font-bold ${item.noiseDb > 70 ? 'text-rose-600' : 'text-slate-700'}`}>{item.noiseDb}</td>
-                    <td className="p-3 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                        item.status === 'Safe' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        item.status === 'Warning' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                        'bg-rose-50 text-rose-700 border-rose-200'
-                      }`}>
-                        {item.status === 'Safe' ? 'Aman' : item.status === 'Warning' ? 'Warning' : 'Over Limit'}
+                      <span className="text-[10px] font-bold text-neon-cyan uppercase font-mono">
+                        {item.monitoringCategory}
                       </span>
+                      <p className="font-bold text-text-hi">{item.location}</p>
+                      <p className="text-[10px] text-text-mid">
+                        Petugas: {item.officer} {item.labRef ? `• Lab: ${item.labRef}` : ''}
+                      </p>
+                    </td>
+                    <td className={`p-3 text-right font-mono font-bold tabular-nums ${item.pm10 > 75 ? 'text-neon-red' : 'text-text-hi'}`}>
+                      {item.pm10}
+                    </td>
+                    <td className={`p-3 text-right font-mono font-bold tabular-nums ${item.pm25 > 55 ? 'text-neon-red' : 'text-text-hi'}`}>
+                      {item.pm25}
+                    </td>
+                    <td className={`p-3 text-right font-mono font-bold tabular-nums ${item.tsp > 230 ? 'text-neon-red' : 'text-text-hi'}`}>
+                      {item.tsp}
+                    </td>
+                    <td className="p-3 text-right font-mono text-text-mid tabular-nums">
+                      {item.so2} / {item.no2}
+                    </td>
+                    <td className={`p-3 text-right font-mono font-bold tabular-nums ${item.noiseDb > 70 ? 'text-neon-red' : 'text-text-hi'}`}>
+                      {item.noiseDb}
+                    </td>
+                    <td className="p-3 text-center">
+                      <StatusBadge status={item.status} />
                     </td>
                     <td className="p-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        <button onClick={() => openEdit(item)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg cursor-pointer"><Pencil className="h-3.5 w-3.5" /></button>
                         <button
+                          type="button"
+                          onClick={() => openEdit(item)}
+                          className="p-1.5 text-neon-cyan bg-neon-cyan/10 hover:bg-neon-cyan/20 border border-neon-cyan/30 rounded-lg cursor-pointer"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
                             if (!canDelete) return onUnauthorizedAction('Hapus Data Udara & Emisi');
                             setDeleteTarget(item);
                           }}
-                          className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer"
+                          className="p-1.5 text-neon-red bg-neon-red/10 hover:bg-neon-red/20 border border-neon-red/30 rounded-lg cursor-pointer"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
       {/* Modal */}
       {showModal && (
         <ModalPortal>
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-[#2E4B3D]">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="glass-panel rounded-3xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-neon-cyan font-heading">
                   {editingId ? 'Edit Data Udara & Emisi' : 'Input Pemantauan Udara, Emisi & Kebisingan'}
                 </h3>
-                <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setShowModal(false)} className="p-1 text-text-mid hover:text-text-hi cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              {errorMsg && <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">{errorMsg}</div>}
+              {errorMsg && (
+                <div className="p-3 rounded-xl bg-neon-red/10 border border-neon-red/35 text-xs text-neon-red">
+                  {errorMsg}
+                </div>
+              )}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Tanggal</label>
-                    <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Tanggal</label>
+                    <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Kategori</label>
-                    <select value={monitoringCategory} onChange={(e) => setMonitoringCategory(e.target.value as any)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs">
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Kategori</label>
+                    <select value={monitoringCategory} onChange={(e) => setMonitoringCategory(e.target.value as any)} className="w-full px-3 py-2 text-xs">
                       <option value="Udara Ambien">Udara Ambien</option>
                       <option value="Emisi Genset">Emisi Genset</option>
                       <option value="Emisi Alat Berat">Emisi Alat Berat</option>
@@ -445,57 +490,63 @@ export default function AirEmissionView({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Lokasi Pantau</label>
-                    <input type="text" required value={location} onChange={(e) => setLocation(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Lokasi Pantau</label>
+                    <input type="text" required value={location} onChange={(e) => setLocation(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">PM10 (≤75)</label>
-                    <input type="number" step="0.1" required value={pm10} onChange={(e) => setPm10(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">PM10 (≤75)</label>
+                    <input type="number" step="0.1" required value={pm10} onChange={(e) => setPm10(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">PM2.5 (≤55)</label>
-                    <input type="number" step="0.1" required value={pm25} onChange={(e) => setPm25(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">PM2.5 (≤55)</label>
+                    <input type="number" step="0.1" required value={pm25} onChange={(e) => setPm25(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">TSP (≤230)</label>
-                    <input type="number" step="0.1" required value={tsp} onChange={(e) => setTsp(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">TSP (≤230)</label>
+                    <input type="number" step="0.1" required value={tsp} onChange={(e) => setTsp(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Kebisingan (dBA)</label>
-                    <input type="number" step="0.1" required value={noiseDb} onChange={(e) => setNoiseDb(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Kebisingan (dBA)</label>
+                    <input type="number" step="0.1" required value={noiseDb} onChange={(e) => setNoiseDb(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">SO2 (≤150)</label>
-                    <input type="number" step="0.1" required value={so2} onChange={(e) => setSo2(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">SO2 (≤150)</label>
+                    <input type="number" step="0.1" required value={so2} onChange={(e) => setSo2(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">NO2 (≤200)</label>
-                    <input type="number" step="0.1" required value={no2} onChange={(e) => setNo2(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">NO2 (≤200)</label>
+                    <input type="number" step="0.1" required value={no2} onChange={(e) => setNo2(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">CO (µg/Nm³)</label>
-                    <input type="number" step="0.1" required value={co} onChange={(e) => setCo(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">CO (µg/Nm³)</label>
+                    <input type="number" step="0.1" required value={co} onChange={(e) => setCo(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Ref Lab KAN</label>
-                    <input type="text" value={labRef} onChange={(e) => setLabRef(e.target.value)} placeholder="Opsional" className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Ref Lab KAN</label>
+                    <input type="text" value={labRef} onChange={(e) => setLabRef(e.target.value)} placeholder="Opsional" className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Petugas Pengambil Sampel</label>
-                    <input type="text" required value={officer} onChange={(e) => setOfficer(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Petugas Pengambil Sampel</label>
+                    <input type="text" required value={officer} onChange={(e) => setOfficer(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Catatan</label>
-                    <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Catatan</label>
+                    <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold cursor-pointer">Batal</button>
-                  <button type="submit" disabled={isSaving} className="px-5 py-2 rounded-xl bg-[#2E4B3D] text-white text-xs font-bold cursor-pointer disabled:opacity-50">
+                <div className="flex justify-end gap-2 pt-3 border-t border-border-subtle">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="px-4 py-2 rounded-xl border border-border-neon text-xs font-semibold text-text-mid hover:text-text-hi cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button type="submit" disabled={isSaving} className="neon-btn-primary px-5 py-2 rounded-xl text-xs cursor-pointer disabled:opacity-50">
                     {isSaving ? 'Menyimpan...' : 'Simpan Data'}
                   </button>
                 </div>
@@ -507,13 +558,30 @@ export default function AirEmissionView({
 
       {deleteTarget && (
         <ModalPortal>
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-              <h3 className="text-sm font-bold text-slate-800">Hapus Data Udara &amp; Emisi?</h3>
-              <p className="text-xs text-slate-500">Hapus rekaman {deleteTarget.monitoringCategory} tanggal {deleteTarget.date} di {deleteTarget.location}?</p>
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="glass-panel rounded-3xl max-w-sm w-full p-6 space-y-4">
+              <h3 className="text-sm font-bold text-text-hi font-heading">Hapus Data Udara &amp; Emisi?</h3>
+              <p className="text-xs text-text-mid">
+                Hapus rekaman {deleteTarget.monitoringCategory} tanggal {deleteTarget.date} di {deleteTarget.location}?
+              </p>
               <div className="flex justify-end gap-2">
-                <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold cursor-pointer">Batal</button>
-                <button onClick={async () => { await airEmissionService.delete(deleteTarget.id); setDeleteTarget(null); }} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold cursor-pointer">Hapus</button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  className="px-4 py-2 rounded-xl border border-border-neon text-xs font-semibold text-text-mid hover:text-text-hi cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await airEmissionService.delete(deleteTarget.id);
+                    setDeleteTarget(null);
+                  }}
+                  className="neon-btn-danger px-4 py-2 rounded-xl text-xs cursor-pointer"
+                >
+                  Hapus
+                </button>
               </div>
             </div>
           </div>

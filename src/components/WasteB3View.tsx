@@ -50,6 +50,14 @@ import {
   compareLatestFirst, 
   compareCreatedAtFirst 
 } from '../utils/dateUtils';
+import StatusBadge from './StatusBadge';
+import EmptyState from './EmptyState';
+import {
+  NEON_CHART,
+  NEON_TOOLTIP_CONTENT_STYLE,
+  NEON_TOOLTIP_LABEL_STYLE,
+  NEON_TOOLTIP_ITEM_STYLE,
+} from '../utils/chartTheme';
 
 interface WasteB3ViewProps {
   wasteIn: WasteIn[];
@@ -410,17 +418,17 @@ export default function WasteB3View({
   }, [totalRemainingStockKg]);
 
   return (
-    <div id="waste-b3-view-wrapper" className="space-y-6 text-slate-700">
+    <div id="waste-b3-view-wrapper" className="space-y-6 text-text-hi">
       {/* Banner Peringatan Inkonsistensi / Stok Negatif */}
       {currentLedger.hasInconsistency && (
-        <div id="waste-inconsistency-banner" className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3.5 shadow-sm text-left">
-          <ShieldAlert className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-red-800 space-y-1">
-            <h4 className="font-bold text-red-900">Peringatan Konsistensi Neraca Limbah B3</h4>
+        <div id="waste-inconsistency-banner" className="bg-neon-red/10 border border-neon-red/40 shadow-glow-red rounded-2xl p-4 flex items-start gap-3.5 text-left">
+          <ShieldAlert className="h-5 w-5 text-neon-red flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-text-hi space-y-1">
+            <h4 className="font-bold text-neon-red">Peringatan Konsistensi Neraca Limbah B3</h4>
             {negativeStockTypes.length > 0 ? (
               <p>
                 Data tidak konsisten: stok negatif pada{' '}
-                <span className="font-bold font-mono">
+                <span className="font-bold font-mono tabular-nums text-neon-red">
                   {negativeStockTypes.map(s => `${s.wasteType} (${s.currentStock.toLocaleString('id-ID')} Kg)`).join(', ')}
                 </span>.
               </p>
@@ -429,7 +437,7 @@ export default function WasteB3View({
                 Terdapat pengeluaran manifest yang melebihi stok tersedia per tanggal pengangkutan atau terjadi sebelum tanggal penerimaan limbah.
               </p>
             )}
-            <p className="text-[11px] text-red-700">
+            <p className="text-[11px] text-text-mid">
               Sistem FIFO melacak setiap pengeluaran terhadap batch penerimaan secara kronologis. Mohon periksa kembali tanggal atau volume pada log masuk dan manifest keluar terkait.
             </p>
           </div>
@@ -437,12 +445,12 @@ export default function WasteB3View({
       )}
 
       {/* Tab Selectors */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex flex-wrap border-b border-border-neon">
         <button
           id="waste-tab-status"
           onClick={() => setActiveTab('status')}
           className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'status' ? 'border-teal-500 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'
+            activeTab === 'status' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
           }`}
         >
           <Gauge className="h-4 w-4" />
@@ -452,7 +460,7 @@ export default function WasteB3View({
           id="waste-tab-intake"
           onClick={() => setActiveTab('intake')}
           className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'intake' ? 'border-teal-500 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'
+            activeTab === 'intake' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
           }`}
         >
           <ClipboardList className="h-4 w-4" />
@@ -462,7 +470,7 @@ export default function WasteB3View({
           id="waste-tab-outflow"
           onClick={() => setActiveTab('outflow')}
           className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'outflow' ? 'border-teal-500 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'
+            activeTab === 'outflow' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
           }`}
         >
           <Truck className="h-4 w-4" />
@@ -474,27 +482,27 @@ export default function WasteB3View({
       {activeTab === 'status' && (
         <div className="space-y-6">
           {/* Bento Header: Kapasitas Total TPS & Kepatuhan Penyimpanan */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm text-left">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="glass-panel rounded-2xl p-5 text-left">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-border-subtle">
               <div>
-                <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider font-mono">
+                <span className="text-[10px] font-bold text-neon-cyan uppercase tracking-wider font-mono">
                   Kapasitas TPS (konfigurasi)
                 </span>
-                <h3 className="text-base font-bold text-slate-900 mt-0.5">
+                <h3 className="text-base font-bold text-text-hi mt-0.5 font-heading">
                   Neraca Akumulasi Persediaan TPS B3 PT Diva Kencana Borneo
                 </h3>
               </div>
-              <div className="flex items-center gap-4 text-xs font-mono">
+              <div className="flex items-center gap-4 text-xs font-mono tabular-nums">
                 <div className="text-right">
-                  <span className="text-slate-500 block text-[10px] uppercase font-sans">Sisa Stok TPS</span>
-                  <span className="text-base font-black text-teal-600">
+                  <span className="text-text-mid block text-[10px] uppercase font-sans">Sisa Stok TPS</span>
+                  <span className="text-base font-black text-neon-cyan">
                     {totalRemainingStockKg.toLocaleString('id-ID')}
                   </span>
-                  <span className="text-slate-400 font-sans ml-1 text-xs">/ {TPS_CAPACITY_KG.toLocaleString('id-ID')} Kg</span>
+                  <span className="text-text-low font-sans ml-1 text-xs">/ {TPS_CAPACITY_KG.toLocaleString('id-ID')} Kg</span>
                 </div>
-                <div className="text-right border-l border-slate-200 pl-4">
-                  <span className="text-slate-500 block text-[10px] uppercase font-sans">Okupansi Gudang</span>
-                  <span className={`text-base font-black ${tpsCapacityPercentage > 85 ? 'text-red-600' : 'text-slate-800'}`}>
+                <div className="text-right border-l border-border-subtle pl-4">
+                  <span className="text-text-mid block text-[10px] uppercase font-sans">Okupansi Gudang</span>
+                  <span className={`text-base font-black ${tpsCapacityPercentage > 85 ? 'text-neon-red' : 'text-text-hi'}`}>
                     {tpsCapacityPercentage.toFixed(1)}%
                   </span>
                 </div>
@@ -503,66 +511,66 @@ export default function WasteB3View({
 
             {/* 4 Distinct Metric Cards: Total In, Total Out, Sisa Stok, Sisa Kapasitas (Kg) */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 my-4">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left">
-                <span className="text-[10px] font-mono uppercase text-slate-500 block font-semibold">Total Limbah Masuk</span>
-                <span className="text-lg font-bold font-mono text-slate-800 mt-0.5 block">
+              <div className="bg-bg-2/70 border border-border-subtle rounded-xl p-3 text-left">
+                <span className="text-[10px] font-mono uppercase text-text-mid block font-semibold">Total Limbah Masuk</span>
+                <span className="text-lg font-bold font-mono tabular-nums text-text-hi mt-0.5 block">
                   {totalInAllTps.toLocaleString('id-ID')} Kg
                 </span>
-                <span className="text-[10px] text-slate-400">Kumulatif log masuk</span>
+                <span className="text-[10px] text-text-low">Kumulatif log masuk</span>
               </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left">
-                <span className="text-[10px] font-mono uppercase text-slate-500 block font-semibold">Total Limbah Keluar (Diangkut)</span>
-                <span className="text-lg font-bold font-mono text-slate-800 mt-0.5 block">
+              <div className="bg-bg-2/70 border border-border-subtle rounded-xl p-3 text-left">
+                <span className="text-[10px] font-mono uppercase text-text-mid block font-semibold">Total Limbah Keluar (Diangkut)</span>
+                <span className="text-lg font-bold font-mono tabular-nums text-text-hi mt-0.5 block">
                   {totalOutAllTps.toLocaleString('id-ID')} Kg
                 </span>
-                <span className="text-[10px] text-slate-400">Transporter berizin KLH/BPLH</span>
+                <span className="text-[10px] text-text-low">Transporter berizin KLH/BPLH</span>
               </div>
-              <div className="bg-teal-50/70 border border-teal-200 rounded-xl p-3 text-left">
-                <span className="text-[10px] font-mono uppercase text-teal-800 block font-bold">Sisa Stok di TPS Saat Ini</span>
-                <span className="text-2xl font-black font-mono text-teal-600 mt-0.5 block">
+              <div className="bg-neon-cyan/10 border border-neon-cyan/35 rounded-xl p-3 text-left shadow-glow-cyan">
+                <span className="text-[10px] font-mono uppercase text-neon-cyan block font-bold">Sisa Stok di TPS Saat Ini</span>
+                <span className="text-2xl font-black font-mono tabular-nums text-neon-cyan mt-0.5 block">
                   {totalRemainingStockKg.toLocaleString('id-ID')} Kg
                 </span>
-                <span className="text-[10px] text-teal-700 font-medium">Aktif tersimpan di gudang</span>
+                <span className="text-[10px] text-neon-green font-medium">Aktif tersimpan di gudang</span>
               </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left">
-                <span className="text-[10px] font-mono uppercase text-slate-500 block font-semibold">Sisa Kapasitas Ruang TPS</span>
-                <span className="text-lg font-bold font-mono text-slate-800 mt-0.5 block">
+              <div className="bg-bg-2/70 border border-border-subtle rounded-xl p-3 text-left">
+                <span className="text-[10px] font-mono uppercase text-text-mid block font-semibold">Sisa Kapasitas Ruang TPS</span>
+                <span className="text-lg font-bold font-mono tabular-nums text-text-hi mt-0.5 block">
                   {remainingCapacityKg.toLocaleString('id-ID')} Kg
                 </span>
-                <span className="text-[10px] text-slate-400">Dari batas {TPS_CAPACITY_KG.toLocaleString('id-ID')} Kg</span>
+                <span className="text-[10px] text-text-low">Dari batas {TPS_CAPACITY_KG.toLocaleString('id-ID')} Kg</span>
               </div>
             </div>
 
             {/* Total TPS Capacity Progress Bar */}
             <div className="mt-4 space-y-1.5">
-              <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200 p-[1px]">
+              <div className="h-2.5 w-full bg-bg-0 rounded-full overflow-hidden border border-border-subtle p-[1px]">
                 <div 
                   className={`h-full rounded-full transition-all duration-500 ${
                     tpsCapacityPercentage > 85 
-                      ? 'bg-gradient-to-r from-red-600 to-amber-500' 
+                      ? 'bg-gradient-to-r from-neon-red to-neon-amber' 
                       : tpsCapacityPercentage > 65
-                      ? 'bg-gradient-to-r from-amber-500 to-teal-500'
-                      : 'bg-gradient-to-r from-teal-500 to-emerald-500'
+                      ? 'bg-gradient-to-r from-neon-amber to-neon-cyan'
+                      : 'bg-gradient-to-r from-neon-cyan to-neon-green'
                   }`}
                   style={{ width: `${tpsCapacityPercentage}%` }}
                 />
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
+              <p className="text-[11px] text-text-mid leading-relaxed pt-1">
                 Batas waktu penyimpanan limbah B3 di TPS mengikuti izin lingkungan TPS dan kategori limbah yang bersangkutan. 
-                Nilai default batas penyimpanan pada aplikasi ini adalah <strong className="text-slate-700">{DEFAULT_MAX_STORAGE_DAYS} hari</strong> sesuai Permen LHK No. 6 Tahun 2021. 
-                Peringatan dini diaktifkan bila umur penyimpanan mencapai <strong className="text-amber-600">{WARNING_STORAGE_DAYS} hari</strong>.
+                Nilai default batas penyimpanan pada aplikasi ini adalah <strong className="text-text-hi">{DEFAULT_MAX_STORAGE_DAYS} hari</strong> sesuai Permen LHK No. 6 Tahun 2021. 
+                Peringatan dini diaktifkan bila umur penyimpanan mencapai <strong className="text-neon-amber">{WARNING_STORAGE_DAYS} hari</strong>.
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column: Donut Chart Distribusi Jenis Limbah */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between text-left">
+            <div className="glass-panel rounded-2xl p-5 flex flex-col justify-between text-left">
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-mono">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-text-mid font-mono">
                   Distribusi Spesi Limbah B3
                 </h4>
-                <p className="text-[11px] text-slate-500 mt-1">Komposisi stok limbah B3 aktif di dalam TPS</p>
+                <p className="text-[11px] text-text-mid mt-1">Komposisi stok limbah B3 aktif di dalam TPS</p>
               </div>
 
               <div className="h-60 w-full relative flex items-center justify-center my-3">
@@ -574,11 +582,19 @@ export default function WasteB3View({
                       fullName: s.wasteType,
                       value: s.currentStock
                     }));
-                  const PIE_COLORS = ['#0d9488', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6', '#10b981', '#6366f1'];
+                  const PIE_COLORS = [
+                    NEON_CHART.cyan,
+                    NEON_CHART.amber,
+                    NEON_CHART.violet,
+                    NEON_CHART.green,
+                    NEON_CHART.red,
+                    '#38bdf8',
+                    '#f472b6',
+                  ];
 
                   if (totalStockAllTps === 0 || pieData.length === 0) {
                     return (
-                      <p className="text-xs text-slate-400 font-medium">Tidak ada limbah B3 yang tersimpan di TPS saat ini.</p>
+                      <p className="text-xs text-text-low font-medium">Tidak ada limbah B3 yang tersimpan di TPS saat ini.</p>
                     );
                   }
 
@@ -599,7 +615,7 @@ export default function WasteB3View({
                               <Cell 
                                 key={`cell-${index}`} 
                                 fill={PIE_COLORS[index % PIE_COLORS.length]} 
-                                stroke="#ffffff" 
+                                stroke="var(--theme-bg-1)" 
                                 strokeWidth={2} 
                               />
                             ))}
@@ -609,25 +625,18 @@ export default function WasteB3View({
                               `${Number(value).toLocaleString('id-ID')} Kg`, 
                               props.payload.fullName
                             ]}
-                            contentStyle={{ 
-                              backgroundColor: '#ffffff', 
-                              borderColor: '#e2e8f0', 
-                              borderRadius: '12px', 
-                              fontSize: '11px',
-                              textAlign: 'left',
-                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                              color: '#1e293b'
-                            }}
-                            itemStyle={{ color: '#0f766e', fontWeight: 600 }}
+                            contentStyle={NEON_TOOLTIP_CONTENT_STYLE}
+                            labelStyle={NEON_TOOLTIP_LABEL_STYLE}
+                            itemStyle={NEON_TOOLTIP_ITEM_STYLE}
                           />
                         </PieChart>
                       </ResponsiveContainer>
                       
                       {/* Center Overlay Text */}
                       <div className="absolute flex flex-col items-center justify-center pointer-events-none mt-1">
-                        <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono font-bold">Total TPS</span>
-                        <span className="text-base font-black text-slate-800 font-mono mt-0.5">{totalStockAllTps.toLocaleString('id-ID')}</span>
-                        <span className="text-[10px] text-teal-600 font-bold block">Kg</span>
+                        <span className="text-[9px] text-text-mid uppercase tracking-widest font-mono font-bold">Total TPS</span>
+                        <span className="text-base font-black text-text-hi font-mono tabular-nums mt-0.5">{totalStockAllTps.toLocaleString('id-ID')}</span>
+                        <span className="text-[10px] text-neon-cyan font-bold block">Kg</span>
                       </div>
                     </>
                   );
@@ -635,14 +644,22 @@ export default function WasteB3View({
               </div>
 
               {/* Dynamic Legend */}
-              <div className="space-y-2 pt-3 border-t border-slate-100 max-h-40 overflow-y-auto">
+              <div className="space-y-2 pt-3 border-t border-border-subtle max-h-40 overflow-y-auto">
                 {(() => {
                   const activeStocks = currentLedger.stocks.filter(stock => stock.currentStock > 0);
-                  const PIE_COLORS = ['#0d9488', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6', '#10b981', '#6366f1'];
+                  const PIE_COLORS = [
+                    NEON_CHART.cyan,
+                    NEON_CHART.amber,
+                    NEON_CHART.violet,
+                    NEON_CHART.green,
+                    NEON_CHART.red,
+                    '#38bdf8',
+                    '#f472b6',
+                  ];
 
                   if (activeStocks.length === 0) {
                     return (
-                      <p className="text-[11px] text-center text-slate-400">Neraca Kosong</p>
+                      <p className="text-[11px] text-center text-text-low">Neraca Kosong</p>
                     );
                   }
 
@@ -657,12 +674,12 @@ export default function WasteB3View({
                             className="w-2.5 h-2.5 rounded-full flex-shrink-0" 
                             style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} 
                           />
-                          <span className="text-slate-600 truncate" title={stock.wasteType}>
+                          <span className="text-text-mid truncate" title={stock.wasteType}>
                             {stock.wasteType}
                           </span>
                         </div>
-                        <span className="font-mono text-slate-600 font-bold ml-2.5 whitespace-nowrap">
-                          {stock.currentStock.toLocaleString('id-ID')} Kg <span className="text-slate-400 font-normal">({percentage}%)</span>
+                        <span className="font-mono tabular-nums text-text-hi font-bold ml-2.5 whitespace-nowrap">
+                          {stock.currentStock.toLocaleString('id-ID')} Kg <span className="text-text-low font-normal">({percentage}%)</span>
                         </span>
                       </div>
                     );
@@ -674,18 +691,21 @@ export default function WasteB3View({
             {/* Right Column: Grid Card Inventaris per Spesi Limbah */}
             <div className="lg:col-span-2 space-y-4">
               <div className="flex items-center justify-between px-1">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-mono">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-text-mid font-mono">
                   Status Neraca Inventaris per Spesi
                 </h4>
-                <span className="text-[10px] text-slate-500 font-mono">
+                <span className="text-[10px] text-text-mid font-mono tabular-nums">
                   {currentLedger.stocks.length} Jenis Limbah Terdata
                 </span>
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {currentLedger.stocks.length === 0 ? (
-                  <div className="col-span-2 bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400 text-xs">
-                    Belum ada data transaksi penerimaan limbah B3.
+                  <div className="col-span-2 glass-panel rounded-2xl">
+                    <EmptyState
+                      title="Belum ada data transaksi penerimaan limbah B3"
+                      description="Catat penerimaan limbah B3 masuk ke TPS melalui tab Log Limbah Masuk."
+                    />
                   </div>
                 ) : (
                   currentLedger.stocks.map((stock, i) => {
@@ -695,52 +715,52 @@ export default function WasteB3View({
                     return (
                       <div 
                         key={i} 
-                        className={`bg-white border p-5 rounded-2xl text-left flex flex-col justify-between min-h-[190px] shadow-sm transition-shadow hover:shadow-md ${
+                        className={`neon-card p-5 text-left flex flex-col justify-between min-h-[190px] ${
                           isNegative
-                            ? 'border-red-500 bg-red-50/20'
+                            ? 'border-neon-red/60 bg-neon-red/10 shadow-glow-red'
                             : nearExpired 
-                            ? 'border-red-300 bg-red-50/10' 
-                            : 'border-slate-200'
+                            ? 'border-neon-red/45 bg-neon-red/5' 
+                            : ''
                         }`}
                       >
                         <div>
                           <div className="flex items-start justify-between gap-2">
-                            <span className="text-[10px] bg-slate-50 border border-slate-200 text-amber-700 px-2 py-0.5 rounded font-bold font-mono uppercase">
+                            <span className="text-[10px] bg-neon-amber/10 border border-neon-amber/35 text-neon-amber px-2 py-0.5 rounded font-bold font-mono uppercase">
                               KODE: {stock.code}
                             </span>
-                            <span className={`text-[10px] px-2 py-0.5 rounded border flex items-center gap-1.5 font-bold font-mono ${
+                            <span className={`text-[10px] px-2 py-0.5 rounded border flex items-center gap-1.5 font-bold font-mono tabular-nums ${
                               stock.currentStock <= 0
-                                ? 'bg-slate-50 text-slate-400 border-slate-200'
+                                ? 'bg-bg-2/70 text-text-low border-border-subtle'
                                 : nearExpired 
-                                ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' 
-                                : 'bg-slate-50 text-slate-600 border-slate-200'
+                                ? 'bg-neon-red/15 text-neon-red border-neon-red/40 animate-critical-pulse' 
+                                : 'bg-bg-2/70 text-text-mid border-border-subtle'
                             }`}>
                               <Clock className="h-3.5 w-3.5" />
                               {stock.daysInTps} Hari di TPS
                             </span>
                           </div>
-                          <h4 className="text-sm font-bold text-slate-900 mt-2.5 leading-snug">
+                          <h4 className="text-sm font-bold text-text-hi mt-2.5 leading-snug font-heading">
                             {stock.wasteType}
                           </h4>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
+                          <p className="text-[11px] text-text-mid mt-0.5 font-mono">
                             Batch Pertama Aktif: {stock.earliestDateIn || '-'}
                           </p>
                         </div>
 
                         {/* Stock Balance Gauges */}
-                        <div className="mt-4 pt-3 border-t border-slate-100">
+                        <div className="mt-4 pt-3 border-t border-border-subtle">
                           <div className="flex items-baseline justify-between mb-2">
-                            <span className="text-xs font-semibold text-slate-500">Sisa Stok di TPS:</span>
-                            <span className={`text-xl font-black font-mono ${
-                              isNegative ? 'text-red-600' : 'text-teal-600'
+                            <span className="text-xs font-semibold text-text-mid">Sisa Stok di TPS:</span>
+                            <span className={`text-xl font-black font-mono tabular-nums ${
+                              isNegative ? 'text-neon-red' : 'text-neon-cyan'
                             }`}>
                               {stock.currentStock.toLocaleString('id-ID')} Kg
                             </span>
                           </div>
 
-                          <div className="flex items-center justify-between text-[11px] text-slate-600 font-mono pt-1.5 border-t border-slate-50 uppercase">
-                            <span>Masuk: <strong className="text-slate-800">{stock.totalIn.toLocaleString('id-ID')} Kg</strong></span>
-                            <span>Keluar: <strong className="text-slate-800">{stock.totalOut.toLocaleString('id-ID')} Kg</strong></span>
+                          <div className="flex items-center justify-between text-[11px] text-text-mid font-mono tabular-nums pt-1.5 border-t border-border-subtle uppercase">
+                            <span>Masuk: <strong className="text-text-hi">{stock.totalIn.toLocaleString('id-ID')} Kg</strong></span>
+                            <span>Keluar: <strong className="text-text-hi">{stock.totalOut.toLocaleString('id-ID')} Kg</strong></span>
                           </div>
                         </div>
                       </div>
@@ -757,43 +777,43 @@ export default function WasteB3View({
       {activeTab === 'intake' && (
         <div className="space-y-4">
           {/* Summary Metric Banner (Total Masuk, Total Keluar, Sisa Stok dalam Kg) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm text-left font-mono">
-            <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
-              <span className="text-[10px] uppercase text-slate-500 block font-sans font-semibold">Total Limbah Masuk</span>
-              <span className="text-base font-bold text-slate-800">{totalInAllTps.toLocaleString('id-ID')} Kg</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 glass-panel p-3.5 rounded-2xl text-left font-mono tabular-nums">
+            <div className="bg-bg-2/70 rounded-xl p-2.5 border border-border-subtle">
+              <span className="text-[10px] uppercase text-text-mid block font-sans font-semibold">Total Limbah Masuk</span>
+              <span className="text-base font-bold text-text-hi">{totalInAllTps.toLocaleString('id-ID')} Kg</span>
             </div>
-            <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
-              <span className="text-[10px] uppercase text-slate-500 block font-sans font-semibold">Total Limbah Keluar (Diangkut)</span>
-              <span className="text-base font-bold text-slate-800">{totalOutAllTps.toLocaleString('id-ID')} Kg</span>
+            <div className="bg-bg-2/70 rounded-xl p-2.5 border border-border-subtle">
+              <span className="text-[10px] uppercase text-text-mid block font-sans font-semibold">Total Limbah Keluar (Diangkut)</span>
+              <span className="text-base font-bold text-text-hi">{totalOutAllTps.toLocaleString('id-ID')} Kg</span>
             </div>
-            <div className="bg-teal-50/80 rounded-xl p-2.5 border border-teal-200">
-              <span className="text-[10px] uppercase text-teal-800 block font-sans font-bold">Sisa Stok di TPS Saat Ini</span>
-              <span className="text-base font-black text-teal-700">{totalRemainingStockKg.toLocaleString('id-ID')} Kg</span>
+            <div className="bg-neon-cyan/10 rounded-xl p-2.5 border border-neon-cyan/35">
+              <span className="text-[10px] uppercase text-neon-cyan block font-sans font-bold">Sisa Stok di TPS Saat Ini</span>
+              <span className="text-base font-black text-neon-cyan">{totalRemainingStockKg.toLocaleString('id-ID')} Kg</span>
             </div>
           </div>
 
           {/* Header Action & Filter Bar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 glass-panel p-4 rounded-2xl">
             <div className="flex flex-wrap items-center gap-3">
               {/* Search Bar */}
               <div className="relative min-w-[220px]">
-                <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
+                <Search className="h-4 w-4 absolute left-3 top-2.5 text-text-low" />
                 <input
                   type="text"
                   placeholder="Cari jenis, kode, sumber, ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full pl-9 pr-3 py-1.5 text-xs"
                 />
               </div>
 
               {/* Sorting Selector */}
               <div className="flex items-center gap-1.5 text-xs">
-                <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
+                <ArrowUpDown className="h-3.5 w-3.5 text-text-low" />
                 <select
                   value={inSortMode}
                   onChange={(e) => setInSortMode(e.target.value as any)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="px-2.5 py-1.5 text-xs font-medium"
                 >
                   <option value="latest">Urutkan: Tanggal transaksi terbaru (default)</option>
                   <option value="created">Urutkan: Waktu input terakhir</option>
@@ -801,12 +821,12 @@ export default function WasteB3View({
               </div>
 
               {/* Checkbox Hanya yang masih ada sisa */}
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+              <label className="flex items-center gap-2 text-xs font-semibold text-text-hi cursor-pointer select-none bg-bg-2/70 px-3 py-1.5 rounded-xl border border-border-subtle">
                 <input
                   type="checkbox"
                   checked={onlyRemaining}
                   onChange={(e) => setOnlyRemaining(e.target.checked)}
-                  className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  className="rounded accent-neon-cyan cursor-pointer"
                 />
                 Hanya yang masih ada sisa
               </label>
@@ -822,7 +842,7 @@ export default function WasteB3View({
                 resetInForm();
                 setShowInForm(true);
               }}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+              className="flex items-center justify-center gap-2 px-4 py-2 neon-btn-primary rounded-xl text-xs cursor-pointer whitespace-nowrap"
             >
               <Plus className="h-4 w-4" />
               Catat Penerimaan Limbah Masuk
@@ -834,34 +854,34 @@ export default function WasteB3View({
             <form 
               id="waste-in-form"
               onSubmit={handleInSubmit} 
-              className="bg-white p-5 rounded-2xl border border-teal-200 text-left shadow-md animate-fade-in"
+              className="glass-panel p-5 rounded-2xl border-neon-cyan/40 shadow-glow-cyan text-left animate-fade-in"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-teal-700">
+              <div className="flex items-center justify-between pb-3 border-b border-border-subtle mb-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-neon-cyan font-heading">
                   {editingInId ? `Edit Catatan Masuk Limbah B3 (${editingInId})` : 'Pencatatan Masuk TPS Limbah B3 Baru'}
                 </h3>
-                <span className="text-[11px] text-slate-400 font-mono">Permen LHK No. 6/2021</span>
+                <span className="text-[11px] text-text-low font-mono">Permen LHK No. 6/2021</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Tanggal Masuk TPS</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Tanggal Masuk TPS</label>
                   <input
                     id="waste-in-date"
                     type="date"
                     required
                     value={inDate}
                     onChange={(e) => setInDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Jenis Limbah B3</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Jenis Limbah B3</label>
                   <select
                     id="waste-in-type"
                     value={inType}
                     onChange={(e) => setInType(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   >
                     {wasteB3Catalog.map((x, ci) => (
                       <option key={ci} value={x.name}>{x.name}</option>
@@ -869,7 +889,7 @@ export default function WasteB3View({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Asal Penghasil (Sumber)</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Asal Penghasil (Sumber)</label>
                   <input
                     id="waste-in-source"
                     type="text"
@@ -877,14 +897,14 @@ export default function WasteB3View({
                     placeholder="Contoh: Workshop Alat Berat Pit West"
                     value={inSource}
                     onChange={(e) => setInSource(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Berat Volume Masuk (Kg)</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Berat Volume Masuk (Kg)</label>
                   <input
                     id="waste-in-weight"
                     type="number"
@@ -894,16 +914,16 @@ export default function WasteB3View({
                     placeholder="Contoh: 150.5"
                     value={inWeight}
                     onChange={(e) => setInWeight(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono"
+                    className="w-full px-3 py-2 text-xs font-mono tabular-nums"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Karakteristik Bahaya</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Karakteristik Bahaya</label>
                   <select
                     id="waste-in-char"
                     value={inChar}
                     onChange={(e) => setInChar(e.target.value as any)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   >
                     <option value="Toxic">Toxic (Beracun)</option>
                     <option value="Flammable">Flammable (Mudah Menyala)</option>
@@ -913,17 +933,17 @@ export default function WasteB3View({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Kode Limbah (Permen LHK 6/2021)</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Kode Limbah (Permen LHK 6/2021)</label>
                   <input
                     id="waste-in-code"
                     type="text"
                     readOnly
                     value={inCode}
-                    className="w-full bg-amber-50/60 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-700 font-mono font-bold outline-none cursor-not-allowed"
+                    className="w-full bg-neon-amber/10 border-neon-amber/35 px-3 py-2 text-xs text-neon-amber font-mono font-bold cursor-not-allowed"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Lokasi Gudang / Rak TPS</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Lokasi Gudang / Rak TPS</label>
                   <input
                     id="waste-in-loc"
                     type="text"
@@ -931,14 +951,14 @@ export default function WasteB3View({
                     placeholder="Contoh: TPS B3 Utama Blok A"
                     value={inLoc}
                     onChange={(e) => setInLoc(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Petugas Penerima TPS</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Petugas Penerima TPS</label>
                   <input
                     id="waste-in-officer"
                     type="text"
@@ -946,24 +966,24 @@ export default function WasteB3View({
                     placeholder="Nama petugas lingkungan penerima"
                     value={inOfficer}
                     onChange={(e) => setInOfficer(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border-subtle">
                 <button
                   id="waste-in-cancel"
                   type="button"
                   onClick={resetInForm}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-text-mid hover:text-text-hi rounded-xl border border-border-subtle cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   id="waste-in-submit"
                   type="submit"
-                  className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition-colors"
+                  className="px-5 py-2.5 neon-btn-primary text-xs rounded-xl cursor-pointer"
                 >
                   {editingInId ? 'Simpan Perubahan' : 'Registrasi Masuk TPS'}
                 </button>
@@ -972,25 +992,25 @@ export default function WasteB3View({
           )}
 
           {/* Table Log Penerimaan Limbah B3 Masuk TPS */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden text-left shadow-sm">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="glass-panel rounded-2xl overflow-hidden text-left">
+            <div className="px-5 py-4 border-b border-border-subtle flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-text-hi font-heading">
                   Log Penerimaan Limbah B3 Masuk TPS (Inbound Audit Trails)
                 </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-text-low mt-0.5">
                   Menampilkan pelacakan FIFO batch masuk dengan sisa stok dan umur penyimpanan di TPS
                 </p>
               </div>
-              <span className="text-[11px] font-mono text-slate-500">
+              <span className="text-[11px] font-mono tabular-nums text-text-mid">
                 Total Baris: {sortedWasteIn.length}
               </span>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="neon-table text-left">
                 <thead>
-                  <tr className="border-y border-slate-200 bg-slate-50 text-[10px] text-slate-600 font-mono tracking-wider uppercase">
+                  <tr className="text-[10px] font-mono tracking-wider uppercase">
                     <th className="p-3.5 pl-5">No Transaksi</th>
                     <th className="p-3.5">Tanggal Masuk</th>
                     <th className="p-3.5">Jenis / Spesi Limbah B3</th>
@@ -1006,11 +1026,14 @@ export default function WasteB3View({
                     <th className="p-3.5 text-center pr-5">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
+                <tbody className="text-xs">
                   {sortedWasteIn.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="p-10 text-center text-slate-400">
-                        Tidak ada log pemasukan limbah B3.
+                      <td colSpan={13}>
+                        <EmptyState
+                          title="Tidak ada log pemasukan limbah B3"
+                          description="Data penerimaan limbah B3 ke TPS yang cocok dengan filter belum tersedia."
+                        />
                       </td>
                     </tr>
                   ) : (
@@ -1032,95 +1055,85 @@ export default function WasteB3View({
                       return (
                         <tr 
                           key={item.id} 
-                          className={`border-b border-slate-100 transition-colors ${
-                            isHabis 
-                              ? 'opacity-60 bg-slate-50/60 text-slate-400' 
-                              : 'hover:bg-slate-50'
-                          }`}
+                          className={isHabis ? 'opacity-65 text-text-low' : ''}
                         >
-                          <td className="p-3.5 pl-5 font-mono text-slate-500 font-bold whitespace-nowrap">
+                          <td className="p-3.5 pl-5 font-mono text-text-mid font-bold whitespace-nowrap">
                             {item.id}
                           </td>
-                          <td className="p-3.5 font-semibold text-slate-700 whitespace-nowrap">
+                          <td className="p-3.5 font-mono font-semibold text-text-hi whitespace-nowrap">
                             {item.dateIn}
                           </td>
                           <td className="p-3.5">
-                            <span className="font-bold text-slate-900 block">{item.wasteType}</span>
-                            <span className="text-[10px] text-amber-700 font-mono font-bold uppercase">
+                            <span className="font-bold text-text-hi block">{item.wasteType}</span>
+                            <span className="text-[10px] text-neon-amber font-mono font-bold uppercase">
                               KODE: {item.code}
                             </span>
                           </td>
-                          <td className="p-3.5 text-slate-600">{item.source}</td>
+                          <td className="p-3.5 text-text-mid">{item.source}</td>
                           <td className="p-3.5 text-center whitespace-nowrap">
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-semibold text-slate-600">
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-bg-2/70 border border-border-subtle font-semibold text-text-mid">
                               {item.characteristic}
                             </span>
                           </td>
-                          <td className="p-3.5 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
+                          <td className="p-3.5 text-right font-mono tabular-nums font-bold text-text-hi whitespace-nowrap">
                             {item.weightKg.toLocaleString('id-ID')} Kg
                           </td>
-                          <td className="p-3.5 text-right font-mono font-bold text-slate-500 whitespace-nowrap">
+                          <td className="p-3.5 text-right font-mono tabular-nums font-bold text-text-mid whitespace-nowrap">
                             {info.weightUsed.toLocaleString('id-ID')} Kg
                           </td>
                           <td className="p-3.5 text-right whitespace-nowrap">
-                            <span className="font-mono font-bold text-teal-700 block text-xs">
+                            <span className="font-mono tabular-nums font-bold text-neon-cyan block text-xs">
                               {info.weightRemaining.toLocaleString('id-ID')} Kg
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono block">
+                            <span className="text-[10px] text-text-low font-mono tabular-nums block">
                               dari {item.weightKg.toLocaleString('id-ID')} Kg
                             </span>
                             {/* Thin progress bar sisa stok */}
-                            <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mt-1">
+                            <div className="h-1.5 w-full bg-bg-0 border border-border-subtle rounded-full overflow-hidden mt-1">
                               <div 
                                 className={`h-full rounded-full ${
                                   info.weightRemaining === 0
-                                    ? 'bg-slate-300'
+                                    ? 'bg-text-low'
                                     : remainPercent < 30
-                                    ? 'bg-amber-500'
-                                    : 'bg-teal-500'
+                                    ? 'bg-neon-amber'
+                                    : 'bg-neon-cyan'
                                 }`}
                                 style={{ width: `${remainPercent}%` }}
                               />
                             </div>
                           </td>
-                          <td className="p-3.5 text-center whitespace-nowrap font-mono">
+                          <td className="p-3.5 text-center whitespace-nowrap font-mono tabular-nums">
                             {info.weightRemaining > 0 ? (
                               <span className={`px-2 py-0.5 rounded font-bold text-[10px] border ${
                                 isNearLimit 
-                                  ? 'bg-red-50 text-red-600 border-red-200 font-extrabold animate-pulse'
-                                  : 'bg-slate-50 text-slate-600 border-slate-200'
+                                  ? 'bg-neon-red/15 text-neon-red border-neon-red/40 font-extrabold animate-critical-pulse'
+                                  : 'bg-bg-2/70 text-text-mid border-border-subtle'
                               }`}>
                                 {info.daysInTps} hari
                               </span>
                             ) : (
-                              <span className="text-slate-300">-</span>
+                              <span className="text-text-low">-</span>
                             )}
                           </td>
                           <td className="p-3.5 text-center whitespace-nowrap">
                             {info.status === 'Tersedia' && (
-                              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Tersedia
-                              </span>
+                              <StatusBadge status="Memenuhi" label="Tersedia" />
                             )}
                             {info.status === 'Sebagian Keluar' && (
-                              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                                Sebagian Keluar
-                              </span>
+                              <StatusBadge status="Mendekati" label="Sebagian Keluar" />
                             )}
                             {info.status === 'Habis' && (
-                              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-500 border border-slate-200">
-                                Habis
-                              </span>
+                              <StatusBadge status="Perlu Verifikasi" label="Habis" />
                             )}
                           </td>
-                          <td className="p-3.5 text-slate-500 text-[11px]">{item.tpsLocation}</td>
-                          <td className="p-3.5 text-slate-600 font-medium">{item.officer}</td>
+                          <td className="p-3.5 text-text-mid text-[11px]">{item.tpsLocation}</td>
+                          <td className="p-3.5 text-text-hi font-medium">{item.officer}</td>
                           <td className="p-3.5 text-center pr-5 whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1.5">
                               <button
                                 id={`waste-in-edit-${item.id}`}
                                 onClick={() => startEditIn(item)}
-                                className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg cursor-pointer transition-colors"
+                                className="p-1.5 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 border border-neon-cyan/25 rounded-lg cursor-pointer transition-colors"
                                 title="Edit catatan masuk"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
@@ -1138,7 +1151,7 @@ export default function WasteB3View({
                                     message: `Hapus catatan masuk batch ${item.id} (${item.wasteType}, ${item.weightKg} Kg)?`
                                   });
                                 }}
-                                className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg cursor-pointer transition-colors"
+                                className="p-1.5 bg-neon-red/10 text-neon-red hover:bg-neon-red/20 border border-neon-red/25 rounded-lg cursor-pointer transition-colors"
                                 title="Hapus catatan masuk"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1160,43 +1173,43 @@ export default function WasteB3View({
       {activeTab === 'outflow' && (
         <div className="space-y-4">
           {/* Summary Metric Banner (Total Masuk, Total Keluar, Sisa Stok dalam Kg) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm text-left font-mono">
-            <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
-              <span className="text-[10px] uppercase text-slate-500 block font-sans font-semibold">Total Limbah Masuk</span>
-              <span className="text-base font-bold text-slate-800">{totalInAllTps.toLocaleString('id-ID')} Kg</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 glass-panel p-3.5 rounded-2xl text-left font-mono tabular-nums">
+            <div className="bg-bg-2/70 rounded-xl p-2.5 border border-border-subtle">
+              <span className="text-[10px] uppercase text-text-mid block font-sans font-semibold">Total Limbah Masuk</span>
+              <span className="text-base font-bold text-text-hi">{totalInAllTps.toLocaleString('id-ID')} Kg</span>
             </div>
-            <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
-              <span className="text-[10px] uppercase text-slate-500 block font-sans font-semibold">Total Limbah Keluar (Diangkut)</span>
-              <span className="text-base font-bold text-slate-800">{totalOutAllTps.toLocaleString('id-ID')} Kg</span>
+            <div className="bg-bg-2/70 rounded-xl p-2.5 border border-border-subtle">
+              <span className="text-[10px] uppercase text-text-mid block font-sans font-semibold">Total Limbah Keluar (Diangkut)</span>
+              <span className="text-base font-bold text-text-hi">{totalOutAllTps.toLocaleString('id-ID')} Kg</span>
             </div>
-            <div className="bg-teal-50/80 rounded-xl p-2.5 border border-teal-200">
-              <span className="text-[10px] uppercase text-teal-800 block font-sans font-bold">Sisa Stok di TPS Saat Ini</span>
-              <span className="text-base font-black text-teal-700">{totalRemainingStockKg.toLocaleString('id-ID')} Kg</span>
+            <div className="bg-neon-cyan/10 rounded-xl p-2.5 border border-neon-cyan/35">
+              <span className="text-[10px] uppercase text-neon-cyan block font-sans font-bold">Sisa Stok di TPS Saat Ini</span>
+              <span className="text-base font-black text-neon-cyan">{totalRemainingStockKg.toLocaleString('id-ID')} Kg</span>
             </div>
           </div>
 
           {/* Header Action & Filter Bar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 glass-panel p-4 rounded-2xl">
             <div className="flex flex-wrap items-center gap-3">
               {/* Search Bar */}
               <div className="relative min-w-[240px]">
-                <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
+                <Search className="h-4 w-4 absolute left-3 top-2.5 text-text-low" />
                 <input
                   type="text"
                   placeholder="Cari manifest, transporter, driver, jenis..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full pl-9 pr-3 py-1.5 text-xs"
                 />
               </div>
 
               {/* Sorting Selector */}
               <div className="flex items-center gap-1.5 text-xs">
-                <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
+                <ArrowUpDown className="h-3.5 w-3.5 text-text-low" />
                 <select
                   value={outSortMode}
                   onChange={(e) => setOutSortMode(e.target.value as any)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  className="px-2.5 py-1.5 text-xs font-medium"
                 >
                   <option value="latest">Urutkan: Tanggal transaksi terbaru (default)</option>
                   <option value="created">Urutkan: Waktu input terakhir</option>
@@ -1214,7 +1227,7 @@ export default function WasteB3View({
                 resetOutForm();
                 setShowOutForm(true);
               }}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+              className="flex items-center justify-center gap-2 px-4 py-2 neon-btn-primary rounded-xl text-xs cursor-pointer whitespace-nowrap"
             >
               <Plus className="h-4 w-4" />
               Catat Pengiriman Keluar (Manifest)
@@ -1226,13 +1239,13 @@ export default function WasteB3View({
             <form 
               id="waste-out-form"
               onSubmit={handleOutSubmit}
-              className="bg-white p-5 rounded-2xl border border-teal-200 text-left shadow-md animate-fade-in"
+              className="glass-panel p-5 rounded-2xl border-neon-cyan/40 shadow-glow-cyan text-left animate-fade-in"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-teal-700">
+              <div className="flex items-center justify-between pb-3 border-b border-border-subtle mb-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-neon-cyan font-heading">
                   {editingOutId ? `Edit Manifest Pengiriman Keluar (${editingOutId})` : 'Pencatatan Manifest Pengiriman Keluar TPS B3'}
                 </h3>
-                <span className="text-[11px] text-slate-400 font-mono">Transporter Berizin KLH/BPLH</span>
+                <span className="text-[11px] text-text-low font-mono">Transporter Berizin KLH/BPLH</span>
               </div>
 
               {/* Datalist rekomendasi histori */}
@@ -1264,24 +1277,24 @@ export default function WasteB3View({
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Tanggal Pengangkutan</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Tanggal Pengangkutan</label>
                   <input
                     id="waste-out-date"
                     type="date"
                     required
                     value={outDate}
                     onChange={(e) => setOutDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Jenis Limbah B3</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Jenis Limbah B3</label>
                   <select
                     id="waste-out-type"
                     value={outType}
                     onChange={(e) => setOutType(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   >
                     {wasteB3Catalog.map((x, ci) => (
                       <option key={ci} value={x.name}>{x.name}</option>
@@ -1289,13 +1302,13 @@ export default function WasteB3View({
                   </select>
 
                   {/* Indikator Stok Tersedia Realtime */}
-                  <div className="mt-1 text-[11px] font-mono flex items-center justify-between text-slate-600">
+                  <div className="mt-1 text-[11px] font-mono tabular-nums flex items-center justify-between text-text-mid">
                     <span>
                       Stok tersedia per {outDate}:{' '}
-                      <strong className="text-teal-700">{availableStockForSelectedOut.toLocaleString('id-ID')} Kg</strong>
+                      <strong className="text-neon-cyan">{availableStockForSelectedOut.toLocaleString('id-ID')} Kg</strong>
                     </span>
                     {typeof outWeight === 'number' && outWeight > 0 && (
-                      <span className={simulatedRemainingStock < 0 ? 'text-red-600 font-bold' : 'text-teal-700 font-bold'}>
+                      <span className={simulatedRemainingStock < 0 ? 'text-neon-red font-bold' : 'text-neon-cyan font-bold'}>
                         Sisa: {simulatedRemainingStock.toLocaleString('id-ID')} Kg
                       </span>
                     )}
@@ -1303,7 +1316,7 @@ export default function WasteB3View({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Volume Pengangkutan (Kg)</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Volume Pengangkutan (Kg)</label>
                   <input
                     id="waste-out-weight"
                     type="number"
@@ -1313,10 +1326,10 @@ export default function WasteB3View({
                     placeholder="Contoh: 120"
                     value={outWeight}
                     onChange={(e) => setOutWeight(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono"
+                    className="w-full px-3 py-2 text-xs font-mono tabular-nums"
                   />
                   {simulatedRemainingStock < 0 && (
-                    <span className="text-[10px] text-red-600 font-semibold block mt-1">
+                    <span className="text-[10px] text-neon-red font-semibold block mt-1">
                       Peringatan: Berat melebihi stok tersedia per tanggal ini!
                     </span>
                   )}
@@ -1325,7 +1338,7 @@ export default function WasteB3View({
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Tujuan Pengolah Akhir (Buyer)</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Tujuan Pengolah Akhir (Buyer)</label>
                   <input
                     id="waste-out-dest"
                     type="text"
@@ -1334,11 +1347,11 @@ export default function WasteB3View({
                     placeholder="Contoh: PT Pemanfaat Limbah Raya"
                     value={outDest}
                     onChange={(e) => setOutDest(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Vendor Transporter B3</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Vendor Transporter B3</label>
                   <input
                     id="waste-out-transporter"
                     type="text"
@@ -1347,11 +1360,11 @@ export default function WasteB3View({
                     placeholder="Contoh: PT Trans Mandiri B3"
                     value={outTrans}
                     onChange={(e) => setOutTrans(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Nomor Manifest Resmi KLH/BPLH</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Nomor Manifest Resmi KLH/BPLH</label>
                   <input
                     id="waste-out-manifest"
                     type="text"
@@ -1359,11 +1372,11 @@ export default function WasteB3View({
                     placeholder="Contoh: MAN-B3-2026-0001"
                     value={outManifest}
                     onChange={(e) => setOutManifest(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-teal-700 font-mono font-bold"
+                    className="w-full px-3 py-2 text-xs text-neon-cyan font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Nomor Polisi Armada</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Nomor Polisi Armada</label>
                   <input
                     id="waste-out-vehicle"
                     type="text"
@@ -1372,14 +1385,14 @@ export default function WasteB3View({
                     placeholder="Contoh: KT 8412 DB"
                     value={outVehicle}
                     onChange={(e) => setOutVehicle(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono"
+                    className="w-full px-3 py-2 text-xs font-mono"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Nama Driver Armada</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Nama Driver Armada</label>
                   <input
                     id="waste-out-driver"
                     type="text"
@@ -1388,11 +1401,11 @@ export default function WasteB3View({
                     placeholder="Nama pengemudi truk transporter"
                     value={outDriver}
                     onChange={(e) => setOutDriver(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 font-bold mb-1.5 uppercase">Petugas Penanggung Pengirim (TPS)</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Petugas Penanggung Pengirim (TPS)</label>
                   <input
                     id="waste-out-recipient"
                     type="text"
@@ -1401,24 +1414,24 @@ export default function WasteB3View({
                     placeholder="Nama petugas / supervisor TPS"
                     value={outRecipient}
                     onChange={(e) => setOutRecipient(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border-subtle">
                 <button
                   id="waste-out-cancel"
                   type="button"
                   onClick={resetOutForm}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-text-mid hover:text-text-hi rounded-xl border border-border-subtle cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   id="waste-out-submit"
                   type="submit"
-                  className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition-colors"
+                  className="px-5 py-2.5 neon-btn-primary text-xs rounded-xl cursor-pointer"
                 >
                   {editingOutId ? 'Update Manifest Keluar' : 'Simpan Manifest Keluar'}
                 </button>
@@ -1427,25 +1440,25 @@ export default function WasteB3View({
           )}
 
           {/* Table Log Manifest Pengeluaran */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden text-left shadow-sm">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="glass-panel rounded-2xl overflow-hidden text-left">
+            <div className="px-5 py-4 border-b border-border-subtle flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-text-hi font-heading">
                   Log Manifest Pengeluaran Limbah B3 Keluar TPS (Outbound Manifest Logs)
                 </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-text-low mt-0.5">
                   Rincian manifest pengangkutan resmi dengan alokasi batch penerimaan (FIFO)
                 </p>
               </div>
-              <span className="text-[11px] font-mono text-slate-500">
+              <span className="text-[11px] font-mono tabular-nums text-text-mid">
                 Total Baris: {sortedWasteOut.length}
               </span>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="neon-table text-left">
                 <thead>
-                  <tr className="border-y border-slate-200 bg-slate-50 text-[10px] text-slate-600 font-mono tracking-wider uppercase">
+                  <tr className="text-[10px] font-mono tracking-wider uppercase">
                     <th className="p-3.5 pl-5">Nomor Manifest</th>
                     <th className="p-3.5">Tanggal Keluar</th>
                     <th className="p-3.5">Jenis / Spesi Limbah B3</th>
@@ -1458,11 +1471,14 @@ export default function WasteB3View({
                     <th className="p-3.5 text-center pr-5">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
+                <tbody className="text-xs">
                   {sortedWasteOut.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="p-10 text-center text-slate-400">
-                        Tidak ada log pengeluaran manifest limbah B3.
+                      <td colSpan={10}>
+                        <EmptyState
+                          title="Tidak ada log pengeluaran manifest limbah B3"
+                          description="Belum ada manifest pengangkutan limbah B3 yang tercatat atau sesuai pencarian."
+                        />
                       </td>
                     </tr>
                   ) : (
@@ -1473,20 +1489,18 @@ export default function WasteB3View({
                       return (
                         <tr 
                           key={item.id} 
-                          className={`border-b border-slate-100 transition-colors ${
-                            hasShortfall ? 'bg-red-50/30' : 'hover:bg-slate-50'
-                          }`}
+                          className={hasShortfall ? 'bg-neon-red/10' : ''}
                         >
-                          <td className="p-3.5 pl-5 font-mono text-teal-700 font-extrabold whitespace-nowrap">
+                          <td className="p-3.5 pl-5 font-mono text-neon-cyan font-extrabold whitespace-nowrap">
                             {item.manifestNo}
                           </td>
-                          <td className="p-3.5 font-semibold text-slate-700 whitespace-nowrap">
+                          <td className="p-3.5 font-mono font-semibold text-text-hi whitespace-nowrap">
                             {item.dateOut}
                           </td>
-                          <td className="p-3.5 font-bold text-slate-900 whitespace-nowrap">
+                          <td className="p-3.5 font-bold text-text-hi whitespace-nowrap">
                             {item.wasteType}
                           </td>
-                          <td className="p-3.5 text-right font-bold text-slate-800 font-mono text-sm whitespace-nowrap">
+                          <td className="p-3.5 text-right font-bold text-text-hi font-mono tabular-nums text-sm whitespace-nowrap">
                             {item.weightKg.toLocaleString('id-ID')} Kg
                           </td>
                           <td className="p-3.5">
@@ -1495,40 +1509,40 @@ export default function WasteB3View({
                                 {outInfo.allocations.map((alloc, aidx) => (
                                   <div 
                                     key={aidx} 
-                                    className="text-[11px] font-mono text-slate-700 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded flex items-center justify-between gap-2"
+                                    className="text-[11px] font-mono tabular-nums text-text-mid bg-bg-2/70 border border-border-subtle px-2 py-0.5 rounded flex items-center justify-between gap-2"
                                   >
-                                    <span className="font-bold text-teal-700">{alloc.inId}</span>
-                                    <span className="text-slate-400 text-[10px]">({alloc.dateIn})</span>
-                                    <span className="font-bold text-slate-800">{alloc.kg.toLocaleString('id-ID')} Kg</span>
+                                    <span className="font-bold text-neon-cyan">{alloc.inId}</span>
+                                    <span className="text-text-low text-[10px]">({alloc.dateIn})</span>
+                                    <span className="font-bold text-text-hi">{alloc.kg.toLocaleString('id-ID')} Kg</span>
                                   </div>
                                 ))}
                               </div>
                             ) : (
-                              <span className="text-slate-400 text-[11px]">-</span>
+                              <span className="text-text-low text-[11px]">-</span>
                             )}
 
                             {hasShortfall && (
                               <div className="mt-1.5">
-                                <span className="inline-flex items-center gap-1 text-[10px] bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 rounded font-bold font-mono">
+                                <span className="inline-flex items-center gap-1 text-[10px] bg-neon-red/15 text-neon-red border border-neon-red/40 px-2 py-0.5 rounded font-bold font-mono tabular-nums">
                                   <AlertCircle className="h-3 w-3" />
                                   Melebihi stok (+{outInfo.shortfallKg.toLocaleString('id-ID')} Kg)
                                 </span>
                               </div>
                             )}
                           </td>
-                          <td className="p-3.5 text-slate-600 text-[11px]">{item.destination}</td>
-                          <td className="p-3.5 font-semibold text-slate-700 whitespace-nowrap">{item.transporter}</td>
+                          <td className="p-3.5 text-text-mid text-[11px]">{item.destination}</td>
+                          <td className="p-3.5 font-semibold text-text-hi whitespace-nowrap">{item.transporter}</td>
                           <td className="p-3.5">
-                            <span className="text-slate-800 block font-medium">{item.driverName}</span>
-                            <span className="text-[10px] text-slate-500 font-mono font-bold uppercase">{item.vehicleNo}</span>
+                            <span className="text-text-hi block font-medium">{item.driverName}</span>
+                            <span className="text-[10px] text-text-mid font-mono font-bold uppercase">{item.vehicleNo}</span>
                           </td>
-                          <td className="p-3.5 text-slate-600 font-semibold">{item.recipient}</td>
+                          <td className="p-3.5 text-text-mid font-semibold">{item.recipient}</td>
                           <td className="p-3.5 text-center pr-5 whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1.5">
                               <button
                                 id={`waste-out-edit-${item.id}`}
                                 onClick={() => startEditOut(item)}
-                                className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg cursor-pointer transition-colors"
+                                className="p-1.5 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 border border-neon-cyan/25 rounded-lg cursor-pointer transition-colors"
                                 title="Edit catatan manifest"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
@@ -1546,7 +1560,7 @@ export default function WasteB3View({
                                     message: `Hapus record manifest pengeluaran ${item.manifestNo} (${item.wasteType}, ${item.weightKg} Kg)?`
                                   });
                                 }}
-                                className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg cursor-pointer transition-colors"
+                                className="p-1.5 bg-neon-red/10 text-neon-red hover:bg-neon-red/20 border border-neon-red/25 rounded-lg cursor-pointer transition-colors"
                                 title="Hapus catatan manifest"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1567,21 +1581,21 @@ export default function WasteB3View({
       {/* Modal Dialog Konfirmasi Hapus */}
       {deleteConfirm && (
         <ModalPortal>
-          <div id="delete-confirm-modal-b3" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-700 text-left">
-              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-red-100 text-red-600">
+          <div id="delete-confirm-modal-b3" className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="glass-panel border-neon-red/40 shadow-glow-red rounded-3xl p-6 max-w-sm w-full text-text-hi text-left">
+              <h3 className="text-sm font-bold text-text-hi flex items-center gap-2 font-heading">
+                <span className="p-1.5 rounded-lg bg-neon-red/15 text-neon-red border border-neon-red/30">
                   <Trash2 size={16} />
                 </span>
                 Konfirmasi Hapus
               </h3>
-              <p className="text-xs text-slate-600 mt-3 leading-relaxed">
+              <p className="text-xs text-text-mid mt-3 leading-relaxed">
                 {deleteConfirm.message}
               </p>
               <div className="flex justify-end gap-2 mt-5">
                 <button
                   onClick={() => setDeleteConfirm(null)}
-                  className="px-3.5 py-2 rounded-xl text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl text-xs bg-bg-2 hover:bg-bg-0 border border-border-subtle text-text-mid hover:text-text-hi font-bold transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
@@ -1599,7 +1613,7 @@ export default function WasteB3View({
                       // Ditangani oleh toast
                     }
                   }}
-                  className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-700 text-white font-bold transition-colors cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl text-xs neon-btn-danger font-bold transition-colors cursor-pointer"
                 >
                   Hapus
                 </button>
@@ -1611,3 +1625,4 @@ export default function WasteB3View({
     </div>
   );
 }
+

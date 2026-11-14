@@ -58,6 +58,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { WASTEWATER_BASIS_LABEL } from '../../data/regulations';
+import StatusBadge from '../StatusBadge';
 
 interface EvidenceHubProps {
   wastewater: WastewaterData[];
@@ -726,15 +727,15 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
   return (
     <div className="space-y-6">
       {/* Sub-tab segmented bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-3 gap-3 no-print">
-        <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold self-start">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border-subtle pb-3 gap-3 no-print">
+        <div className="flex bg-bg-1 p-1 rounded-xl text-xs font-semibold self-start border border-border-subtle">
           <button
             type="button"
             onClick={() => setActiveSubTab('harian')}
             className={`px-4 py-2 rounded-lg transition-all cursor-pointer ${
               activeSubTab === 'harian'
-                ? 'bg-white text-emerald-800 shadow-sm font-bold'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/40 shadow-glow-cyan font-bold'
+                : 'text-text-mid hover:text-text-hi border border-transparent'
             }`}
           >
             Evidence Harian KPL
@@ -744,31 +745,31 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
             onClick={() => setActiveSubTab('bulanan')}
             className={`px-4 py-2 rounded-lg transition-all cursor-pointer ${
               activeSubTab === 'bulanan'
-                ? 'bg-white text-emerald-800 shadow-sm font-bold'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/40 shadow-glow-cyan font-bold'
+                : 'text-text-mid hover:text-text-hi border border-transparent'
             }`}
           >
             Evidence Bulanan (Rekapitulasi)
           </button>
         </div>
 
-        <div className="text-xs text-slate-500 font-mono flex items-center gap-2">
-          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+        <div className="text-xs text-text-mid font-mono flex items-center gap-2">
+          <span className="inline-block w-2 h-2 rounded-full bg-neon-green" />
           ISO 14001:2015 Clause 9.1 &bull; PROPER Compliance
         </div>
       </div>
 
       {/* Global Filter Bar: Titik Sampling & Bulan */}
-      <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 no-print">
+      <div className="glass-panel p-4.5 rounded-2xl border border-border-neon flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 no-print">
         <div className="flex flex-wrap items-center gap-4">
           {/* Lokasi Selector */}
           <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-emerald-700 shrink-0" />
-            <label className="text-xs font-bold text-slate-700">Titik Sampling:</label>
+            <MapPin className="w-4 h-4 text-neon-cyan shrink-0" />
+            <label className="text-xs font-bold text-text-hi">Titik Sampling:</label>
             <select
               value={selectedLocationCode}
               onChange={(e) => setSelectedLocationCode(e.target.value)}
-              className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-semibold outline-none focus:ring-1 focus:ring-emerald-600"
+              className="px-3 py-1.5 text-xs font-semibold cursor-pointer"
             >
               {locations.map((loc) => (
                 <option key={loc.id} value={loc.code}>
@@ -783,22 +784,22 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
           {/* Bulan Selector */}
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-emerald-700 shrink-0" />
-            <label className="text-xs font-bold text-slate-700">Bulan &amp; Tahun:</label>
+            <Calendar className="w-4 h-4 text-neon-cyan shrink-0" />
+            <label className="text-xs font-bold text-text-hi">Bulan &amp; Tahun:</label>
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-mono outline-none focus:ring-1 focus:ring-emerald-600"
+              className="px-3 py-1.5 text-xs font-mono"
             />
           </div>
         </div>
 
         <div className="text-right">
-          <span className="text-[11px] font-bold text-slate-500 block">
+          <span className="text-[11px] font-bold text-text-mid block">
             Titik: {selectedLocation.name} ({selectedLocation.code})
           </span>
-          <span className="text-[10px] text-emerald-700 font-semibold">
+          <span className="text-[10px] text-neon-green font-mono tabular-nums font-semibold">
             {activeSubTab === 'harian'
               ? `${calendarDays.filter((d) => Boolean(d.record)).length} dari ${calendarDays.length} hari memiliki data`
               : monthlyRecap
@@ -810,15 +811,15 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
       {/* Global Error Banner */}
       {errorMessage && (
-        <div className="bg-red-50 border border-red-200 p-3 rounded-xl text-xs text-red-800 flex items-center justify-between no-print">
+        <div className="bg-neon-red/10 border border-neon-red/35 p-3 rounded-xl text-xs text-neon-red flex items-center justify-between no-print">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-neon-red shrink-0" />
             <span>{errorMessage}</span>
           </div>
           <button
             type="button"
             onClick={() => setErrorMessage(null)}
-            className="text-red-500 hover:text-red-700 font-bold"
+            className="text-neon-red hover:text-text-hi font-bold cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -829,21 +830,21 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
       {activeSubTab === 'harian' && (
         <div className={`space-y-6 ${isPrintingModalOrBatch ? 'no-print' : ''}`}>
           {/* Table of calendar days in month */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="glass-panel rounded-2xl border border-border-neon overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="neon-table">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-700 border-b border-slate-200 font-semibold text-[11px] uppercase tracking-wider">
-                    <th className="py-3 px-4 w-12 text-center">Tgl</th>
-                    <th className="py-3 px-4">Hari &amp; Tanggal</th>
-                    <th className="py-3 px-4 text-center">Data Lapangan</th>
-                    <th className="py-3 px-4 text-center">Hasil Kualitas</th>
-                    <th className="py-3 px-4 text-center">Status Dokumen</th>
-                    <th className="py-3 px-4 text-center">No. Dokumen</th>
-                    <th className="py-3 px-4 text-right">Aksi</th>
+                  <tr>
+                    <th className="w-12 text-center">Tgl</th>
+                    <th>Hari &amp; Tanggal</th>
+                    <th className="text-center">Data Lapangan</th>
+                    <th className="text-center">Hasil Kualitas</th>
+                    <th className="text-center">Status Dokumen</th>
+                    <th className="text-center">No. Dokumen</th>
+                    <th className="text-right">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {calendarDays.map((item) => {
                     const hasData = Boolean(item.record);
                     const isPassed = item.overall === 'MEMENUHI';
@@ -852,81 +853,67 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                     return (
                       <tr
                         key={item.date}
-                        className={`hover:bg-slate-50/80 transition-colors ${
-                          !hasData ? 'opacity-60 bg-slate-50/30' : ''
-                        }`}
+                        className={!hasData ? 'opacity-60' : ''}
                       >
-                        <td className="py-3 px-4 text-center font-mono font-bold text-slate-500">
+                        <td className="text-center font-mono tabular-nums font-bold text-text-mid">
                           {item.dayNumber}
                         </td>
-                        <td className="py-3 px-4">
-                          <span className="font-semibold text-slate-900 block">
+                        <td>
+                          <span className="font-semibold text-text-hi block">
                             {item.dayName}, {formatDateLocalIndonesian(item.date)}
                           </span>
                           {item.duplicateCount > 1 && (
-                            <span className="inline-block text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium mt-0.5">
+                            <span className="inline-block text-[10px] text-neon-amber bg-neon-amber/10 px-1.5 py-0.5 rounded border border-neon-amber/30 font-medium mt-0.5">
                               {item.duplicateCount} data pada hari ini (dipakai yang terakhir)
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="text-center">
                           {hasData ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            <span className="badge-safe inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
                               <CheckCircle2 className="w-3 h-3" />
                               Ada Data
                             </span>
                           ) : (
-                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
+                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-bg-2 text-text-low border border-border-subtle">
                               Tidak ada data
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="text-center">
                           {isFailed ? (
-                            <span className="inline-block px-2.5 py-0.5 rounded text-[10px] font-black bg-red-100 text-red-800 border border-red-200">
-                              TIDAK MEMENUHI
-                            </span>
+                            <StatusBadge status="Exceeded" label="TIDAK MEMENUHI" />
                           ) : isPassed ? (
-                            <span className="inline-block px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              MEMENUHI
-                            </span>
+                            <StatusBadge status="Safe" label="MEMENUHI" />
                           ) : (
-                            <span className="text-slate-400 font-mono">-</span>
+                            <span className="text-text-low font-mono">-</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="text-center">
                           {item.statusDoc === 'Diperiksa' && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-xs">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Diperiksa
-                            </span>
+                            <StatusBadge status="Safe" label="Diperiksa" />
                           )}
                           {item.statusDoc === 'Disiapkan' && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                              <Clock className="w-3 h-3" />
-                              Disiapkan
-                            </span>
+                            <StatusBadge status="Dipantau" label="Disiapkan" />
                           )}
                           {item.statusDoc === 'Draft' && (
-                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
-                              Draft
-                            </span>
+                            <StatusBadge status="Warning" label="Draft" />
                           )}
                           {item.statusDoc === 'Dibatalkan' && (
-                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 line-through">
+                            <span className="badge-exceeded inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold line-through">
                               Dibatalkan
                             </span>
                           )}
                           {item.statusDoc === 'Belum dibuat' && (
-                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
+                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-bg-2 text-text-low border border-border-subtle">
                               Belum dibuat
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-center font-mono text-[11px] text-slate-700">
+                        <td className="text-center font-mono text-[11px] text-text-mid">
                           {item.report?.documentNo || '-'}
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="text-right">
                           <button
                             type="button"
                             disabled={!hasData}
@@ -934,7 +921,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                               setPreviewDate(item.date);
                               setErrorMessage(null);
                             }}
-                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-slate-800 hover:bg-slate-900 text-white shadow-xs flex items-center gap-1.5 ml-auto"
+                            className="neon-btn-primary px-3.5 py-1.5 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 ml-auto"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             Buka
@@ -956,109 +943,109 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
           {/* 1. Monthly Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
             {/* Hari Sampling */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+            <div className="neon-card p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] font-semibold text-text-low uppercase tracking-wider block">
                 Hari Sampling
               </span>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-xl md:text-2xl font-black text-slate-900 font-mono">
+                <span className="text-xl md:text-2xl font-bold text-text-hi font-mono tabular-nums">
                   {monthlyRecap.samplingDays}
                 </span>
-                <span className="text-xs text-slate-400 font-mono">
+                <span className="text-xs text-text-low font-mono tabular-nums">
                   / {monthlyRecap.daysInMonth} Hari
                 </span>
               </div>
-              <span className="text-[10px] text-emerald-700 font-semibold block">
+              <span className="text-[10px] text-neon-cyan font-mono tabular-nums font-semibold block">
                 Kelengkapan: {monthlyRecap.completenessPct.toFixed(1)}%
               </span>
             </div>
 
             {/* Hari Memenuhi */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+            <div className="neon-card p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] font-semibold text-text-low uppercase tracking-wider block">
                 Hari Memenuhi
               </span>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-xl md:text-2xl font-black text-emerald-600 font-mono">
+                <span className="text-xl md:text-2xl font-bold text-neon-green font-mono tabular-nums">
                   {monthlyRecap.passDays}
                 </span>
-                <span className="text-xs text-slate-400 font-mono">Hari</span>
+                <span className="text-xs text-text-low font-mono">Hari</span>
               </div>
-              <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+              <span className="text-[10px] text-neon-green font-semibold flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-neon-green" />
                 Sesuai Baku Mutu
               </span>
             </div>
 
             {/* Hari Tidak Memenuhi */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+            <div className="neon-card p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] font-semibold text-text-low uppercase tracking-wider block">
                 Tidak Memenuhi
               </span>
               <div className="flex items-baseline gap-1.5">
-                <span className={`text-xl md:text-2xl font-black font-mono ${
-                  monthlyRecap.failDays > 0 ? 'text-red-600' : 'text-slate-400'
+                <span className={`text-xl md:text-2xl font-bold font-mono tabular-nums ${
+                  monthlyRecap.failDays > 0 ? 'text-neon-red' : 'text-text-low'
                 }`}>
                   {monthlyRecap.failDays}
                 </span>
-                <span className="text-xs text-slate-400 font-mono">Hari</span>
+                <span className="text-xs text-text-low font-mono">Hari</span>
               </div>
               <span className={`text-[10px] font-semibold block ${
-                monthlyRecap.failDays > 0 ? 'text-red-700' : 'text-slate-400'
+                monthlyRecap.failDays > 0 ? 'text-neon-red' : 'text-text-low'
               }`}>
                 {monthlyRecap.failDays > 0 ? 'Melebihi Batas Ambang' : 'Nihil Pelanggaran'}
               </span>
             </div>
 
             {/* Tingkat Kepatuhan */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+            <div className="neon-card p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] font-semibold text-text-low uppercase tracking-wider block">
                 Kepatuhan (%)
               </span>
               <div className="flex items-baseline gap-1.5">
-                <span className={`text-xl md:text-2xl font-black font-mono ${
+                <span className={`text-xl md:text-2xl font-bold font-mono tabular-nums ${
                   monthlyRecap.compliancePct === null
-                    ? 'text-slate-400'
+                    ? 'text-text-low'
                     : monthlyRecap.compliancePct === 100
-                    ? 'text-emerald-600'
-                    : 'text-amber-600'
+                    ? 'text-neon-green'
+                    : 'text-neon-amber'
                 }`}>
                   {monthlyRecap.compliancePct !== null ? `${monthlyRecap.compliancePct.toFixed(1)}%` : '-'}
                 </span>
               </div>
-              <span className="text-[10px] text-slate-500 font-semibold block">
+              <span className="text-[10px] text-text-low font-semibold block">
                 Kepmen LH 113/2003 &amp; SK Pertek PT DKB
               </span>
             </div>
 
             {/* Status Dokumen Rekap */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1 col-span-2 md:col-span-1">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+            <div className="neon-card p-4 rounded-2xl space-y-1 col-span-2 md:col-span-1">
+              <span className="text-[11px] font-semibold text-text-low uppercase tracking-wider block">
                 Status Dokumen
               </span>
               <div className="pt-0.5">
                 {monthlyReport ? (
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black ${
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                     monthlyReport.status === 'Disetujui'
-                      ? 'bg-emerald-600 text-white'
+                      ? 'badge-safe'
                       : monthlyReport.status === 'Diperiksa'
-                      ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                      ? 'badge-monitored'
                       : monthlyReport.status === 'Disiapkan'
-                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                      ? 'badge-warning'
                       : monthlyReport.status === 'Dibatalkan'
-                      ? 'bg-red-100 text-red-800 line-through'
-                      : 'bg-slate-100 text-slate-700'
+                      ? 'badge-exceeded line-through'
+                      : 'bg-bg-2 text-text-mid border border-border-subtle'
                   }`}>
                     {monthlyReport.status === 'Disetujui' && <ShieldCheck className="w-3.5 h-3.5" />}
                     {monthlyReport.status}
                   </span>
                 ) : (
-                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500">
+                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-bg-2 text-text-low border border-border-subtle">
                     Belum Diterbitkan
                   </span>
                 )}
               </div>
-              <span className="text-[10px] text-slate-600 font-mono truncate block mt-0.5">
+              <span className="text-[10px] text-text-mid font-mono truncate block mt-0.5">
                 {monthlyReport?.documentNo || 'Format: FR-EMS-WQ-YYYY-MM'}
               </span>
             </div>
@@ -1066,9 +1053,9 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
           {/* 2. Warning Card: Missing Days */}
           {monthlyRecap.missingDays.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <div className="bg-neon-amber/10 border border-neon-amber/35 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-neon-amber font-bold text-xs">
+                <AlertTriangle className="w-4 h-4 text-neon-amber shrink-0" />
                 <span>
                   Tidak terdapat data pemantauan pada {monthlyRecap.missingDays.length} hari:
                 </span>
@@ -1077,13 +1064,13 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 {monthlyRecap.missingDays.map((d) => (
                   <span
                     key={d}
-                    className="px-2 py-0.5 bg-white border border-amber-300 rounded text-[11px] font-mono text-amber-900 shadow-2xs font-semibold"
+                    className="px-2 py-0.5 bg-bg-1 border border-neon-amber/40 rounded text-[11px] font-mono tabular-nums text-neon-amber font-semibold"
                   >
                     Tgl {parseInt(d.slice(8, 10), 10)}
                   </span>
                 ))}
               </div>
-              <p className="text-[11px] text-amber-800/80 leading-relaxed">
+              <p className="text-[11px] text-text-mid leading-relaxed">
                 Hari tanpa data merupakan celah pemantauan dan tidak diisi angka nol. Pastikan log lapangan telah diinput sebelum pengesahan final.
               </p>
             </div>
@@ -1091,9 +1078,9 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
           {/* 3. Warning Card: Non-compliant Days */}
           {monthlyRecap.failDays > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-red-900 font-bold text-xs">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            <div className="bg-neon-red/10 border border-neon-red/35 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-neon-red font-bold text-xs">
+                <AlertCircle className="w-4 h-4 text-neon-red shrink-0" />
                 <span>
                   Terdapat {monthlyRecap.failDays} hari pemantauan yang tidak memenuhi baku mutu lingkungan:
                 </span>
@@ -1111,21 +1098,21 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                           setPreviewDate(d.date);
                           setErrorMessage(null);
                         }}
-                        className="px-2.5 py-1 bg-white hover:bg-red-100 border border-red-300 rounded-lg text-xs font-semibold text-red-800 shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                        className="px-2.5 py-1 bg-bg-1 hover:bg-neon-red/20 border border-neon-red/40 rounded-lg text-xs font-semibold text-neon-red flex items-center gap-1.5 transition-colors cursor-pointer"
                         title="Klik untuk membuka Evidence Harian tanggal ini"
                       >
-                        <span className="font-mono font-bold">
+                        <span className="font-mono tabular-nums font-bold">
                           Tgl {d.dayNumber}
                         </span>
-                        <span className="text-[10px] text-red-600 font-normal">
+                        <span className="text-[10px] text-neon-red/85 font-normal">
                           ({failedNames.join(', ') || 'Parameter'})
                         </span>
-                        <Eye className="w-3 h-3 text-red-600" />
+                        <Eye className="w-3 h-3 text-neon-red" />
                       </button>
                     );
                   })}
               </div>
-              <p className="text-[11px] text-red-800/80 leading-relaxed">
+              <p className="text-[11px] text-text-mid leading-relaxed">
                 Klik kartu tanggal di atas untuk melihat dokumen Evidence Harian beserta catatan tindak lanjut perbaikan teknis.
               </p>
             </div>
@@ -1133,14 +1120,14 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
           {/* 4. Warning: Hash Mismatch (Data Changed After Publish) */}
           {isMonthlyHashMismatch && (
-            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-xs">
+            <div className="bg-neon-amber/10 border border-neon-amber/40 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <RefreshCw className="w-5 h-5 text-amber-600 shrink-0" />
+                <RefreshCw className="w-5 h-5 text-neon-amber shrink-0" />
                 <div>
-                  <h4 className="text-xs font-bold text-amber-950">
+                  <h4 className="text-xs font-bold text-neon-amber">
                     Data Harian Berubah Setelah Rekap Diterbitkan
                   </h4>
-                  <p className="text-[11px] text-amber-800 mt-0.5">
+                  <p className="text-[11px] text-text-mid mt-0.5">
                     Terdapat pembaruan data pemantauan harian. Dokumen resmi saat ini masih menampilkan snapshot saat terbit. Silakan terbitkan revisi resmi bila diperlukan.
                   </p>
                 </div>
@@ -1149,7 +1136,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 <button
                   type="button"
                   onClick={() => handleOpenSign('revision_monthly')}
-                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                  className="px-3.5 py-1.5 bg-neon-amber/20 hover:bg-neon-amber/30 text-neon-amber border border-neon-amber/45 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   Terbitkan Revisi
@@ -1159,15 +1146,15 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
           )}
 
           {/* 5. Main Action Toolbar */}
-          <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+          <div className="glass-panel p-4.5 rounded-2xl border border-border-neon flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               {/* Pratinjau Rekap */}
               <button
                 type="button"
                 onClick={() => setIsMonthlyPreviewOpen(true)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 transition-colors cursor-pointer"
+                className="px-4 py-2 bg-bg-2 hover:bg-bg-1 text-text-hi border border-border-neon rounded-xl text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer"
               >
-                <Eye className="w-4 h-4 text-emerald-400" />
+                <Eye className="w-4 h-4 text-neon-cyan" />
                 Pratinjau Rekap Bulanan
               </button>
 
@@ -1187,7 +1174,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                       handleOpenSign('prepare_monthly');
                     }
                   }}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 transition-colors cursor-pointer"
+                  className="neon-btn-primary px-4 py-2 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
                   title={monthlyRecap.overall === 'BELUM ADA DATA' ? 'Belum terdapat data pemantauan air limbah pada bulan ini' : undefined}
                 >
                   <Send className="w-4 h-4" />
@@ -1206,7 +1193,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                     }
                     handleOpenSign('review_monthly');
                   }}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-neon-violet/20 hover:bg-neon-violet/30 text-neon-violet border border-neon-violet/45 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <PenTool className="w-4 h-4" />
                   Tanda Tangan Pemeriksa
@@ -1227,9 +1214,9 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                     }
                     handleOpenSign('approve_monthly');
                   }}
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 transition-colors cursor-pointer"
+                  className="neon-btn-primary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
                 >
-                  <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                  <ShieldCheck className="w-4 h-4" />
                   Tanda Tangan Persetujuan
                 </button>
               )}
@@ -1239,7 +1226,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 <button
                   type="button"
                   onClick={() => setIsMonthlyCancelModalOpen(true)}
-                  className="px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-3 py-2 bg-neon-red/15 hover:bg-neon-red/25 text-neon-red border border-neon-red/35 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Ban className="w-3.5 h-3.5" />
                   Batalkan
@@ -1253,10 +1240,10 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
               <button
                 type="button"
                 onClick={handleBatchDailyPrint}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-300"
+                className="px-3.5 py-2 bg-bg-1 hover:bg-bg-2 text-text-hi rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-border-subtle"
                 title="Cetak berturut-turut seluruh dokumen evidence harian bulan ini"
               >
-                <Printer className="w-4 h-4 text-slate-600" />
+                <Printer className="w-4 h-4 text-text-mid" />
                 Cetak Semua Evidence Harian
               </button>
 
@@ -1264,20 +1251,20 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
               <button
                 type="button"
                 onClick={handleExportMonthlyExcel}
-                className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-emerald-200 shadow-2xs"
+                className="px-3.5 py-2 bg-neon-green/15 hover:bg-neon-green/25 text-neon-green rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-neon-green/35"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+                <FileSpreadsheet className="w-4 h-4 text-neon-green" />
                 Export Rekap Harian (.xlsx)
               </button>
             </div>
           </div>
 
           {/* 6. Document Preview Card Container */}
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-md p-6 overflow-hidden">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-6">
+          <div className="glass-panel rounded-3xl border border-border-neon p-6 overflow-hidden">
+            <div className="flex items-center justify-between pb-4 border-b border-border-subtle mb-6">
               <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-emerald-800" />
-                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+                <FileText className="w-5 h-5 text-neon-cyan" />
+                <h3 className="text-sm font-bold text-text-hi font-heading uppercase tracking-wide">
                   Tinjauan Dokumen Evidence Bulanan &amp; Lampiran
                 </h3>
               </div>
@@ -1285,7 +1272,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 <button
                   type="button"
                   onClick={() => setIsMonthlyPreviewOpen(true)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                  className="px-3 py-1.5 bg-bg-1 hover:bg-bg-2 text-text-mid hover:text-text-hi border border-border-subtle text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   Layar Penuh
@@ -1293,8 +1280,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
               </div>
             </div>
 
-            {/* In-page Render of Monthly Document */}
-            <div className="overflow-x-auto bg-slate-100/60 p-4 rounded-2xl flex justify-center">
+            {/* In-page Render of Monthly Document (white A4 sheet centered cleanly) */}
+            <div className="overflow-x-auto bg-bg-0/60 border border-border-subtle p-4 rounded-2xl flex justify-center">
               <MonthlyEvidenceDocument
                 report={monthlyReport}
                 records={wastewater}
@@ -1312,16 +1299,16 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
       {/* MODAL PREVIEW HARIAN & TOOLBAR */}
       {previewDate && activeDayItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 overflow-y-auto">
-          <div className="bg-slate-100 rounded-3xl shadow-2xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden border border-slate-300">
+        <div className="fixed inset-0 z-50 bg-bg-0/80 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-y-auto">
+          <div className="glass-panel rounded-3xl shadow-2xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden border border-border-neon">
             {/* Modal Header & Action Toolbar */}
-            <div className="bg-white px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 no-print">
+            <div className="bg-bg-2/70 px-6 py-4 border-b border-border-subtle flex flex-wrap items-center justify-between gap-3 no-print">
               <div>
-                <h3 className="text-sm md:text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-emerald-700" />
+                <h3 className="text-sm md:text-base font-bold text-text-hi font-heading flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-neon-cyan" />
                   Pratinjau Dokumen Evidence Harian
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-text-mid mt-0.5">
                   Titik {selectedLocation.name} ({selectedLocation.code}) &bull; {formatDateLocalIndonesian(previewDate)}
                 </p>
               </div>
@@ -1332,9 +1319,9 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-3.5 py-2 bg-bg-1 hover:bg-bg-2 text-text-hi border border-border-neon rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Printer className="w-4 h-4" />
+                  <Printer className="w-4 h-4 text-neon-cyan" />
                   Cetak / PDF (A4)
                 </button>
 
@@ -1344,7 +1331,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                     type="button"
                     disabled={!activeDayItem.record?.hasPhoto}
                     onClick={() => handleOpenSign('prepare')}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="neon-btn-primary px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                   >
                     <Send className="w-4 h-4" />
                     Terbitkan Dokumen
@@ -1362,7 +1349,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                       }
                       handleOpenSign('review');
                     }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-4 py-2 bg-neon-violet/20 hover:bg-neon-violet/30 text-neon-violet border border-neon-violet/45 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <PenTool className="w-4 h-4" />
                     Tanda Tangan Pemeriksa
@@ -1374,7 +1361,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                   <button
                     type="button"
                     onClick={() => handleOpenSign('revision')}
-                    className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-3.5 py-2 bg-neon-amber/20 hover:bg-neon-amber/30 text-neon-amber border border-neon-amber/45 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <RefreshCw className="w-4 h-4" />
                     Terbitkan Revisi
@@ -1386,7 +1373,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                   <button
                     type="button"
                     onClick={() => setIsCancelModalOpen(true)}
-                    className="px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                    className="px-3 py-2 bg-neon-red/15 hover:bg-neon-red/25 text-neon-red border border-neon-red/35 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                   >
                     <Ban className="w-3.5 h-3.5" />
                     Batalkan
@@ -1400,7 +1387,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                     setPreviewDate(null);
                     setErrorMessage(null);
                   }}
-                  className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer ml-1"
+                  className="p-2 text-text-low hover:text-text-hi rounded-xl hover:bg-bg-2 transition-colors cursor-pointer ml-1"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1409,8 +1396,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
             {/* Warning: Photo not attached */}
             {!activeDayItem.record?.hasPhoto && (!activeDayItem.report || activeDayItem.report.status === 'Draft') && (
-              <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-xs text-amber-800 font-medium flex items-center gap-2 no-print">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+              <div className="bg-neon-amber/10 border-b border-neon-amber/30 px-6 py-2 text-xs text-neon-amber font-medium flex items-center gap-2 no-print">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-neon-amber" />
                 <span>
                   <strong>Evidence belum lengkap:</strong> Foto sampling belum dilampirkan pada catatan pemantauan. Dokumen dapat dicetak sebagai draft tetapi tidak dapat diterbitkan sebelum foto dilengkapi.
                 </span>
@@ -1419,9 +1406,9 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
             {/* Warning: Data changed after document published */}
             {isDailyHashMismatch && (
-              <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-xs text-amber-800 font-medium flex items-center justify-between no-print">
+              <div className="bg-neon-amber/10 border-b border-neon-amber/30 px-6 py-2 text-xs text-neon-amber font-medium flex items-center justify-between no-print">
                 <div className="flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4 shrink-0 text-amber-600" />
+                  <RefreshCw className="w-4 h-4 shrink-0 text-neon-amber" />
                   <span>
                     <strong>Pemberitahuan Audit:</strong> Data sumber air limbah mengalami perubahan setelah dokumen ini terbit. Nilai tercetak tetap menggunakan snapshot saat terbit. Environment Superintendent dapat menerbitkan revisi resmi.
                   </span>
@@ -1430,7 +1417,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
             )}
 
             {/* Modal Body: A4 Document Preview */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-200/60 flex justify-center">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-bg-0/60 flex justify-center">
               <DailyEvidenceDocument
                 report={activeDayItem.report}
                 currentRecord={activeDayItem.record}
@@ -1444,16 +1431,16 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
       {/* MODAL FULLSCREEN PREVIEW REKAP BULANAN */}
       {isMonthlyPreviewOpen && monthlyRecap && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 overflow-y-auto">
-          <div className="bg-slate-100 rounded-3xl shadow-2xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden border border-slate-300">
+        <div className="fixed inset-0 z-50 bg-bg-0/80 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-y-auto">
+          <div className="glass-panel rounded-3xl shadow-2xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden border border-border-neon">
             {/* Modal Header */}
-            <div className="bg-white px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 no-print">
+            <div className="bg-bg-2/70 px-6 py-4 border-b border-border-subtle flex flex-wrap items-center justify-between gap-3 no-print">
               <div>
-                <h3 className="text-sm md:text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-emerald-700" />
+                <h3 className="text-sm md:text-base font-bold text-text-hi font-heading flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-neon-cyan" />
                   Pratinjau Dokumen Evidence Bulanan (Rekapitulasi)
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-text-mid mt-0.5">
                   Titik {selectedLocation.name} ({selectedLocation.code}) &bull; Periode {selectedMonth}
                 </p>
               </div>
@@ -1463,7 +1450,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="neon-btn-primary px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
                   Cetak / Simpan PDF (A4)
@@ -1473,7 +1460,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 <button
                   type="button"
                   onClick={() => setIsMonthlyPreviewOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="p-2 text-text-low hover:text-text-hi rounded-xl hover:bg-bg-2 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1481,7 +1468,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-200/60 flex justify-center">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-bg-0/60 flex justify-center">
               <MonthlyEvidenceDocument
                 report={monthlyReport}
                 records={wastewater}
@@ -1499,33 +1486,33 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
       {/* CONFIRMATION DIALOG: PUBLISH WITH MISSING OR FAIL DAYS */}
       {isPublishConfirmOpen && monthlyRecap && (
-        <div className="fixed inset-0 z-60 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-amber-200">
-            <div className="flex items-center gap-3 text-amber-600">
-              <div className="p-2.5 bg-amber-100 rounded-xl">
+        <div className="fixed inset-0 z-60 bg-bg-0/80 backdrop-blur-md flex items-center justify-center p-4 no-print">
+          <div className="glass-panel rounded-3xl p-6 max-w-md w-full space-y-4 shadow-glow-amber border border-neon-amber/40">
+            <div className="flex items-center gap-3 text-neon-amber">
+              <div className="p-2.5 bg-neon-amber/15 border border-neon-amber/35 rounded-xl">
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-slate-900">Konfirmasi Penerbitan Dokumen</h4>
-                <p className="text-xs text-slate-500">Evidence Bulanan: Periode {selectedMonth}</p>
+                <h4 className="text-sm font-bold text-text-hi font-heading">Konfirmasi Penerbitan Dokumen</h4>
+                <p className="text-xs text-text-mid">Evidence Bulanan: Periode {selectedMonth}</p>
               </div>
             </div>
 
-            <p className="text-xs text-slate-700 leading-relaxed">
-              Terdapat <strong>{monthlyRecap.failDays} hari tidak memenuhi baku mutu</strong> dan <strong>{monthlyRecap.missingDays.length} hari tanpa data pemantauan</strong>.
+            <p className="text-xs text-text-mid leading-relaxed">
+              Terdapat <strong className="text-neon-red">{monthlyRecap.failDays} hari tidak memenuhi baku mutu</strong> dan <strong className="text-neon-amber">{monthlyRecap.missingDays.length} hari tanpa data pemantauan</strong>.
             </p>
 
             {failDaysWithoutFollowUp.length > 0 && (
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
-                <span className="font-bold flex items-center gap-1.5 text-amber-800 mb-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <div className="p-3 bg-neon-amber/10 rounded-xl border border-neon-amber/30 text-[11px] text-text-mid leading-relaxed">
+                <span className="font-bold flex items-center gap-1.5 text-neon-amber mb-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-neon-amber shrink-0" />
                   Peringatan Tindak Lanjut:
                 </span>
-                Terdapat <strong>{failDaysWithoutFollowUp.length} hari tidak patuh</strong> yang belum memiliki Rencana Tindak Lanjut pada Evidence Harian (Tanggal: {failDaysWithoutFollowUp.join(', ')}). Rencana perbaikan sangat dianjurkan untuk pemenuhan audit PROPER, namun <em>tidak memblokir</em> penerbitan rekapitulasi bulanan ini.
+                Terdapat <strong className="text-text-hi">{failDaysWithoutFollowUp.length} hari tidak patuh</strong> yang belum memiliki Rencana Tindak Lanjut pada Evidence Harian (Tanggal: {failDaysWithoutFollowUp.join(', ')}). Rencana perbaikan sangat dianjurkan untuk pemenuhan audit PROPER, namun <em>tidak memblokir</em> penerbitan rekapitulasi bulanan ini.
               </div>
             )}
 
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-text-mid leading-relaxed">
               Setelah diterbitkan, rekapitulasi ini akan dikunci dalam bentuk snapshot kriptografis resmi untuk diajukan ke pemeriksa. Yakin ingin menerbitkan rekap?
             </p>
 
@@ -1533,7 +1520,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
               <button
                 type="button"
                 onClick={() => setIsPublishConfirmOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-text-mid hover:text-text-hi hover:bg-bg-2 border border-border-subtle rounded-xl transition-colors cursor-pointer"
               >
                 Batal
               </button>
@@ -1543,7 +1530,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                   setIsPublishConfirmOpen(false);
                   handleOpenSign('prepare_monthly');
                 }}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                className="neon-btn-primary px-4 py-2 text-xs font-bold rounded-xl cursor-pointer"
               >
                 Lanjutkan Terbitkan
               </button>
@@ -1554,38 +1541,38 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
       {/* BATCH DAILY PRINT PROGRESS MODAL */}
       {batchPrintProgress.isOpen && (
-        <div className="fixed inset-0 z-70 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-200 text-center">
-            <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto">
+        <div className="fixed inset-0 z-70 bg-bg-0/80 backdrop-blur-md flex items-center justify-center p-4 no-print">
+          <div className="glass-panel rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-border-neon text-center">
+            <div className="w-12 h-12 bg-neon-cyan/15 border border-neon-cyan/35 text-neon-cyan rounded-2xl flex items-center justify-center mx-auto">
               <Printer className="w-6 h-6 animate-pulse" />
             </div>
 
             <div>
-              <h4 className="text-sm font-bold text-slate-900">
+              <h4 className="text-sm font-bold text-text-hi font-heading">
                 Mempersiapkan Cetak Semua Evidence Harian
               </h4>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-text-mid mt-1">
                 Mengunduh bukti foto visual dan memverifikasi kelengkapan halaman...
               </p>
             </div>
 
             {/* Progress Bar */}
             <div className="space-y-1.5">
-              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+              <div className="w-full bg-bg-0 h-2.5 rounded-full overflow-hidden border border-border-subtle">
                 <div
-                  className="bg-emerald-600 h-full transition-all duration-300"
+                  className="bg-neon-cyan h-full transition-all duration-300"
                   style={{
                     width: `${batchPrintProgress.total > 0 ? (batchPrintProgress.current / batchPrintProgress.total) * 100 : 0}%`,
                   }}
                 />
               </div>
-              <span className="text-xs font-mono font-bold text-emerald-800">
+              <span className="text-xs font-mono tabular-nums font-bold text-neon-cyan">
                 Memuat foto {batchPrintProgress.current} / {batchPrintProgress.total} hari ({Math.round(batchPrintProgress.total > 0 ? (batchPrintProgress.current / batchPrintProgress.total) * 100 : 0)}%)
               </span>
             </div>
 
             {batchPrintProgress.status === 'ready' && (
-              <p className="text-xs text-slate-500 italic">
+              <p className="text-xs text-text-mid italic">
                 Membuka kotak dialog cetak peramban...
               </p>
             )}
@@ -1616,10 +1603,10 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
       {/* SIGNING DIALOG (DAILY & MONTHLY) */}
       {isSigningOpen && (
-        <div className="fixed inset-0 z-60 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h4 className="text-base font-bold text-slate-900">
+        <div className="fixed inset-0 z-60 bg-bg-0/80 backdrop-blur-md flex items-center justify-center p-4 no-print">
+          <div className="glass-panel rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl border border-border-neon max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
+              <h4 className="text-base font-bold text-text-hi font-heading">
                 {signingType === 'prepare' && 'Tanda Tangan Penyiap Dokumen Harian'}
                 {signingType === 'review' && 'Tanda Tangan Pemeriksa Dokumen Harian'}
                 {signingType === 'revision' && 'Tanda Tangan Penerbit Revisi Harian'}
@@ -1631,7 +1618,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
               <button
                 type="button"
                 onClick={() => setIsSigningOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-text-low hover:text-text-hi cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1639,8 +1626,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
             {/* If TIDAK MEMENUHI and preparing daily, require Follow-up Action */}
             {signingType === 'prepare' && activeEvalResult?.overall === 'TIDAK MEMENUHI' && (
-              <div className="space-y-1.5 p-3 bg-red-50 rounded-xl border border-red-200">
-                <label className="block text-xs font-bold text-red-800">
+              <div className="space-y-1.5 p-3 bg-neon-red/10 rounded-xl border border-neon-red/35">
+                <label className="block text-xs font-bold text-neon-red">
                   Rencana Tindak Lanjut Perbaikan (Wajib, min. 10 karakter):
                 </label>
                 <textarea
@@ -1648,15 +1635,15 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                   value={followUpInput}
                   onChange={(e) => setFollowUpInput(e.target.value)}
                   placeholder="Contoh: Penambahan dosis kapur tohor (quicklime) pada kompartemen 2 dan evaluasi debit..."
-                  className="w-full bg-white border border-red-300 rounded-lg p-2 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-red-500"
+                  className="w-full p-2 text-xs"
                 />
               </div>
             )}
 
             {/* If Revision, require Revision Reason */}
             {(signingType === 'revision' || signingType === 'revision_monthly') && (
-              <div className="space-y-1.5 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                <label className="block text-xs font-bold text-amber-800">
+              <div className="space-y-1.5 p-3 bg-neon-amber/10 rounded-xl border border-neon-amber/35">
+                <label className="block text-xs font-bold text-neon-amber">
                   Alasan Penerbitan Revisi (Wajib):
                 </label>
                 <input
@@ -1664,19 +1651,19 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                   value={revisionReasonInput}
                   onChange={(e) => setRevisionReasonInput(e.target.value)}
                   placeholder="Contoh: Koreksi pembacaan in-situ atau penyesuaian data lapangan..."
-                  className="w-full bg-white border border-amber-300 rounded-lg p-2 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full p-2 text-xs"
                 />
               </div>
             )}
 
             {/* Pernyataan Kebenaran Data */}
-            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-              <label className="flex items-start gap-2.5 cursor-pointer text-xs font-semibold text-emerald-950">
+            <div className="p-3 bg-neon-green/10 rounded-xl border border-neon-green/35">
+              <label className="flex items-start gap-2.5 cursor-pointer text-xs font-semibold text-text-hi">
                 <input
                   type="checkbox"
                   checked={declarationAccepted}
                   onChange={(e) => setDeclarationAccepted(e.target.checked)}
-                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 mt-0.5 cursor-pointer"
+                  className="rounded accent-neon-cyan w-4 h-4 mt-0.5 cursor-pointer"
                 />
                 <span>Saya menyatakan data pada dokumen ini benar dan sesuai catatan pemantauan lapangan.</span>
               </label>
@@ -1684,12 +1671,12 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
             {/* Quick use saved user signature */}
             {savedUserSig && (
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+              <div className="p-3 bg-bg-0/60 rounded-xl border border-border-subtle flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-slate-700 block">
+                  <span className="text-xs font-bold text-text-hi block">
                     Gunakan Tanda Tangan Tersimpan
                   </span>
-                  <span className="text-[10px] text-slate-500">
+                  <span className="text-[10px] text-text-mid font-mono">
                     Tanda tangan akun {user?.email}
                   </span>
                 </div>
@@ -1702,7 +1689,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                     ((signingType === 'revision' || signingType === 'revision_monthly') && !revisionReasonInput.trim())
                   }
                   onClick={() => handleSubmitSignature(savedUserSig)}
-                  className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  className="neon-btn-primary px-3.5 py-1.5 disabled:opacity-50 rounded-lg text-xs font-bold cursor-pointer"
                 >
                   {isSubmitting ? 'Memproses...' : 'Terapkan'}
                 </button>
@@ -1711,7 +1698,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
             {/* Or draw new signature on pad */}
             <div className="space-y-2">
-              <span className="text-xs font-semibold text-slate-700 block">
+              <span className="text-xs font-semibold text-text-mid block">
                 Atau goreskan tanda tangan baru:
               </span>
               <SignaturePad
@@ -1742,24 +1729,24 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
       {/* CANCELLATION MODAL (DAILY) */}
       {isCancelModalOpen && activeDayItem?.report && (
-        <div className="fixed inset-0 z-60 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-red-200">
-            <div className="flex items-center gap-3 text-red-600">
-              <div className="p-2.5 bg-red-100 rounded-xl">
+        <div className="fixed inset-0 z-60 bg-bg-0/80 backdrop-blur-md flex items-center justify-center p-4 no-print">
+          <div className="glass-panel rounded-3xl p-6 max-w-md w-full space-y-4 shadow-glow-red border border-neon-red/45">
+            <div className="flex items-center gap-3 text-neon-red">
+              <div className="p-2.5 bg-neon-red/15 border border-neon-red/35 rounded-xl">
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-slate-900">Batalkan Dokumen Evidence Harian</h4>
-                <p className="text-xs text-slate-500">Nomor: {activeDayItem.report.documentNo}</p>
+                <h4 className="text-sm font-bold text-text-hi font-heading">Batalkan Dokumen Evidence Harian</h4>
+                <p className="text-xs text-text-mid font-mono">Nomor: {activeDayItem.report.documentNo}</p>
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-text-mid leading-relaxed">
               Dokumen yang dibatalkan tidak akan dihapus dari audit trail, melainkan diberi watermark permanen &ldquo;DIBATALKAN&rdquo; sesuai standar kepatuhan ISO 14001.
             </p>
 
             <div className="space-y-1">
-              <label className="block text-xs font-bold text-slate-700">
+              <label className="block text-xs font-bold text-text-hi">
                 Alasan Pembatalan (Wajib, min. 10 karakter):
               </label>
               <textarea
@@ -1767,7 +1754,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 value={cancelReasonInput}
                 onChange={(e) => setCancelReasonInput(e.target.value)}
                 placeholder="Contoh: Kesalahan input sampling pada titik yang berbeda saat kalibrasi sensor..."
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-red-600"
+                className="w-full p-3 text-xs"
               />
             </div>
 
@@ -1775,7 +1762,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
               <button
                 type="button"
                 onClick={() => setIsCancelModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-text-mid hover:text-text-hi hover:bg-bg-2 border border-border-subtle rounded-xl transition-colors cursor-pointer"
               >
                 Kembali
               </button>
@@ -1783,7 +1770,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 type="button"
                 disabled={cancelReasonInput.trim().length < 10 || isSubmitting}
                 onClick={handleCancelReport}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                className="neon-btn-danger px-4 py-2 disabled:opacity-50 text-xs font-bold rounded-xl cursor-pointer"
               >
                 {isSubmitting ? 'Membatalkan...' : 'Konfirmasi Batalkan Dokumen'}
               </button>
@@ -1794,24 +1781,24 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
       {/* CANCELLATION MODAL (MONTHLY) */}
       {isMonthlyCancelModalOpen && monthlyReport && (
-        <div className="fixed inset-0 z-60 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-red-200">
-            <div className="flex items-center gap-3 text-red-600">
-              <div className="p-2.5 bg-red-100 rounded-xl">
+        <div className="fixed inset-0 z-60 bg-bg-0/80 backdrop-blur-md flex items-center justify-center p-4 no-print">
+          <div className="glass-panel rounded-3xl p-6 max-w-md w-full space-y-4 shadow-glow-red border border-neon-red/45">
+            <div className="flex items-center gap-3 text-neon-red">
+              <div className="p-2.5 bg-neon-red/15 border border-neon-red/35 rounded-xl">
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-slate-900">Batalkan Dokumen Rekap Bulanan</h4>
-                <p className="text-xs text-slate-500">Nomor: {monthlyReport.documentNo}</p>
+                <h4 className="text-sm font-bold text-text-hi font-heading">Batalkan Dokumen Rekap Bulanan</h4>
+                <p className="text-xs text-text-mid font-mono">Nomor: {monthlyReport.documentNo}</p>
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-text-mid leading-relaxed">
               Dokumen rekap bulanan yang dibatalkan akan ditandai dengan watermark &ldquo;DIBATALKAN&rdquo; pada audit trail ISO 14001 dan status verifikasi publik.
             </p>
 
             <div className="space-y-1">
-              <label className="block text-xs font-bold text-slate-700">
+              <label className="block text-xs font-bold text-text-hi">
                 Alasan Pembatalan (Wajib, min. 10 karakter):
               </label>
               <textarea
@@ -1819,7 +1806,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 value={cancelReasonInput}
                 onChange={(e) => setCancelReasonInput(e.target.value)}
                 placeholder="Contoh: Kesalahan penetapan periode atau pembaruan menyeluruh titik sampling..."
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-red-600"
+                className="w-full p-3 text-xs"
               />
             </div>
 
@@ -1827,7 +1814,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
               <button
                 type="button"
                 onClick={() => setIsMonthlyCancelModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-text-mid hover:text-text-hi hover:bg-bg-2 border border-border-subtle rounded-xl transition-colors cursor-pointer"
               >
                 Kembali
               </button>
@@ -1835,7 +1822,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 type="button"
                 disabled={cancelReasonInput.trim().length < 10 || isSubmitting}
                 onClick={handleCancelMonthlyReport}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                className="neon-btn-danger px-4 py-2 disabled:opacity-50 text-xs font-bold rounded-xl cursor-pointer"
               >
                 {isSubmitting ? 'Membatalkan...' : 'Konfirmasi Batalkan Rekap'}
               </button>

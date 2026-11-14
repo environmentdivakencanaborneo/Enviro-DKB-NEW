@@ -41,7 +41,7 @@ export default function MiningEnvIcon({
           className={className}
         >
           {/* Subtle Eco-Circle Shield */}
-          <circle cx="32" cy="32" r="30" fill="#2E4B3D" fillOpacity="0.08" stroke="#3FA66B" strokeWidth="2" strokeDasharray="3 3" />
+          <circle cx="32" cy="32" r="30" fill="var(--theme-neon-green)" fillOpacity="0.08" stroke="#3FA66B" strokeWidth="2" strokeDasharray="3 3" />
           
           {/* Terraced Open Pit Mine / Mountains */}
           <path
@@ -78,13 +78,13 @@ export default function MiningEnvIcon({
           <path
             d="M32 46V24C32 24 23 23 23 33C23 41 32 46 32 46Z"
             fill="#3FA66B"
-            stroke="#2E4B3D"
+            stroke="var(--theme-neon-green)"
             strokeWidth="1.5"
           />
           <path
             d="M32 38C32 38 41 33 41 23C41 15 32 14 32 14C32 14 32 32 32 38Z"
             fill="#10B981"
-            stroke="#2E4B3D"
+            stroke="var(--theme-neon-green)"
             strokeWidth="1.5"
           />
           <circle cx="32" cy="14" r="2" fill="#E2A43B" />
@@ -145,7 +145,7 @@ export default function MiningEnvIcon({
           {/* Hills / Riverbanks */}
           <path
             d="M4 22L14 12L24 18L34 8L44 18V42H4V22Z"
-            fill="#2E4B3D"
+            fill="var(--theme-neon-green)"
             fillOpacity="0.1"
           />
           <path d="M4 24L14 14L22 20" stroke="#3FA66B" strokeWidth="2" strokeLinecap="round" />
@@ -153,9 +153,9 @@ export default function MiningEnvIcon({
 
           {/* Riverside Trees */}
           <circle cx="12" cy="18" r="3" fill="#10B981" />
-          <path d="M12 21V25" stroke="#2E4B3D" strokeWidth="1.5" />
+          <path d="M12 21V25" stroke="var(--theme-neon-green)" strokeWidth="1.5" />
           <circle cx="36" cy="12" r="2.5" fill="#3FA66B" />
-          <path d="M36 14.5V18" stroke="#2E4B3D" strokeWidth="1.5" />
+          <path d="M36 14.5V18" stroke="var(--theme-neon-green)" strokeWidth="1.5" />
 
           {/* Winding River Stream */}
           <path
@@ -199,7 +199,7 @@ export default function MiningEnvIcon({
           <path d="M26 32L24 38" stroke="#0EA5E9" strokeWidth="2.5" strokeLinecap="round" />
 
           {/* Rain Gauge Cylinder on Right */}
-          <rect x="34" y="24" width="8" height="18" rx="2" fill="#FFFFFF" stroke="#E2A43B" strokeWidth="2" />
+          <rect x="34" y="24" width="8" height="18" rx="2" fill="var(--theme-bg-1)" stroke="#E2A43B" strokeWidth="2" />
           <path d="M36 28H40" stroke="#E2A43B" strokeWidth="1.5" />
           <path d="M36 32H39" stroke="#E2A43B" strokeWidth="1.5" />
           <path d="M36 36H40" stroke="#E2A43B" strokeWidth="1.5" />
@@ -229,24 +229,24 @@ export default function MiningEnvIcon({
           <path d="M6 44C20 40 30 42 42 34" stroke="#B45309" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="2 2" />
 
           {/* Sapling Tree */}
-          <path d="M24 36V18" stroke="#2E4B3D" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M24 36V18" stroke="var(--theme-neon-green)" strokeWidth="2.5" strokeLinecap="round" />
           {/* Leaves */}
           <path
             d="M24 24C18 20 18 12 24 10C30 12 30 20 24 24Z"
             fill="#3FA66B"
-            stroke="#2E4B3D"
+            stroke="var(--theme-neon-green)"
             strokeWidth="1.5"
           />
           <path
             d="M24 28C28 26 33 22 34 16C28 17 25 22 24 28Z"
             fill="#10B981"
-            stroke="#2E4B3D"
+            stroke="var(--theme-neon-green)"
             strokeWidth="1.5"
           />
           <path
             d="M24 30C20 28 15 24 14 18C20 19 23 24 24 30Z"
             fill="#3FA66B"
-            stroke="#2E4B3D"
+            stroke="var(--theme-neon-green)"
             strokeWidth="1.5"
           />
           <circle cx="24" cy="10" r="2" fill="#E2A43B" />
@@ -267,14 +267,14 @@ export default function MiningEnvIcon({
           {/* TPS Warehouse Roof Shelter */}
           <path
             d="M6 18L24 6L42 18H6Z"
-            fill="#2E4B3D"
+            fill="var(--theme-neon-green)"
             fillOpacity="0.15"
-            stroke="#2E4B3D"
+            stroke="var(--theme-neon-green)"
             strokeWidth="2"
             strokeLinejoin="round"
           />
-          <path d="M10 18V40H38V18" stroke="#2E4B3D" strokeWidth="2" />
-          <path d="M6 40H42" stroke="#2E4B3D" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M10 18V40H38V18" stroke="var(--theme-neon-green)" strokeWidth="2" />
+          <path d="M6 40H42" stroke="var(--theme-neon-green)" strokeWidth="2.5" strokeLinecap="round" />
 
           {/* Storage Drum B3 */}
           <rect x="18" y="24" width="12" height="15" rx="2" fill="#E2A43B" fillOpacity="0.25" stroke="#D97706" strokeWidth="2" />
@@ -294,7 +294,7 @@ export default function MiningEnvIcon({
           <path
             d="M36 28C36 22 42 20 42 20C42 20 43 27 39 29C37.5 29.8 36 28 36 28Z"
             fill="#3FA66B"
-            stroke="#2E4B3D"
+            stroke="var(--theme-neon-green)"
             strokeWidth="1"
           />
         </svg>
@@ -344,7 +344,7 @@ export default function MiningEnvIcon({
             d="M24 18C19 18 18 24 18 27C18 31 24 33 24 33C24 33 30 31 30 27C30 21 25 18 24 18Z"
             fill="#3FA66B"
             fillOpacity="0.3"
-            stroke="#2E4B3D"
+            stroke="var(--theme-neon-green)"
             strokeWidth="1.5"
           />
           <path d="M24 21V30" stroke="#3FA66B" strokeWidth="1.5" strokeLinecap="round" />
@@ -366,17 +366,17 @@ export default function MiningEnvIcon({
           {/* Permit Document */}
           <path
             d="M10 8C10 6.9 10.9 6 12 6H30L38 14V40C38 41.1 37.1 42 36 42H12C10.9 42 10 41.1 10 40V8Z"
-            fill="#FFFFFF"
-            stroke="#2E4B3D"
+            fill="var(--theme-bg-1)"
+            stroke="var(--theme-neon-green)"
             strokeWidth="2"
             strokeLinejoin="round"
           />
-          <path d="M30 6V14H38" stroke="#2E4B3D" strokeWidth="2" strokeLinejoin="round" />
+          <path d="M30 6V14H38" stroke="var(--theme-neon-green)" strokeWidth="2" strokeLinejoin="round" />
 
           {/* Document Content Lines */}
-          <path d="M16 16H24" stroke="#64748B" strokeWidth="2" strokeLinecap="round" />
-          <path d="M16 22H32" stroke="#64748B" strokeWidth="2" strokeLinecap="round" />
-          <path d="M16 28H28" stroke="#64748B" strokeWidth="2" strokeLinecap="round" />
+          <path d="M16 16H24" stroke="var(--theme-text-mid)" strokeWidth="2" strokeLinecap="round" />
+          <path d="M16 22H32" stroke="var(--theme-text-mid)" strokeWidth="2" strokeLinecap="round" />
+          <path d="M16 28H28" stroke="var(--theme-text-mid)" strokeWidth="2" strokeLinecap="round" />
 
           {/* Official Green Stamp / Seal with Leaf */}
           <circle cx="30" cy="32" r="7" fill="#3FA66B" fillOpacity="0.2" stroke="#3FA66B" strokeWidth="1.5" />

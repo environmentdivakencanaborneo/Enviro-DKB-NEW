@@ -14,6 +14,9 @@ import { domesticWastewaterService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
 import { todayLocalISO } from '../utils/dateUtils';
 import { triggerToast } from '../utils/errorHandler';
+import StatusBadge from './StatusBadge';
+import TableSkeleton from './TableSkeleton';
+import EmptyState from './EmptyState';
 import {
   ShowerHead,
   Plus,
@@ -70,7 +73,6 @@ export default function DomesticWastewaterView({
   const [officer, setOfficer] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Ambil standar aktif khusus 'air_limbah_domestik' dari koleksi Firestore standards (ZERO hardcoded threshold!)
   const activeDomesticStandards = useMemo(() => {
     const map: Record<string, EnvironmentalStandard> = {};
     standards
@@ -309,29 +311,31 @@ export default function DomesticWastewaterView({
   const masterCount = Object.keys(activeDomesticStandards).length;
 
   return (
-    <div className="space-y-6 animate-fade-in text-slate-800">
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+    <div className="space-y-6 animate-fade-in text-text-hi text-left">
+      <div className="glass-panel rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-700 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-neon-cyan/10 border border-neon-cyan/30 flex items-center justify-center text-neon-cyan shrink-0">
             <ShowerHead className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-800">
+            <h3 className="text-sm font-bold text-text-hi font-heading">
               Air Limbah Domestik — IPAL Camp, Mess &amp; Kantor (Permen LH/BPLH No. 11 Tahun 2025)
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Seluruh ambang baku mutu dievaluasi secara dinamis dari koleksi Master Baku Mutu (<code className="font-mono">standards</code> media <code className="font-mono">air_limbah_domestik</code>).
+            <p className="text-xs text-text-mid mt-0.5">
+              Seluruh ambang baku mutu dievaluasi secara dinamis dari koleksi Master Baku Mutu (
+              <code className="font-mono text-neon-cyan">standards</code> media{' '}
+              <code className="font-mono text-neon-cyan">air_limbah_domestik</code>).
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {canOpenStandardsMaster && onOpenStandardsMaster && (
             <button
               type="button"
               onClick={onOpenStandardsMaster}
-              className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              className="px-3.5 py-2 bg-bg-2/80 border border-border-neon hover:border-neon-cyan/50 text-text-hi text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
-              <Sliders className="w-4 h-4 text-teal-600" />
+              <Sliders className="w-4 h-4 text-neon-cyan" />
               Master Baku Mutu
             </button>
           )}
@@ -339,15 +343,15 @@ export default function DomesticWastewaterView({
             type="button"
             onClick={handleExport}
             disabled={filteredData.length === 0}
-            className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+            className="px-3.5 py-2 bg-bg-2/80 border border-border-neon hover:border-neon-cyan/50 text-text-hi text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <FileSpreadsheet className="w-4 h-4 text-neon-green" />
             Ekspor Excel
           </button>
           <button
             type="button"
             onClick={openCreate}
-            className="px-4 py-2 bg-[#4D7C5A] hover:bg-[#3e6449] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm whitespace-nowrap"
+            className="neon-btn-primary px-4 py-2 text-xs rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
             Input Lab / Lapangan
@@ -357,13 +361,16 @@ export default function DomesticWastewaterView({
 
       {/* Master Standards Status Banner */}
       {masterCount === 0 ? (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-start gap-2.5 text-xs text-amber-900">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+        <div className="bg-neon-amber/10 border border-neon-amber/35 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 text-xs text-text-hi">
+            <AlertTriangle className="w-4 h-4 text-neon-amber shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold">Baku Mutu Air Limbah Domestik Belum Tersedia / Belum Terverifikasi di Master Data</p>
-              <p className="text-amber-800 mt-0.5">
-                Aplikasi tidak menanam angka baku mutu statis. Silakan input &amp; verifikasi parameter Permen LH/BPLH No. 11 Tahun 2025 pada menu <strong>Master Baku Mutu &amp; Konfigurasi</strong> ({unverifiedDomesticCount} entri menunggu verifikasi).
+              <p className="font-bold text-neon-amber">
+                Baku Mutu Air Limbah Domestik Belum Tersedia / Belum Terverifikasi di Master Data
+              </p>
+              <p className="text-text-mid mt-0.5">
+                Aplikasi tidak menanam angka baku mutu statis. Silakan input &amp; verifikasi parameter Permen LH/BPLH No. 11 Tahun 2025 pada menu{' '}
+                <strong>Master Baku Mutu &amp; Konfigurasi</strong> ({unverifiedDomesticCount} entri menunggu verifikasi).
               </p>
             </div>
           </div>
@@ -371,22 +378,22 @@ export default function DomesticWastewaterView({
             <button
               type="button"
               onClick={onOpenStandardsMaster}
-              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shrink-0 cursor-pointer whitespace-nowrap"
+              className="px-3.5 py-2 bg-neon-amber/20 hover:bg-neon-amber/30 border border-neon-amber/50 text-neon-amber text-xs font-bold rounded-xl shrink-0 cursor-pointer whitespace-nowrap"
             >
               Isi Baku Mutu Sekarang
             </button>
           )}
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+        <div className="glass-panel rounded-2xl p-4">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-text-mid mb-2 font-mono">
             Baku Mutu Aktif &amp; Terverifikasi ({masterCount} Parameter — Koleksi standards)
           </div>
           <div className="flex flex-wrap gap-2">
             {Object.values(activeDomesticStandards).map((s) => (
-              <div key={s.id} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                <span className="font-bold text-slate-800">{s.parameterLabel}:</span>{' '}
-                <span className="font-mono text-emerald-700 font-semibold">
+              <div key={s.id} className="px-3 py-1.5 rounded-xl bg-bg-2/80 border border-border-neon text-xs">
+                <span className="font-bold text-text-hi">{s.parameterLabel}:</span>{' '}
+                <span className="font-mono text-neon-green font-semibold tabular-nums">
                   {s.minLimit !== null && s.minLimit !== undefined && s.maxLimit !== null && s.maxLimit !== undefined
                     ? `${s.minLimit}–${s.maxLimit}`
                     : s.maxLimit !== null && s.maxLimit !== undefined
@@ -403,19 +410,19 @@ export default function DomesticWastewaterView({
       )}
 
       {/* Data Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row gap-3 justify-between">
+      <div className="glass-panel rounded-2xl overflow-hidden">
+        <div className="p-4 border-b border-border-subtle flex flex-col sm:flex-row gap-3 justify-between">
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-text-low absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Cari nama IPAL, kode lokasi, petugas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full pl-9 pr-3 py-2 text-xs"
             />
           </div>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 outline-none">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 text-xs">
             <option value="ALL">Semua Status</option>
             <option value="Memenuhi">Memenuhi</option>
             <option value="Warning">Warning</option>
@@ -424,147 +431,166 @@ export default function DomesticWastewaterView({
           </select>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-mono uppercase tracking-wider text-slate-500">
-                <th className="p-3.5 pl-5">Tanggal &amp; Lokasi IPAL</th>
-                <th className="p-3.5 text-right">pH</th>
-                <th className="p-3.5 text-right">BOD</th>
-                <th className="p-3.5 text-right">COD</th>
-                <th className="p-3.5 text-right">TSS</th>
-                <th className="p-3.5 text-right">Minyak/Lemak</th>
-                <th className="p-3.5 text-right">Amonia</th>
-                <th className="p-3.5 text-right">Coliform</th>
-                <th className="p-3.5 text-center">Status</th>
-                <th className="p-3.5 text-center pr-5">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-mono tabular-nums">
-              {isLoading ? (
-                <tr><td colSpan={10} className="p-8 text-center text-slate-400 font-sans">Memuat data air limbah domestik...</td></tr>
-              ) : filteredData.length === 0 ? (
-                <tr><td colSpan={10} className="p-10 text-center text-slate-500 font-sans">Belum ada data pemantauan IPAL domestik.</td></tr>
-              ) : (
-                filteredData.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/70">
+        <div className="overflow-x-auto max-h-[540px]">
+          {isLoading ? (
+            <div className="p-5">
+              <TableSkeleton rows={5} columns={8} />
+            </div>
+          ) : filteredData.length === 0 ? (
+            <EmptyState
+              icon={ShowerHead}
+              title="Belum ada data pemantauan IPAL domestik"
+              description="Catat hasil uji laboratorium atau lapangan untuk fasilitas IPAL mess, camp, dan perkantoran."
+              actionLabel={canEdit ? 'Input Lab / Lapangan' : undefined}
+              onAction={canEdit ? openCreate : undefined}
+            />
+          ) : (
+            <table className="neon-table text-left text-xs">
+              <thead>
+                <tr className="text-[10px] font-mono uppercase tracking-wider">
+                  <th className="p-3.5 pl-5">Tanggal &amp; Lokasi IPAL</th>
+                  <th className="p-3.5 text-right">pH</th>
+                  <th className="p-3.5 text-right">BOD</th>
+                  <th className="p-3.5 text-right">COD</th>
+                  <th className="p-3.5 text-right">TSS</th>
+                  <th className="p-3.5 text-right">Minyak/Lemak</th>
+                  <th className="p-3.5 text-right">Amonia</th>
+                  <th className="p-3.5 text-right">Coliform</th>
+                  <th className="p-3.5 text-center">Status</th>
+                  <th className="p-3.5 text-center pr-5">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {filteredData.map((item) => (
+                  <tr key={item.id}>
                     <td className="p-3.5 pl-5 font-sans">
-                      <div className="font-mono font-bold text-slate-800">{item.date}</div>
-                      <div className="font-semibold text-slate-700">{item.facilityName}</div>
-                      <div className="text-[10px] text-slate-400">{item.locationCode || '-'} · {item.officer}</div>
+                      <div className="font-mono font-bold text-text-hi tabular-nums">{item.date}</div>
+                      <div className="font-semibold text-text-hi">{item.facilityName}</div>
+                      <div className="text-[10px] text-text-mid">
+                        {item.locationCode || '-'} · {item.officer}
+                      </div>
                     </td>
-                    <td className="p-3.5 text-right">{item.ph}</td>
-                    <td className="p-3.5 text-right">{item.bod}</td>
-                    <td className="p-3.5 text-right">{item.cod}</td>
-                    <td className="p-3.5 text-right">{item.tss}</td>
-                    <td className="p-3.5 text-right">{item.oilGrease}</td>
-                    <td className="p-3.5 text-right">{item.ammonia}</td>
-                    <td className="p-3.5 text-right">{item.totalColiform.toLocaleString('id-ID')}</td>
+                    <td className="p-3.5 text-right text-text-hi">{item.ph}</td>
+                    <td className="p-3.5 text-right text-text-hi">{item.bod}</td>
+                    <td className="p-3.5 text-right text-text-hi">{item.cod}</td>
+                    <td className="p-3.5 text-right text-text-hi">{item.tss}</td>
+                    <td className="p-3.5 text-right text-text-hi">{item.oilGrease}</td>
+                    <td className="p-3.5 text-right text-text-hi">{item.ammonia}</td>
+                    <td className="p-3.5 text-right text-text-hi">{item.totalColiform.toLocaleString('id-ID')}</td>
                     <td className="p-3.5 text-center font-sans">
-                      <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                        item.complianceStatus === 'Memenuhi'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : item.complianceStatus === 'Tidak Memenuhi'
-                          ? 'bg-rose-50 text-rose-700 border-rose-200'
-                          : item.complianceStatus === 'Warning'
-                          ? 'bg-amber-50 text-amber-800 border-amber-200'
-                          : 'bg-slate-100 text-slate-600 border-slate-200'
-                      }`}>
-                        {item.complianceStatus}
-                      </span>
+                      <StatusBadge
+                        status={item.complianceStatus === 'Belum Ada Baku Mutu' ? 'Perlu Verifikasi' : item.complianceStatus}
+                        label={item.complianceStatus}
+                      />
                     </td>
                     <td className="p-3.5 text-center pr-5 font-sans">
                       <div className="flex items-center justify-center gap-1">
                         {canEdit && (
-                          <button type="button" onClick={() => openEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer" title="Edit">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(item)}
+                            className="p-1.5 text-neon-cyan bg-neon-cyan/10 hover:bg-neon-cyan/20 border border-neon-cyan/30 rounded-lg cursor-pointer"
+                            title="Edit"
+                          >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                         )}
                         {canDelete && (
-                          <button type="button" onClick={() => setDeleteTarget(item)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer" title="Hapus">
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(item)}
+                            className="p-1.5 text-neon-red bg-neon-red/10 hover:bg-neon-red/20 border border-neon-red/30 rounded-lg cursor-pointer"
+                            title="Hapus"
+                          >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
       {showModal && (
         <ModalPortal>
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-left">
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-                <h3 className="text-sm font-bold text-slate-800">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <div className="glass-panel rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-left">
+              <div className="px-6 py-4 border-b border-border-subtle flex items-center justify-between bg-bg-2/70">
+                <h3 className="text-sm font-bold text-neon-cyan font-heading">
                   {editingId ? 'Edit Data IPAL Domestik' : 'Catat Pemantauan Air Limbah Domestik'}
                 </h3>
-                <button type="button" onClick={() => setShowModal(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="p-1.5 rounded-lg text-text-mid hover:text-text-hi cursor-pointer"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
               <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Tanggal Uji *</label>
-                    <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Tanggal Uji *</label>
+                    <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Fasilitas IPAL *</label>
-                    <input type="text" required value={facilityName} onChange={(e) => setFacilityName(e.target.value)} placeholder="IPAL Mess / Kantor" className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Fasilitas IPAL *</label>
+                    <input type="text" required value={facilityName} onChange={(e) => setFacilityName(e.target.value)} placeholder="IPAL Mess / Kantor" className="w-full px-3 py-2 text-xs" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Kode Titik (Opsional)</label>
-                    <input type="text" value={locationCode} onChange={(e) => setLocationCode(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Kode Titik (Opsional)</label>
+                    <input type="text" value={locationCode} onChange={(e) => setLocationCode(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">pH *</label>
-                    <input type="number" step="0.01" required value={ph} onChange={(e) => setPh(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">pH *</label>
+                    <input type="number" step="0.01" required value={ph} onChange={(e) => setPh(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">BOD (mg/L) *</label>
-                    <input type="number" step="0.01" min="0" required value={bod} onChange={(e) => setBod(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">BOD (mg/L) *</label>
+                    <input type="number" step="0.01" min="0" required value={bod} onChange={(e) => setBod(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">COD (mg/L) *</label>
-                    <input type="number" step="0.01" min="0" required value={cod} onChange={(e) => setCod(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">COD (mg/L) *</label>
+                    <input type="number" step="0.01" min="0" required value={cod} onChange={(e) => setCod(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">TSS (mg/L) *</label>
-                    <input type="number" step="0.01" min="0" required value={tss} onChange={(e) => setTss(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">TSS (mg/L) *</label>
+                    <input type="number" step="0.01" min="0" required value={tss} onChange={(e) => setTss(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Minyak &amp; Lemak (mg/L) *</label>
-                    <input type="number" step="0.01" min="0" required value={oilGrease} onChange={(e) => setOilGrease(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Minyak &amp; Lemak (mg/L) *</label>
+                    <input type="number" step="0.01" min="0" required value={oilGrease} onChange={(e) => setOilGrease(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Amonia (mg/L) *</label>
-                    <input type="number" step="0.01" min="0" required value={ammonia} onChange={(e) => setAmmonia(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Amonia (mg/L) *</label>
+                    <input type="number" step="0.01" min="0" required value={ammonia} onChange={(e) => setAmmonia(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Total Coliform (MPN/100mL) *</label>
-                    <input type="number" step="1" min="0" required value={totalColiform} onChange={(e) => setTotalColiform(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Total Coliform (MPN/100mL) *</label>
+                    <input type="number" step="1" min="0" required value={totalColiform} onChange={(e) => setTotalColiform(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Debit (m³/hari) *</label>
-                    <input type="number" step="0.01" min="0" required value={debitM3Day} onChange={(e) => setDebitM3Day(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Debit (m³/hari) *</label>
+                    <input type="number" step="0.01" min="0" required value={debitM3Day} onChange={(e) => setDebitM3Day(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Petugas / Lab Penguji *</label>
-                    <input type="text" required value={officer} onChange={(e) => setOfficer(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Petugas / Lab Penguji *</label>
+                    <input type="text" required value={officer} onChange={(e) => setOfficer(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Catatan (Opsional)</label>
-                  <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs resize-none" />
+                  <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Catatan (Opsional)</label>
+                  <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 text-xs resize-none" />
                 </div>
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-xs text-slate-600 cursor-pointer">Batal</button>
-                  <button type="submit" disabled={isSaving} className="px-5 py-2 bg-[#4D7C5A] hover:bg-[#3e6449] text-white font-bold text-xs rounded-xl cursor-pointer">
+                <div className="flex justify-end gap-2 pt-3 border-t border-border-subtle">
+                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-xs text-text-mid hover:text-text-hi cursor-pointer">
+                    Batal
+                  </button>
+                  <button type="submit" disabled={isSaving} className="neon-btn-primary px-5 py-2 text-xs rounded-xl cursor-pointer">
                     {isSaving ? 'Menyimpan...' : 'Simpan Data'}
                   </button>
                 </div>
@@ -576,15 +602,17 @@ export default function DomesticWastewaterView({
 
       {deleteTarget && (
         <ModalPortal>
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 max-w-md w-full shadow-2xl space-y-4">
-              <h4 className="text-sm font-bold text-slate-800">Hapus Catatan IPAL Domestik?</h4>
-              <p className="text-xs text-slate-600">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <div className="glass-panel rounded-2xl p-6 max-w-md w-full space-y-4">
+              <h4 className="text-sm font-bold text-text-hi font-heading">Hapus Catatan IPAL Domestik?</h4>
+              <p className="text-xs text-text-mid">
                 Data pemantauan <strong>{deleteTarget.facilityName}</strong> tanggal {deleteTarget.date} akan dihapus.
               </p>
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-xs text-slate-600 cursor-pointer">Batal</button>
-                <button type="button" disabled={isSaving} onClick={handleDelete} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl cursor-pointer">
+                <button type="button" onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-xs text-text-mid hover:text-text-hi cursor-pointer">
+                  Batal
+                </button>
+                <button type="button" disabled={isSaving} onClick={handleDelete} className="neon-btn-danger px-4 py-2 text-xs rounded-xl cursor-pointer">
                   {isSaving ? 'Menghapus...' : 'Ya, Hapus'}
                 </button>
               </div>

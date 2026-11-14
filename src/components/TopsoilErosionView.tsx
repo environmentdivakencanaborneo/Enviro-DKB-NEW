@@ -5,10 +5,19 @@
 
 import React, { useMemo, useState } from 'react';
 import ModalPortal from './ModalPortal';
+import StatusBadge from './StatusBadge';
+import TableSkeleton from './TableSkeleton';
+import EmptyState from './EmptyState';
 import { TopsoilErosionData } from '../types';
 import { topsoilErosionService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
 import { todayLocalISO } from '../utils/dateUtils';
+import {
+  NEON_CHART,
+  NEON_TOOLTIP_CONTENT_STYLE,
+  NEON_TOOLTIP_LABEL_STYLE,
+  NEON_TOOLTIP_ITEM_STYLE,
+} from '../utils/chartTheme';
 import {
   ResponsiveContainer,
   BarChart,
@@ -171,16 +180,16 @@ export default function TopsoilErosionView({
 
   return (
     <div className="space-y-6 text-left">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-[#E4EDE6] shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel p-6 rounded-3xl">
         <div>
-          <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#4D7C5A]">
+          <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-neon-cyan">
             Kepmen ESDM No. 1827 K/30/MEM/2018 (Good Mining Practice) • Periksa irisan ketentuan reklamasi dengan Kepmen ESDM 344.K/2025
           </span>
-          <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1 flex items-center gap-2.5">
-            <Layers className="h-6 w-6 text-[#2E4B3D]" />
+          <h2 className="text-xl md:text-2xl font-bold font-heading text-text-hi mt-1 flex items-center gap-2.5">
+            <Layers className="h-6 w-6 text-neon-green" />
             Manajemen Tanah Pucuk (Topsoil) &amp; Pengendalian Erosi
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-text-mid mt-1">
             Pelacakan neraca volume tanah pucuk (kupasan vs penebaran), ketebalan reklamasi, luasan cover crop (LCC), serta mitigasi erosi lereng.
           </p>
         </div>
@@ -205,12 +214,12 @@ export default function TopsoilErosionView({
               )
             }
             disabled={filteredData.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-bg-1 border border-border-neon hover:border-neon-cyan/40 hover:bg-bg-2 text-text-hi text-xs font-bold cursor-pointer disabled:opacity-50 transition-colors"
           >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            <FileSpreadsheet className="h-4 w-4 text-neon-green" />
             Ekspor Excel
           </button>
-          <button onClick={openCreate} className="flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-[#2E4B3D] hover:bg-[#233A2F] text-white text-xs font-bold shadow-md cursor-pointer">
+          <button onClick={openCreate} className="flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl neon-btn-primary text-xs cursor-pointer">
             <Plus className="h-4 w-4" />
             Catat Neraca Topsoil
           </button>
@@ -219,50 +228,54 @@ export default function TopsoilErosionView({
 
       {/* KPI */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <span className="text-xs text-slate-500 font-bold uppercase">Total Topsoil Dikupas</span>
-          <p className="text-2xl font-black text-[#2E4B3D] mt-2">{kpis.totalStripped.toLocaleString('id-ID')} m³</p>
-          <p className="text-[11px] text-slate-500 mt-1">Akumulasi volume masuk topsoil bank</p>
+        <div className="neon-card p-5">
+          <span className="text-xs text-text-mid font-bold uppercase">Total Topsoil Dikupas</span>
+          <p className="text-2xl font-bold font-mono tabular-nums text-neon-green mt-2">{kpis.totalStripped.toLocaleString('id-ID')} m³</p>
+          <p className="text-[11px] text-text-low mt-1">Akumulasi volume masuk topsoil bank</p>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <span className="text-xs text-slate-500 font-bold uppercase">Topsoil Ditebar Reklamasi</span>
-          <p className="text-2xl font-black text-sky-700 mt-2">{kpis.totalSpread.toLocaleString('id-ID')} m³</p>
-          <p className="text-[11px] text-slate-500 mt-1">Penebaran pada area void/disposal</p>
+        <div className="neon-card p-5">
+          <span className="text-xs text-text-mid font-bold uppercase">Topsoil Ditebar Reklamasi</span>
+          <p className="text-2xl font-bold font-mono tabular-nums text-neon-cyan mt-2">{kpis.totalSpread.toLocaleString('id-ID')} m³</p>
+          <p className="text-[11px] text-text-low mt-1">Penebaran pada area void/disposal</p>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase">
+        <div className="neon-card p-5">
+          <div className="flex items-center justify-between text-xs text-text-mid font-bold uppercase">
             <span>Cover Crop (LCC)</span>
-            <Sprout className="h-4 w-4 text-emerald-600" />
+            <Sprout className="h-4 w-4 text-neon-green" />
           </div>
-          <p className="text-2xl font-black text-emerald-700 mt-2">{kpis.totalCoverCrop.toFixed(2)} Ha</p>
-          <p className="text-[11px] text-slate-500 mt-1">Luas lereng tertanam penutup tanah</p>
+          <p className="text-2xl font-bold font-mono tabular-nums text-neon-green mt-2">{kpis.totalCoverCrop.toFixed(2)} Ha</p>
+          <p className="text-[11px] text-text-low mt-1">Luas lereng tertanam penutup tanah</p>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-[#E4EDE6] shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase">
+        <div className="neon-card p-5">
+          <div className="flex items-center justify-between text-xs text-text-mid font-bold uppercase">
             <span>Erosi Tinggi / Kritis</span>
-            <AlertTriangle className="h-4 w-4 text-rose-600" />
+            <AlertTriangle className="h-4 w-4 text-neon-red" />
           </div>
-          <p className="text-2xl font-black text-rose-600 mt-2">{kpis.highErosion}</p>
-          <p className="text-[11px] text-slate-500 mt-1">Titik butuh penguatan lereng/silt trap</p>
+          <p className="text-2xl font-bold font-mono tabular-nums text-neon-red mt-2">{kpis.highErosion}</p>
+          <p className="text-[11px] text-text-low mt-1">Titik butuh penguatan lereng/silt trap</p>
         </div>
       </div>
 
       {/* Chart */}
       {chartData.length > 0 && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">
+        <div className="glass-panel p-6 rounded-2xl">
+          <h3 className="text-sm font-bold font-heading text-text-hi uppercase tracking-wider mb-3">
             Neraca Volume Topsoil Masuk vs Penebaran (m³)
           </h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="date" fontSize={10} tickLine={false} />
-                <YAxis fontSize={10} tickLine={false} />
-                <RechartsTooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="Topsoil Masuk (m³)" fill="#2E4B3D" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="Topsoil Ditebar (m³)" fill="#3FA66B" radius={[6, 6, 0, 0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke={NEON_CHART.gridStroke} />
+                <XAxis dataKey="date" stroke={NEON_CHART.tickFill} tick={{ fill: NEON_CHART.tickFill, fontSize: 10 }} tickLine={false} />
+                <YAxis stroke={NEON_CHART.tickFill} tick={{ fill: NEON_CHART.tickFill, fontSize: 10 }} tickLine={false} />
+                <RechartsTooltip
+                  contentStyle={NEON_TOOLTIP_CONTENT_STYLE}
+                  labelStyle={NEON_TOOLTIP_LABEL_STYLE}
+                  itemStyle={NEON_TOOLTIP_ITEM_STYLE}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, color: NEON_CHART.tickFill }} />
+                <Bar dataKey="Topsoil Masuk (m³)" fill={NEON_CHART.cyan} radius={[6, 6, 0, 0]} />
+                <Bar dataKey="Topsoil Ditebar (m³)" fill={NEON_CHART.green} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -270,22 +283,22 @@ export default function TopsoilErosionView({
       )}
 
       {/* Table */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div className="glass-panel p-5 rounded-2xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-text-low pointer-events-none" />
             <input
               type="text"
               placeholder="Cari blok, pit, atau tindakan mitigasi..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none"
+              className="w-full pl-9 pr-3 py-2 text-xs"
             />
           </div>
           <select
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700"
+            className="px-3 py-2 text-xs"
           >
             <option value="ALL">Semua Tingkat Erosi</option>
             <option value="Rendah">Rendah</option>
@@ -296,9 +309,9 @@ export default function TopsoilErosionView({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="neon-table text-left text-xs">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
+              <tr className="text-[10px] font-bold uppercase tracking-wider font-mono">
                 <th className="p-3">Tanggal</th>
                 <th className="p-3">Blok / Lokasi &amp; Mitigasi</th>
                 <th className="p-3 text-right">Masuk (m³)</th>
@@ -311,46 +324,61 @@ export default function TopsoilErosionView({
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={8} className="p-8 text-center text-slate-400">Memuat data topsoil &amp; erosi...</td></tr>
+                <tr>
+                  <td colSpan={8} className="p-4">
+                    <TableSkeleton columns={8} rows={5} />
+                  </td>
+                </tr>
               ) : filteredData.length === 0 ? (
-                <tr><td colSpan={8} className="p-10 text-center text-slate-400">Belum ada data manajemen topsoil &amp; erosi.</td></tr>
+                <tr>
+                  <td colSpan={8} className="p-4">
+                    <EmptyState
+                      icon={Layers}
+                      title="Belum ada data manajemen topsoil & erosi"
+                      description="Catat volume tanah pucuk yang dikupas, ditebar, serta tingkat erosi lereng."
+                    />
+                  </td>
+                </tr>
               ) : (
-                filteredData.map((item) => (
-                  <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="p-3 font-mono font-semibold text-slate-700">{item.date}</td>
-                    <td className="p-3">
-                      <p className="font-bold text-slate-800">{item.blockLocation}</p>
-                      <p className="text-[10px] text-slate-500">{item.mitigationAction} • {item.officer}</p>
-                    </td>
-                    <td className="p-3 text-right font-mono font-semibold">{item.topsoilVolumeM3.toLocaleString('id-ID')}</td>
-                    <td className="p-3 text-right font-mono">{item.stockpileUsedM3.toLocaleString('id-ID')}</td>
-                    <td className="p-3 text-right font-mono font-bold text-[#2E4B3D]">{item.cumulativeBalanceM3.toLocaleString('id-ID')}</td>
-                    <td className="p-3 text-center font-mono text-slate-600">{item.thicknessCm} cm / {item.coverCropAreaHa} Ha</td>
-                    <td className="p-3 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                        item.erosionSeverity === 'Rendah' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        item.erosionSeverity === 'Sedang' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                        'bg-rose-50 text-rose-700 border-rose-200'
-                      }`}>
-                        {item.erosionSeverity}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button onClick={() => openEdit(item)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg cursor-pointer"><Pencil className="h-3.5 w-3.5" /></button>
-                        <button
-                          onClick={() => {
-                            if (!canDelete) return onUnauthorizedAction('Hapus Data Topsoil & Erosi');
-                            setDeleteTarget(item);
-                          }}
-                          className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filteredData.map((item) => {
+                  const erosionTone =
+                    item.erosionSeverity === 'Rendah'
+                      ? 'Memenuhi'
+                      : item.erosionSeverity === 'Sedang'
+                      ? 'Mendekati'
+                      : 'Tidak Memenuhi';
+                  return (
+                    <tr key={item.id}>
+                      <td className="p-3 font-mono font-semibold text-text-hi tabular-nums">{item.date}</td>
+                      <td className="p-3">
+                        <p className="font-bold text-text-hi">{item.blockLocation}</p>
+                        <p className="text-[10px] text-text-mid">{item.mitigationAction} • {item.officer}</p>
+                      </td>
+                      <td className="p-3 text-right font-mono font-semibold tabular-nums" data-numeric="true">{item.topsoilVolumeM3.toLocaleString('id-ID')}</td>
+                      <td className="p-3 text-right font-mono tabular-nums" data-numeric="true">{item.stockpileUsedM3.toLocaleString('id-ID')}</td>
+                      <td className="p-3 text-right font-mono font-bold text-neon-green tabular-nums" data-numeric="true">{item.cumulativeBalanceM3.toLocaleString('id-ID')}</td>
+                      <td className="p-3 text-center font-mono text-text-mid tabular-nums">{item.thicknessCm} cm / {item.coverCropAreaHa} Ha</td>
+                      <td className="p-3 text-center">
+                        <StatusBadge status={erosionTone} label={item.erosionSeverity} />
+                      </td>
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button onClick={() => openEdit(item)} className="p-1.5 text-neon-cyan bg-neon-cyan/10 hover:bg-neon-cyan/20 rounded-lg cursor-pointer transition-colors" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button
+                            onClick={() => {
+                              if (!canDelete) return onUnauthorizedAction('Hapus Data Topsoil & Erosi');
+                              setDeleteTarget(item);
+                            }}
+                            className="p-1.5 text-neon-red bg-neon-red/10 hover:bg-neon-red/20 rounded-lg cursor-pointer transition-colors"
+                            title="Hapus"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -360,50 +388,50 @@ export default function TopsoilErosionView({
       {/* Modal */}
       {showModal && (
         <ModalPortal>
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-[#2E4B3D]">
+          <div className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-50">
+            <div className="glass-panel rounded-3xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-border-neon">
+                <h3 className="text-sm font-bold font-heading uppercase tracking-wider text-neon-cyan">
                   {editingId ? 'Edit Catatan Topsoil & Erosi' : 'Input Neraca Tanah Pucuk & Pengendalian Erosi'}
                 </h3>
-                <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"><X className="h-4 w-4" /></button>
+                <button onClick={() => setShowModal(false)} className="p-1 text-text-low hover:text-text-hi cursor-pointer"><X className="h-4 w-4" /></button>
               </div>
-              {errorMsg && <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">{errorMsg}</div>}
+              {errorMsg && <div className="p-3 rounded-xl bg-neon-red/10 border border-neon-red/30 text-xs text-neon-red">{errorMsg}</div>}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Tanggal</label>
-                    <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Tanggal</label>
+                    <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Lokasi Blok / Pit / Bank</label>
-                    <input type="text" required value={blockLocation} onChange={(e) => setBlockLocation(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Lokasi Blok / Pit / Bank</label>
+                    <input type="text" required value={blockLocation} onChange={(e) => setBlockLocation(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Topsoil Masuk (m³)</label>
-                    <input type="number" step="0.1" required value={topsoilVolumeM3} onChange={(e) => setTopsoilVolumeM3(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Topsoil Masuk (m³)</label>
+                    <input type="number" step="0.1" required value={topsoilVolumeM3} onChange={(e) => setTopsoilVolumeM3(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Topsoil Ditebar (m³)</label>
-                    <input type="number" step="0.1" required value={stockpileUsedM3} onChange={(e) => setStockpileUsedM3(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Topsoil Ditebar (m³)</label>
+                    <input type="number" step="0.1" required value={stockpileUsedM3} onChange={(e) => setStockpileUsedM3(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Saldo Bank (m³)</label>
-                    <input type="number" step="0.1" required value={cumulativeBalanceM3} onChange={(e) => setCumulativeBalanceM3(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Saldo Bank (m³)</label>
+                    <input type="number" step="0.1" required value={cumulativeBalanceM3} onChange={(e) => setCumulativeBalanceM3(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Ketebalan Tebaran (cm)</label>
-                    <input type="number" step="1" required value={thicknessCm} onChange={(e) => setThicknessCm(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Ketebalan Tebaran (cm)</label>
+                    <input type="number" step="1" required value={thicknessCm} onChange={(e) => setThicknessCm(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Luas Cover Crop (Ha)</label>
-                    <input type="number" step="0.01" required value={coverCropAreaHa} onChange={(e) => setCoverCropAreaHa(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Luas Cover Crop (Ha)</label>
+                    <input type="number" step="0.01" required value={coverCropAreaHa} onChange={(e) => setCoverCropAreaHa(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Tingkat Erosi</label>
-                    <select value={erosionSeverity} onChange={(e) => setErosionSeverity(e.target.value as any)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs">
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Tingkat Erosi</label>
+                    <select value={erosionSeverity} onChange={(e) => setErosionSeverity(e.target.value as any)} className="w-full px-3 py-2 text-xs">
                       <option value="Rendah">Rendah</option>
                       <option value="Sedang">Sedang</option>
                       <option value="Tinggi">Tinggi</option>
@@ -413,21 +441,21 @@ export default function TopsoilErosionView({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Tindakan Mitigasi Erosi</label>
-                    <input type="text" required value={mitigationAction} onChange={(e) => setMitigationAction(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Tindakan Mitigasi Erosi</label>
+                    <input type="text" required value={mitigationAction} onChange={(e) => setMitigationAction(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Petugas Pengawas</label>
-                    <input type="text" required value={officer} onChange={(e) => setOfficer(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                    <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Petugas Pengawas</label>
+                    <input type="text" required value={officer} onChange={(e) => setOfficer(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Catatan</label>
-                  <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs" />
+                  <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Catatan</label>
+                  <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 text-xs" />
                 </div>
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold cursor-pointer">Batal</button>
-                  <button type="submit" disabled={isSaving} className="px-5 py-2 rounded-xl bg-[#2E4B3D] text-white text-xs font-bold cursor-pointer disabled:opacity-50">
+                <div className="flex justify-end gap-2 pt-3 border-t border-border-subtle">
+                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-xl border border-border-subtle text-text-mid hover:text-text-hi text-xs font-semibold cursor-pointer">Batal</button>
+                  <button type="submit" disabled={isSaving} className="px-5 py-2 rounded-xl neon-btn-primary text-xs cursor-pointer disabled:opacity-50">
                     {isSaving ? 'Menyimpan...' : 'Simpan Data'}
                   </button>
                 </div>
@@ -439,13 +467,13 @@ export default function TopsoilErosionView({
 
       {deleteTarget && (
         <ModalPortal>
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-              <h3 className="text-sm font-bold text-slate-800">Hapus Data Topsoil &amp; Erosi?</h3>
-              <p className="text-xs text-slate-500">Hapus rekaman blok {deleteTarget.blockLocation} tanggal {deleteTarget.date}?</p>
+          <div className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-50">
+            <div className="glass-panel rounded-3xl max-w-sm w-full p-6 space-y-4">
+              <h3 className="text-sm font-bold font-heading text-text-hi">Hapus Data Topsoil &amp; Erosi?</h3>
+              <p className="text-xs text-text-mid">Hapus rekaman blok <strong className="text-text-hi">{deleteTarget.blockLocation}</strong> tanggal <span className="font-mono">{deleteTarget.date}</span>?</p>
               <div className="flex justify-end gap-2">
-                <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold cursor-pointer">Batal</button>
-                <button onClick={async () => { await topsoilErosionService.delete(deleteTarget.id); setDeleteTarget(null); }} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold cursor-pointer">Hapus</button>
+                <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl border border-border-subtle text-text-mid hover:text-text-hi text-xs font-semibold cursor-pointer">Batal</button>
+                <button onClick={async () => { await topsoilErosionService.delete(deleteTarget.id); setDeleteTarget(null); }} className="px-4 py-2 rounded-xl neon-btn-danger text-xs cursor-pointer">Hapus</button>
               </div>
             </div>
           </div>

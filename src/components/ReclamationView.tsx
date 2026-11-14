@@ -32,6 +32,8 @@ import {
   Pencil,
   ArrowUpDown
 } from 'lucide-react';
+import StatusBadge from './StatusBadge';
+import EmptyState from './EmptyState';
 
 export const GUARANTEE_WARNING_DAYS = 90;
 
@@ -599,21 +601,21 @@ export default function ReclamationView({
   };
 
   return (
-    <div id="reclamation-view-wrapper" className="space-y-6 text-slate-700">
+    <div id="reclamation-view-wrapper" className="space-y-6 text-text-mid">
       {/* Ringkasan Jaminan Reklamasi & Tautan ke Modul Terdedikasi */}
       {(() => {
         const gMetrics = calculateGuaranteeMetrics(guarantees);
         return (
-          <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="glass-panel border-neon-green/30 bg-neon-green/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-neon-green/15 border border-neon-green/30 flex items-center justify-center text-neon-green shrink-0">
                 <Landmark className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-xs font-bold text-emerald-950">
+                <div className="text-xs font-bold text-text-hi font-display">
                   Ringkasan Jaminan Reklamasi &amp; Pascatambang ({gMetrics.totalActiveAndRenewalCount} dokumen aktif/renewal · {formatIDR(gMetrics.totalActiveValue)})
                 </div>
-                <div className="text-[11px] text-emerald-800/80 mt-0.5">
+                <div className="text-[11px] text-text-mid mt-0.5">
                   {gMetrics.expiringCount > 0
                     ? `${gMetrics.expiringCount} dokumen akan jatuh tempo dalam ≤ 90 hari. Kelola penuh pada modul Jaminan Reklamasi & Pascatambang.`
                     : 'Pengelolaan rinci Deposito Berjangka Bank Pemerintah & pemantauan jatuh tempo berada pada modul Jaminan Reklamasi & Pascatambang.'}
@@ -624,7 +626,7 @@ export default function ReclamationView({
               <button
                 type="button"
                 onClick={onOpenGuaranteesModule}
-                className="px-4 py-2 bg-[#4D7C5A] hover:bg-[#3e6449] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shrink-0 cursor-pointer"
+                className="neon-btn-primary px-4 py-2 text-xs rounded-xl flex items-center gap-1.5 shrink-0 cursor-pointer"
               >
                 Buka Modul Jaminan <ArrowRight className="w-3.5 h-3.5" />
               </button>
@@ -634,12 +636,12 @@ export default function ReclamationView({
       })()}
 
       {/* Upper tabs selectors */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex flex-wrap border-b border-border-subtle">
         <button
           id="reclamation-tab-nursery"
           onClick={() => setActiveTab('nursery')}
           className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'nursery' ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+            activeTab === 'nursery' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
           }`}
         >
           <Trees className="h-4 w-4" />
@@ -649,7 +651,7 @@ export default function ReclamationView({
           id="reclamation-tab-plans"
           onClick={() => setActiveTab('plans')}
           className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'plans' ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+            activeTab === 'plans' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
           }`}
         >
           <Sprout className="h-4 w-4" />
@@ -665,7 +667,7 @@ export default function ReclamationView({
             }
           }}
           className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'guarantees' ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+            activeTab === 'guarantees' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
           }`}
         >
           <FileCheck2 className="h-4 w-4" />
@@ -677,59 +679,59 @@ export default function ReclamationView({
         <div id="reclamation-nursery-panel" className="space-y-6">
           {/* Nursery stats boxes */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Total Bibit Masuk</span>
-              <p className="text-2xl font-bold text-emerald-700 mt-2 font-mono">
+            <div className="neon-card p-4 flex flex-col justify-between">
+              <span className="text-[10px] text-text-low uppercase tracking-widest font-bold font-mono">Total Bibit Masuk</span>
+              <p className="text-2xl font-bold text-neon-green mt-2 font-mono tabular-nums">
                 {nursery.reduce((sum, x) => sum + x.quantity, 0).toLocaleString('id-ID')}
               </p>
             </div>
-            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Total Bibit Keluar</span>
-              <p className="text-2xl font-bold text-rose-600 mt-2 font-mono">
+            <div className="neon-card p-4 flex flex-col justify-between">
+              <span className="text-[10px] text-text-low uppercase tracking-widest font-bold font-mono">Total Bibit Keluar</span>
+              <p className="text-2xl font-bold text-neon-red mt-2 font-mono tabular-nums">
                 {(nurseryStockOut?.reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0).toLocaleString('id-ID')}
               </p>
             </div>
-            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm relative overflow-hidden">
-              <div className="absolute -right-2 -top-2 opacity-5">
+            <div className="neon-card p-4 flex flex-col justify-between relative overflow-hidden">
+              <div className="absolute -right-2 -top-2 opacity-10 text-neon-cyan">
                 <Trees className="w-20 h-20" />
               </div>
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Total Stok Tersedia</span>
-              <p className="text-3xl font-bold text-slate-800 mt-2 font-mono relative z-10">
+              <span className="text-[10px] text-text-low uppercase tracking-widest font-bold font-mono">Total Stok Tersedia</span>
+              <p className="text-3xl font-bold text-text-hi mt-2 font-mono tabular-nums relative z-10">
                 {(nursery.reduce((sum, x) => sum + x.quantity, 0) - (nurseryStockOut?.reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0)).toLocaleString('id-ID')}
               </p>
             </div>
-            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Availability</span>
-              <p className="text-2xl font-bold text-blue-600 mt-2 font-mono">
+            <div className="neon-card p-4 flex flex-col justify-between">
+              <span className="text-[10px] text-text-low uppercase tracking-widest font-bold font-mono">Availability</span>
+              <p className="text-2xl font-bold text-neon-cyan mt-2 font-mono tabular-nums">
                 {nursery.reduce((sum, x) => sum + x.quantity, 0) > 0 ? Math.round(((nursery.reduce((sum, x) => sum + x.quantity, 0) - (nurseryStockOut?.reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0)) / nursery.reduce((sum, x) => sum + x.quantity, 0)) * 100) : 0}%
               </p>
             </div>
-            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Ditanam Bulan Ini</span>
-              <p className="text-xl font-bold text-emerald-600 mt-2 font-mono">
+            <div className="neon-card p-4 flex flex-col justify-between">
+              <span className="text-[10px] text-text-low uppercase tracking-widest font-bold font-mono">Ditanam Bulan Ini</span>
+              <p className="text-xl font-bold text-neon-green mt-2 font-mono tabular-nums">
                 {(() => {
                   const currentMonth = todayLocalISO().slice(0, 7);
                   return nurseryStockOut?.filter(x => x.tanggal.startsWith(currentMonth) && x.jenisTransaksi === 'Penanaman').reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0;
                 })().toLocaleString('id-ID')}
               </p>
             </div>
-            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Bibit Rusak</span>
-              <p className="text-xl font-bold text-rose-600 mt-2 font-mono">
+            <div className="neon-card p-4 flex flex-col justify-between">
+              <span className="text-[10px] text-text-low uppercase tracking-widest font-bold font-mono">Bibit Rusak</span>
+              <p className="text-xl font-bold text-neon-red mt-2 font-mono tabular-nums">
                 {(() => {
                   return nurseryStockOut?.filter(x => x.jenisTransaksi === 'Rusak').reduce((sum, x) => sum + x.jumlahKeluar, 0) || 0;
                 })().toLocaleString('id-ID')}
               </p>
             </div>
-            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Species</span>
-              <p className="text-xl font-bold text-slate-800 mt-2 font-mono">
+            <div className="neon-card p-4 flex flex-col justify-between">
+              <span className="text-[10px] text-text-low uppercase tracking-widest font-bold font-mono">Species</span>
+              <p className="text-xl font-bold text-text-hi mt-2 font-mono tabular-nums">
                 {Array.from(new Set(nursery.map(x => x.plantType))).length}
               </p>
             </div>
-            <div className="bg-white p-4 border border-slate-200 rounded-2xl flex flex-col justify-between shadow-sm">
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Butuh Perawatan</span>
-              <p className="text-xl font-bold text-amber-500 mt-2 font-mono">
+            <div className="neon-card p-4 flex flex-col justify-between">
+              <span className="text-[10px] text-text-low uppercase tracking-widest font-bold font-mono">Butuh Perawatan</span>
+              <p className="text-xl font-bold text-neon-amber mt-2 font-mono tabular-nums">
                 {nursery.filter(x => ['Need Care', 'Perlu Perawatan'].includes(x.status)).length}
               </p>
             </div>
@@ -737,62 +739,64 @@ export default function ReclamationView({
           
           {/* Table Toolbar controls */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex gap-2">
-              <button onClick={() => setNurseryOutFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nurseryOutFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Semua</button>
-              <button onClick={() => setNurseryOutFilter('in')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nurseryOutFilter === 'in' ? 'bg-green-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Belum Keluar</button>
-              <button onClick={() => setNurseryOutFilter('out')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nurseryOutFilter === 'out' ? 'bg-rose-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Pernah Keluar</button>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setNurseryOutFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${nurseryOutFilter === 'all' ? 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40' : 'bg-bg-2 border border-border-subtle text-text-mid hover:text-text-hi'}`}>Semua</button>
+              <button onClick={() => setNurseryOutFilter('in')} className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${nurseryOutFilter === 'in' ? 'bg-neon-green/20 text-neon-green border border-neon-green/40' : 'bg-bg-2 border border-border-subtle text-text-mid hover:text-text-hi'}`}>Belum Keluar</button>
+              <button onClick={() => setNurseryOutFilter('out')} className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${nurseryOutFilter === 'out' ? 'bg-neon-red/20 text-neon-red border border-neon-red/40' : 'bg-bg-2 border border-border-subtle text-text-mid hover:text-text-hi'}`}>Pernah Keluar</button>
             </div>
-            <div className="relative min-w-[300px] w-full md:w-auto">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+            <div className="relative min-w-[260px] w-full md:w-auto">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-text-low pointer-events-none" />
               <input
                 id="nursery-search-input"
                 type="text"
                 placeholder="Cari jenis bibit / nama kapling nursery..."
                 value={nurserySearch}
                 onChange={(e) => setNurserySearch(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-600 focus:border-teal-500 outline-none w-full"
+                className="pl-9 pr-4 py-2 text-xs w-full"
               />
             </div>
 
-            <button
-              id="nursery-add-btn"
-              onClick={() => { setShowNurseryForm(true); setShowNurseryOutForm(false); }}
-              className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-teal-500 text-slate-950 font-bold rounded-xl text-xs shadow cursor-pointer self-start"
-            >
-              <Plus className="h-4 w-4" />
-              Registrasi Jenis Bibit Baru
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowNurseryOutForm(true); setShowNurseryForm(false); }}
-              className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-green-600 text-slate-50 font-bold rounded-xl text-xs shadow cursor-pointer self-start ml-2 hover:bg-green-700"
-            >
-              <ArrowRight className="h-4 w-4" />
-              Bibit Keluar
-            </button>
-            <button
-              type="button"
-              onClick={handleExportNursery}
-              className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-slate-800 text-white font-bold rounded-xl text-xs shadow cursor-pointer self-start ml-2 hover:bg-slate-700"
-            >
-              <FileCheck2 className="h-4 w-4" />
-              Export Excel
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                id="nursery-add-btn"
+                onClick={() => { setShowNurseryForm(true); setShowNurseryOutForm(false); }}
+                className="neon-btn-primary flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                Registrasi Jenis Bibit Baru
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowNurseryOutForm(true); setShowNurseryForm(false); }}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-neon-green/15 hover:bg-neon-green/25 border border-neon-green/35 text-neon-green font-bold rounded-xl text-xs cursor-pointer transition-colors"
+              >
+                <ArrowRight className="h-4 w-4" />
+                Bibit Keluar
+              </button>
+              <button
+                type="button"
+                onClick={handleExportNursery}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-bg-2 hover:bg-bg-1 border border-border-subtle text-text-hi font-bold rounded-xl text-xs cursor-pointer transition-colors"
+              >
+                <FileCheck2 className="h-4 w-4 text-neon-cyan" />
+                Export Excel
+              </button>
+            </div>
           </div>
 
           
           {showNurseryOutForm && (
             <ModalPortal>
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setShowNurseryOutForm(false); setEditingNurseryOutId(null); setInitialNurseryOutData(null); }}></div>
-                <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-4xl w-full shadow-2xl text-slate-700 text-left max-h-[95vh] overflow-y-auto z-10 relative">
-                  <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
-                    <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                      <ArrowRight size={18} className="text-green-600" />
+                <div className="absolute inset-0 bg-bg-0/75 backdrop-blur-md" onClick={() => { setShowNurseryOutForm(false); setEditingNurseryOutId(null); setInitialNurseryOutData(null); }}></div>
+                <div className="glass-panel rounded-3xl p-6 max-w-4xl w-full shadow-2xl text-text-mid text-left max-h-[95vh] overflow-y-auto z-10 relative">
+                  <div className="flex justify-between items-center mb-4 border-b border-border-subtle pb-4">
+                    <h3 className="text-base font-bold text-text-hi flex items-center gap-2 font-display">
+                      <ArrowRight size={18} className="text-neon-green" />
                       {editingNurseryOutId ? 'Edit Transaksi Bibit Keluar' : 'Transaksi Bibit Keluar'}
                     </h3>
-                    <button onClick={() => { setShowNurseryOutForm(false); setEditingNurseryOutId(null); setInitialNurseryOutData(null); }} className="text-slate-400 hover:text-slate-600 p-1 bg-slate-100 rounded-full">
-                      <Plus size={20} className="rotate-45" />
+                    <button onClick={() => { setShowNurseryOutForm(false); setEditingNurseryOutId(null); setInitialNurseryOutData(null); }} className="text-text-mid hover:text-text-hi p-1.5 bg-bg-2 rounded-full cursor-pointer">
+                      <Plus size={18} className="rotate-45" />
                     </button>
                   </div>
                   <NurseryStockOutForm 
@@ -821,15 +825,15 @@ export default function ReclamationView({
           )}
           {showNurseryForm && (
             <ModalPortal>
-              <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-                <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-4xl w-full shadow-2xl text-slate-700 text-left max-h-[95vh] overflow-y-auto">
-                  <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
-                    <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                      <Plus size={18} className="text-teal-600" />
+              <div className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+                <div className="glass-panel rounded-3xl p-6 max-w-4xl w-full shadow-2xl text-text-mid text-left max-h-[95vh] overflow-y-auto">
+                  <div className="flex justify-between items-center mb-4 border-b border-border-subtle pb-4">
+                    <h3 className="text-base font-bold text-text-hi flex items-center gap-2 font-display">
+                      <Plus size={18} className="text-neon-cyan" />
                       {editingNurseryId ? 'Edit Data Penerimaan & Inventarisasi Bibit Nursery' : 'Registrasi Bibit Masuk'}
                     </h3>
-                    <button onClick={() => { setShowNurseryForm(false); setEditingNurseryId(null); }} className="text-slate-400 hover:text-slate-600 p-1 bg-slate-100 rounded-full">
-                      <Plus size={20} className="rotate-45" />
+                    <button onClick={() => { setShowNurseryForm(false); setEditingNurseryId(null); }} className="text-text-mid hover:text-text-hi p-1.5 bg-bg-2 rounded-full cursor-pointer">
+                      <Plus size={18} className="rotate-45" />
                     </button>
                   </div>
             <form 
@@ -840,12 +844,12 @@ export default function ReclamationView({
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Spesies / Jenis Tanaman</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Spesies / Jenis Tanaman</label>
                   <select
                     id="nursery-field-type"
                     value={nPlantType}
                     onChange={(e) => setNPlantType(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 animate-none"
+                    className="w-full px-3 py-2 text-xs"
                   >
                     <option value="Sengon Laut (Falcataria moluccana)">Sengon Laut (Falcataria moluccana)</option>
                     <option value="Acacia mangium">Acacia mangium</option>
@@ -862,64 +866,64 @@ export default function ReclamationView({
                       required
                       value={nCustomPlantType}
                       onChange={(e) => setNCustomPlantType(e.target.value)}
-                      className="mt-2 w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 animate-fade-in"
+                      className="mt-2 w-full px-3 py-2 text-xs animate-fade-in"
                     />
                   )}
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Jumlah Bibit (Batang)</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Jumlah Bibit (Batang)</label>
                   <input
                     id="nursery-field-qty"
                     type="number"
                     required
                     value={nQuantity}
                     onChange={(e) => setNQuantity(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Sumber / Penyedia Bibit</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Sumber / Penyedia Bibit</label>
                   <input
                     id="nursery-field-source"
                     type="text"
                     required
                     value={nSource}
                     onChange={(e) => setNSource(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Umur Semat (Minggu)</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Umur Semat (Minggu)</label>
                   <input
                     id="nursery-field-age"
                     type="number"
                     required
                     value={nAge}
                     onChange={(e) => setNAge(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Rata-Rata Tinggi (cm)</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Rata-Rata Tinggi (cm)</label>
                   <input
                     id="nursery-field-height"
                     type="number"
                     required
                     value={nHeight}
                     onChange={(e) => setNHeight(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Kondisi Fisik Semai</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Kondisi Fisik Semai</label>
                   <select
                     id="nursery-field-status"
                     value={nStatus}
                     onChange={(e) => setNStatus(e.target.value as any)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   >
                     <option value="Healthy">Healthy (Sehat & Hijau)</option>
                     <option value="Need Care">Need Care (Kekurangan Unsur Hara/Hama)</option>
@@ -927,19 +931,19 @@ export default function ReclamationView({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Plot / Lokasi Bedeng</label>
+                  <label className="block text-[11px] text-text-mid font-bold mb-1.5 uppercase">Plot / Lokasi Bedeng</label>
                   <input
                     id="nursery-field-loc"
                     type="text"
                     required
                     value={nLoc}
                     onChange={(e) => setNLoc(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3.5 pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-end gap-3.5 pt-3 border-t border-border-subtle">
                 <button
                   id="nursery-form-cancel"
                   type="button"
@@ -947,14 +951,14 @@ export default function ReclamationView({
                     setShowNurseryForm(false);
                     setEditingNurseryId(null);
                   }}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-text-mid hover:text-text-hi cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   id="nursery-form-submit"
                   type="submit"
-                  className="px-5 py-2.5 bg-teal-500 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer"
+                  className="neon-btn-primary px-5 py-2.5 text-xs rounded-xl cursor-pointer"
                 >
                   {editingNurseryId ? 'Update Records' : 'Simpan Records'}
                 </button>
@@ -966,131 +970,136 @@ export default function ReclamationView({
           )}
 
           {/* Nursery table list */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden text-left shadow">
-            <div className="px-5 py-4 border-b border-slate-200">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Database Inventaris Benih Persemaian (Nursery Stock List)</h4>
+          <div className="glass-panel rounded-2xl overflow-hidden text-left">
+            <div className="px-5 py-4 border-b border-border-subtle">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-text-hi font-display">Database Inventaris Benih Persemaian (Nursery Stock List)</h4>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="neon-table">
                 <thead>
-                  <tr className="border-y border-slate-200 bg-slate-50 text-[10px] text-slate-600 font-mono tracking-wider uppercase">
-                    <th className="p-3.5 pl-5">ID / Tgl Input</th>
-                    <th className="p-3.5">Spesies / Botani</th>
-                    <th className="p-3.5">Asal Penyedia</th>
-                    <th className="p-3.5 text-center">Tinggi / Umur</th>
-                    <th className="p-3.5 text-center">Bedeng Plot</th>
-                    <th className="p-3.5 text-center">Bibit Masuk</th>
-                    <th className="p-3.5 text-center">Bibit Keluar</th>
-                    <th className="p-3.5 text-center">Stok Tersedia</th>
-                    <th className="p-3.5 text-center">Availability</th>
-                    <th className="p-3.5 text-center">Kondisi</th>
-                    <th className="p-3.5 text-center pr-5">Aksi</th>
+                  <tr>
+                    <th className="pl-5">ID / Tgl Input</th>
+                    <th>Spesies / Botani</th>
+                    <th>Asal Penyedia</th>
+                    <th className="text-center">Tinggi / Umur</th>
+                    <th className="text-center">Bedeng Plot</th>
+                    <th className="text-center">Bibit Masuk</th>
+                    <th className="text-center">Bibit Keluar</th>
+                    <th className="text-center">Stok Tersedia</th>
+                    <th className="text-center">Availability</th>
+                    <th className="text-center">Kondisi</th>
+                    <th className="text-center pr-5">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
+                <tbody>
                   {filteredNursery.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="p-10 text-center text-slate-500">Tidak ada bibit Nursery yang terdaftar.</td>
+                      <td colSpan={11}>
+                        <EmptyState
+                          icon={Trees}
+                          title="Tidak Ada Bibit Nursery Terdaftar"
+                          description="Gunakan tombol Registrasi Jenis Bibit Baru di atas untuk menambah inventaris persemaian."
+                        />
+                      </td>
                     </tr>
                   ) : (
                     filteredNursery.map(item => (
-                      <tr key={item.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
-                        <td className="p-3.5 pl-5 font-mono">
-                          <span className="text-slate-500 text-[9px] block">{item.id}</span>
-                          <span className="font-semibold text-slate-600">{item.dateIn}</span>
+                      <tr key={item.id}>
+                        <td className="pl-5 font-mono">
+                          <span className="text-text-low text-[9px] block">{item.id}</span>
+                          <span className="font-semibold text-text-mid">{item.dateIn}</span>
                         </td>
-                        <td className="p-3.5">
-                          <span className="font-bold text-slate-700 block">{item.plantType}</span>
+                        <td>
+                          <span className="font-bold text-text-hi block">{item.plantType}</span>
                         </td>
-                        <td className="p-3.5 text-slate-500">{item.source}</td>
-                        <td className="p-3.5 text-center font-semibold text-slate-500">
-                          <span className="block">{item.heightCm} cm</span>
-                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
-                            (item.ageWeeks / 4) <= 3 ? 'bg-emerald-50 text-emerald-600' :
-                            (item.ageWeeks / 4) <= 6 ? 'bg-amber-50 text-amber-600' :
-                            'bg-rose-50 text-rose-600'
+                        <td className="text-text-mid">{item.source}</td>
+                        <td className="text-center font-semibold text-text-mid font-mono tabular-nums">
+                          <span className="block text-text-hi">{item.heightCm} cm</span>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full inline-block mt-0.5 border ${
+                            (item.ageWeeks / 4) <= 3 ? 'bg-neon-green/10 text-neon-green border-neon-green/25' :
+                            (item.ageWeeks / 4) <= 6 ? 'bg-neon-amber/10 text-neon-amber border-neon-amber/25' :
+                            'bg-neon-red/10 text-neon-red border-neon-red/25'
                           }`}>{item.ageWeeks} minggu ({(item.ageWeeks / 4).toFixed(1)} bln)</span>
                         </td>
-                        <td className="p-3.5 text-center">
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] border bg-white border-slate-200 font-semibold">
-                            <MapPin className="h-3 w-3 text-emerald-600" />
+                        <td className="text-center">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] border bg-bg-2 border-border-subtle font-semibold text-text-hi">
+                            <MapPin className="h-3 w-3 text-neon-green" />
                             {item.location}
                           </span>
                         </td>
-                        <td className="p-3.5 text-center font-bold text-teal-600 font-mono text-sm">
+                        <td className="text-center font-bold text-neon-cyan font-mono text-sm tabular-nums" data-numeric="true">
                           {item.quantity.toLocaleString('id-ID')}
                         </td>
-                        <td className="p-3.5 text-center font-bold text-rose-600 font-mono text-sm">
+                        <td className="text-center font-bold text-neon-red font-mono text-sm tabular-nums" data-numeric="true">
                           {(() => {
                             const qtyOut = nurseryStockOut?.filter(out => out.jenisBibitId === item.id).reduce((sum, out) => sum + out.jumlahKeluar, 0) || 0;
                             return qtyOut > 0 ? qtyOut.toLocaleString('id-ID') : '-';
                           })()}
                         </td>
-                        <td className="p-3.5 text-center font-bold text-emerald-700 font-mono text-sm">
+                        <td className="text-center font-bold text-neon-green font-mono text-sm tabular-nums" data-numeric="true">
                           {(() => {
                             const qtyOut = nurseryStockOut?.filter(out => out.jenisBibitId === item.id).reduce((sum, out) => sum + out.jumlahKeluar, 0) || 0;
                             return (item.quantity - qtyOut).toLocaleString('id-ID');
                           })()}
                         </td>
-                        <td className="p-3.5 text-center w-32">
+                        <td className="text-center w-32">
                           {(() => {
                             const qtyOut = nurseryStockOut?.filter(out => out.jenisBibitId === item.id).reduce((sum, out) => sum + out.jumlahKeluar, 0) || 0;
                             const stokTersedia = item.quantity - qtyOut;
                             const avail = item.quantity > 0 ? (stokTersedia / item.quantity) * 100 : 0;
                             
-                            let color = 'bg-emerald-500';
-                            if (avail < 30) color = 'bg-rose-500';
-                            else if (avail <= 70) color = 'bg-amber-500';
+                            let color = 'bg-neon-green';
+                            if (avail < 30) color = 'bg-neon-red';
+                            else if (avail <= 70) color = 'bg-neon-amber';
                             
                             return (
                               <div className="flex flex-col gap-1 items-center">
-                                <div className="w-full bg-slate-200 rounded-full h-1.5">
-                                  <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${Math.max(0, Math.min(100, avail))}%` }}></div>
+                                <div className="w-full bg-bg-0 border border-border-subtle rounded-full h-1.5 overflow-hidden">
+                                  <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.max(0, Math.min(100, avail))}%` }}></div>
                                 </div>
-                                <span className={`text-[10px] font-mono font-bold ${avail < 20 ? 'text-rose-600' : 'text-slate-500'}`}>
+                                <span className={`text-[10px] font-mono font-bold tabular-nums ${avail < 20 ? 'text-neon-red' : 'text-text-mid'}`}>
                                   {avail.toFixed(0)}%
                                 </span>
-                                {avail < 20 && <span className="bg-rose-100 text-rose-700 text-[8px] font-bold px-1.5 py-0.5 rounded-sm whitespace-nowrap">STOK KRITIS</span>}
-                                {item.minimumStock !== undefined && stokTersedia < item.minimumStock && <span className="bg-amber-100 text-amber-700 text-[8px] font-bold px-1.5 py-0.5 rounded-sm whitespace-nowrap"><AlertCircle className="h-2 w-2 inline mr-0.5" />BELOW MIN</span>}
+                                {avail < 20 && <span className="bg-neon-red/15 text-neon-red border border-neon-red/30 text-[8px] font-bold px-1.5 py-0.5 rounded-sm whitespace-nowrap">STOK KRITIS</span>}
+                                {item.minimumStock !== undefined && stokTersedia < item.minimumStock && <span className="bg-neon-amber/15 text-neon-amber border border-neon-amber/30 text-[8px] font-bold px-1.5 py-0.5 rounded-sm whitespace-nowrap"><AlertCircle className="h-2 w-2 inline mr-0.5" />BELOW MIN</span>}
                               </div>
                             );
                           })()}
                         </td>
-                        <td className="p-3.5 text-center">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
-                            ['Healthy', 'Sehat'].includes(item.status) ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
-                            ['Need Care', 'Perlu Perawatan'].includes(item.status) ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
-                            'bg-rose-50 border-rose-200 text-rose-600'
-                          }`}>
-                            {['Healthy', 'Sehat'].includes(item.status) ? 'Sehat' : ['Need Care', 'Perlu Perawatan'].includes(item.status) ? 'Perlu Perawatan' : 'Rusak'}
-                          </span>
+                        <td className="text-center">
+                          <StatusBadge
+                            status={['Healthy', 'Sehat'].includes(item.status) ? 'Memenuhi' : ['Need Care', 'Perlu Perawatan'].includes(item.status) ? 'Mendekati' : 'Tidak Memenuhi'}
+                            label={['Healthy', 'Sehat'].includes(item.status) ? 'Sehat' : ['Need Care', 'Perlu Perawatan'].includes(item.status) ? 'Perlu Perawatan' : 'Rusak'}
+                          />
                         </td>
-                        <td className="p-3.5 text-center pr-5 flex items-center justify-center gap-1.5">
-                          <button
-                            id={`nursery-edit-btn-${item.id}`}
-                            onClick={() => {
-                              if (!canEdit) return onUnauthorizedAction("Ubah Data Nursery/Bibit");
-                              startEditNursery(item);
-                            }}
-                            className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
-                            title="Edit bibit"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            id={`nursery-delete-btn-${item.id}`}
-                            onClick={() => {
-                              if (!canDelete) return onUnauthorizedAction("Hapus Data Nursery");
-                              setDeleteConfirm({
-                                id: item.id,
-                                type: 'nursery',
-                                message: `Hapus data bibit ${item.id}?`
-                              });
-                            }}
-                            className="p-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg cursor-pointer transition-colors"
-                          >
-                            <Trash2 className="h-4.5 w-4.5" />
-                          </button>
+                        <td className="text-center pr-5">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              id={`nursery-edit-btn-${item.id}`}
+                              onClick={() => {
+                                if (!canEdit) return onUnauthorizedAction("Ubah Data Nursery/Bibit");
+                                startEditNursery(item);
+                              }}
+                              className="p-1.5 bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/25 hover:bg-neon-cyan/20 rounded-lg cursor-pointer transition-colors"
+                              title="Edit bibit"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              id={`nursery-delete-btn-${item.id}`}
+                              onClick={() => {
+                                if (!canDelete) return onUnauthorizedAction("Hapus Data Nursery");
+                                setDeleteConfirm({
+                                  id: item.id,
+                                  type: 'nursery',
+                                  message: `Hapus data bibit ${item.id}?`
+                                });
+                              }}
+                              className="p-1.5 bg-neon-red/10 text-neon-red border border-neon-red/25 hover:bg-neon-red/20 rounded-lg cursor-pointer transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1101,27 +1110,27 @@ export default function ReclamationView({
           </div>
 
           {/* Riwayat Transaksi */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden text-left shadow mt-6">
-            <div className="px-5 py-4 border-b border-slate-200">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Riwayat Transaksi (Stock Ledger)</h4>
+          <div className="glass-panel rounded-2xl overflow-hidden text-left mt-6">
+            <div className="px-5 py-4 border-b border-border-subtle">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-text-hi font-display">Riwayat Transaksi (Stock Ledger)</h4>
             </div>
             <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-              <table className="w-full text-left border-collapse min-w-[1000px]">
+              <table className="neon-table min-w-[1000px]">
                 <thead>
-                  <tr className="border-y border-slate-200 bg-slate-50 text-[10px] text-slate-600 font-mono tracking-wider uppercase sticky top-0 shadow-sm">
-                    <th className="p-3.5 pl-5">Tanggal</th>
-                    <th className="p-3.5">No. Transaksi</th>
-                    <th className="p-3.5">Jenis Transaksi</th>
-                    <th className="p-3.5">Bibit / Spesies</th>
-                    <th className="p-3.5 text-center">Masuk</th>
-                    <th className="p-3.5 text-center">Keluar</th>
-                    <th className="p-3.5 text-center">Sisa Stok</th>
-                    <th className="p-3.5">Keterangan / Kapling</th>
-                    <th className="p-3.5">PIC</th>
-                    <th className="p-3.5">Aksi</th>
+                  <tr>
+                    <th className="pl-5">Tanggal</th>
+                    <th>No. Transaksi</th>
+                    <th>Jenis Transaksi</th>
+                    <th>Bibit / Spesies</th>
+                    <th className="text-center">Masuk</th>
+                    <th className="text-center">Keluar</th>
+                    <th className="text-center">Sisa Stok</th>
+                    <th>Keterangan / Kapling</th>
+                    <th>PIC</th>
+                    <th>Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
+                <tbody>
                   {(() => {
                     let rows: any[] = [];
                     nursery.forEach(item => {
@@ -1164,73 +1173,83 @@ export default function ReclamationView({
                     rows.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
                     
                     if (rows.length === 0) {
-                      return <tr><td colSpan={9} className="p-10 text-center text-slate-500">Tidak ada riwayat transaksi.</td></tr>;
+                      return (
+                        <tr>
+                          <td colSpan={10}>
+                            <EmptyState
+                              icon={Sprout}
+                              title="Belum Ada Riwayat Transaksi"
+                              description="Transaksi penerimaan dan pengeluaran bibit akan tampil di sini."
+                            />
+                          </td>
+                        </tr>
+                      );
                     }
                     
                     return rows.map((r, idx) => (
-                      <tr key={idx} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                        <td className="p-3.5 pl-5 font-mono">{r.tanggal}</td>
-                        <td className="p-3.5 font-mono text-[10px] text-slate-500">{r.id.substring(0,8)}</td>
-                        <td className="p-3.5">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                            r.jenisTransaksi === 'Penerimaan' ? 'bg-emerald-100 text-emerald-700' : 
-                            'bg-amber-100 text-amber-700'
-                          }`}>
-                            {r.jenisTransaksi}
-                          </span>
+                      <tr key={idx}>
+                        <td className="pl-5 font-mono text-text-mid">{r.tanggal}</td>
+                        <td className="font-mono text-[10px] text-text-low">{r.id.substring(0,8)}</td>
+                        <td>
+                          <StatusBadge
+                            status={r.jenisTransaksi === 'Penerimaan' ? 'Memenuhi' : 'Mendekati'}
+                            label={r.jenisTransaksi}
+                          />
                         </td>
-                        <td className="p-3.5">
-                          <span className="font-bold text-slate-700 block">{r.bibit}</span>
+                        <td>
+                          <span className="font-bold text-text-hi block">{r.bibit}</span>
                         </td>
-                        <td className="p-3.5 text-center font-bold text-emerald-600 font-mono text-sm">{r.masuk > 0 ? r.masuk.toLocaleString('id-ID') : '-'}</td>
-                        <td className="p-3.5 text-center font-bold text-rose-600 font-mono text-sm">{r.keluar > 0 ? r.keluar.toLocaleString('id-ID') : '-'}</td>
-                        <td className="p-3.5 text-center font-bold text-blue-700 font-mono text-sm">{r.stok.toLocaleString('id-ID')}</td>
-                        <td className="p-3.5 text-[10px] text-slate-500">{r.keterangan}</td>
-                        <td className="p-3.5 text-slate-600 font-semibold">{r.pic}</td>
-                        <td className="p-3.5 flex items-center gap-1.5">
-                          <button
-                            onClick={() => {
-                              if (r.jenisTransaksi === 'Penerimaan') {
-                                const originalItem = nursery.find(n => n.id === r.id);
-                                if (originalItem) {
-                                  startEditNursery(originalItem);
+                        <td className="text-center font-bold text-neon-green font-mono text-sm tabular-nums" data-numeric="true">{r.masuk > 0 ? r.masuk.toLocaleString('id-ID') : '-'}</td>
+                        <td className="text-center font-bold text-neon-red font-mono text-sm tabular-nums" data-numeric="true">{r.keluar > 0 ? r.keluar.toLocaleString('id-ID') : '-'}</td>
+                        <td className="text-center font-bold text-neon-cyan font-mono text-sm tabular-nums" data-numeric="true">{r.stok.toLocaleString('id-ID')}</td>
+                        <td className="text-[10px] text-text-mid">{r.keterangan}</td>
+                        <td className="text-text-hi font-semibold">{r.pic}</td>
+                        <td>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => {
+                                if (r.jenisTransaksi === 'Penerimaan') {
+                                  const originalItem = nursery.find(n => n.id === r.id);
+                                  if (originalItem) {
+                                    startEditNursery(originalItem);
+                                  }
+                                } else {
+                                  const originalOut = nurseryStockOut?.find(o => o.id === r.id);
+                                  if (originalOut) {
+                                    setInitialNurseryOutData(originalOut);
+                                    setEditingNurseryOutId(originalOut.id);
+                                    setShowNurseryOutForm(true);
+                                  }
                                 }
-                              } else {
-                                const originalOut = nurseryStockOut?.find(o => o.id === r.id);
-                                if (originalOut) {
-                                  setInitialNurseryOutData(originalOut);
-                                  setEditingNurseryOutId(originalOut.id);
-                                  setShowNurseryOutForm(true);
+                              }}
+                              className="p-1.5 bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/25 hover:bg-neon-cyan/20 rounded-lg cursor-pointer transition-colors"
+                              title="Edit Data"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (!canDelete) return onUnauthorizedAction("Hapus Data Nursery/Bibit");
+                                if (r.jenisTransaksi === 'Penerimaan') {
+                                  setDeleteConfirm({
+                                    id: r.id,
+                                    type: 'nursery',
+                                    message: `Apakah Anda yakin ingin menghapus data ini? Perubahan ini akan mempengaruhi perhitungan stok nursery.`
+                                  });
+                                } else {
+                                  setDeleteConfirm({
+                                    id: r.id,
+                                    type: 'nurseryStockOut',
+                                    message: `Apakah Anda yakin ingin menghapus data ini? Perubahan ini akan mempengaruhi perhitungan stok nursery.`
+                                  });
                                 }
-                              }
-                            }}
-                            className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
-                            title="Edit Data"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (!canDelete) return onUnauthorizedAction("Hapus Data Nursery/Bibit");
-                              if (r.jenisTransaksi === 'Penerimaan') {
-                                setDeleteConfirm({
-                                  id: r.id,
-                                  type: 'nursery',
-                                  message: `Apakah Anda yakin ingin menghapus data ini? Perubahan ini akan mempengaruhi perhitungan stok nursery.`
-                                });
-                              } else {
-                                setDeleteConfirm({
-                                  id: r.id,
-                                  type: 'nurseryStockOut',
-                                  message: `Apakah Anda yakin ingin menghapus data ini? Perubahan ini akan mempengaruhi perhitungan stok nursery.`
-                                });
-                              }
-                            }}
-                            className="p-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg cursor-pointer transition-colors"
-                            title="Hapus Data"
-                          >
-                            <Trash2 className="h-4.5 w-4.5" />
-                          </button>
+                              }}
+                              className="p-1.5 bg-neon-red/10 text-neon-red border border-neon-red/25 hover:bg-neon-red/20 rounded-lg cursor-pointer transition-colors"
+                              title="Hapus Data"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ));
@@ -1246,45 +1265,45 @@ export default function ReclamationView({
         <div id="reclamation-plans-panel" className="space-y-6">
           {/* Executive Comparison Dashboard */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2 animate-fade-in">
-            <div className="bg-white/80 p-4.5 rounded-2xl border border-slate-200 text-left shadow-sm">
-              <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Total Luas Rencana</span>
+            <div className="neon-card p-4.5 rounded-2xl text-left">
+              <span className="text-[10px] text-text-low font-bold uppercase tracking-wider block mb-1">Total Luas Rencana</span>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-slate-700">{totalPlannedSize.toFixed(1)}</span>
-                <span className="text-xs text-slate-500 font-semibold uppercase">Hektar</span>
+                <span className="text-2xl font-black font-mono tabular-nums text-text-hi">{totalPlannedSize.toFixed(1)}</span>
+                <span className="text-xs text-text-mid font-semibold uppercase">Hektar</span>
               </div>
-              <p className="text-[10px] text-slate-500 mt-1">Sektor target RKL-RPL aktif</p>
+              <p className="text-[10px] text-text-low mt-1">Sektor target RKL-RPL aktif</p>
             </div>
             
-            <div className="bg-white/80 p-4.5 rounded-2xl border border-slate-200 text-left shadow-sm">
-              <span className="text-[10px] text-teal-600 font-bold uppercase block mb-1">Total Luas Realisasi</span>
+            <div className="neon-card p-4.5 rounded-2xl text-left">
+              <span className="text-[10px] text-neon-cyan font-bold uppercase tracking-wider block mb-1">Total Luas Realisasi</span>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-teal-600">{totalRealizedSize.toFixed(1)}</span>
-                <span className="text-xs text-slate-500 font-semibold uppercase">Hektar</span>
+                <span className="text-2xl font-black font-mono tabular-nums text-neon-cyan">{totalRealizedSize.toFixed(1)}</span>
+                <span className="text-xs text-text-mid font-semibold uppercase">Hektar</span>
               </div>
-              <div className="w-full bg-white h-1.5 rounded-full mt-2.5 overflow-hidden">
-                <div className="bg-teal-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, sizeProgressPercent)}%` }}></div>
+              <div className="w-full bg-bg-1 border border-border-subtle h-1.5 rounded-full mt-2.5 overflow-hidden">
+                <div className="bg-neon-cyan h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, sizeProgressPercent)}%` }}></div>
               </div>
-              <p className="text-[9px] text-slate-500 mt-1.5">Progress Fisik: <span className="text-teal-600 font-bold">{sizeProgressPercent.toFixed(1)}%</span></p>
+              <p className="text-[9px] text-text-low mt-1.5">Progress Fisik: <span className="text-neon-cyan font-mono tabular-nums font-bold">{sizeProgressPercent.toFixed(1)}%</span></p>
             </div>
 
-            <div className="bg-white/80 p-4.5 rounded-2xl border border-slate-200 text-left shadow-sm">
-              <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Total Anggaran Rencana</span>
+            <div className="neon-card p-4.5 rounded-2xl text-left">
+              <span className="text-[10px] text-text-low font-bold uppercase tracking-wider block mb-1">Total Anggaran Rencana</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black font-mono text-amber-600">{formatIDR(totalPlannedCost)}</span>
+                <span className="text-lg font-black font-mono tabular-nums text-neon-amber">{formatIDR(totalPlannedCost)}</span>
               </div>
-              <p className="text-[10px] text-slate-500 mt-1.5">Alokasi pagu disetujui ESDM</p>
+              <p className="text-[10px] text-text-low mt-1.5">Alokasi pagu disetujui ESDM</p>
             </div>
 
-            <div className="bg-white/80 p-4.5 rounded-2xl border border-slate-200 text-left shadow-sm">
-              <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Realisasi Biaya Aktual</span>
+            <div className="neon-card p-4.5 rounded-2xl text-left">
+              <span className="text-[10px] text-text-low font-bold uppercase tracking-wider block mb-1">Realisasi Biaya Aktual</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black text-emerald-600 font-mono">{formatIDR(totalRealizedCost)}</span>
+                <span className="text-lg font-black text-neon-green font-mono tabular-nums">{formatIDR(totalRealizedCost)}</span>
               </div>
-              <p className="text-[10px] text-slate-500 mt-2">
+              <p className="text-[10px] text-text-low mt-2">
                 {totalPlannedCost - totalRealizedCost >= 0 ? (
-                  <span className="text-emerald-500 text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded font-mono font-semibold">Efisiensi: {formatIDR(totalPlannedCost - totalRealizedCost)}</span>
+                  <span className="text-neon-green text-[10px] bg-neon-green/10 border border-neon-green/25 px-2 py-0.5 rounded font-mono tabular-nums font-semibold">Efisiensi: {formatIDR(totalPlannedCost - totalRealizedCost)}</span>
                 ) : (
-                  <span className="text-red-600 text-[10px] bg-red-500/10 px-2 py-0.5 rounded font-mono font-semibold">Over Budget: {formatIDR(Math.abs(totalPlannedCost - totalRealizedCost))}</span>
+                  <span className="text-neon-red text-[10px] bg-neon-red/10 border border-neon-red/25 px-2 py-0.5 rounded font-mono tabular-nums font-semibold">Over Budget: {formatIDR(Math.abs(totalPlannedCost - totalRealizedCost))}</span>
                 )}
               </p>
             </div>
@@ -1293,14 +1312,14 @@ export default function ReclamationView({
           {/* Action header and Filters */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="relative min-w-[320px] w-full md:w-auto">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-text-low" />
               <input
                 id="plans-search-input"
                 type="text"
                 placeholder="Cari nama area / PIC penanggung jawab..."
                 value={planSearch}
                 onChange={(e) => setPlanSearch(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-600 focus:border-teal-500 outline-none w-full font-sans"
+                className="pl-9 pr-4 py-2 text-xs w-full font-sans"
               />
             </div>
 
@@ -1320,9 +1339,9 @@ export default function ReclamationView({
                   setPPic('Bambang Trimurti');
                   setShowPlanForm(true);
                 }}
-                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 font-bold rounded-xl text-xs cursor-pointer shadow transition-all`}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-bg-2 border border-border-subtle text-text-mid hover:text-text-hi hover:border-border-neon font-bold rounded-xl text-xs cursor-pointer transition-all"
               >
-                <Plus className="h-4 w-4 text-teal-600" />
+                <Plus className="h-4 w-4 text-neon-cyan" />
                 Buat Rencana Baru
               </button>
               
@@ -1339,7 +1358,7 @@ export default function ReclamationView({
                   setRCost('');
                   setShowPlanForm(true);
                 }}
-                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4.5 py-2.5 bg-teal-500 text-slate-950 hover:bg-teal-400 font-bold rounded-xl text-xs cursor-pointer shadow transition-all`}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4.5 py-2.5 neon-btn-primary text-xs cursor-pointer"
               >
                 <Activity className="h-4 w-4" />
                 Catat Realisasi Kerja
@@ -1352,21 +1371,21 @@ export default function ReclamationView({
             <form 
               id="plan-form-element"
               onSubmit={handlePlanSubmit}
-              className="bg-white/80 p-5 rounded-2xl border border-slate-200 text-left animate-slide-up shadow-xl"
+              className="glass-panel p-5 rounded-2xl text-left animate-slide-up"
             >
               {/* Form Tab Switches */}
-              <div className="flex items-center justify-between mb-5 border-b border-slate-200 pb-2.5">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-teal-600 flex items-center gap-2">
+              <div className="flex items-center justify-between mb-5 border-b border-border-subtle pb-2.5 gap-3 flex-wrap">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neon-cyan flex items-center gap-2">
                   <span>{planFormTab === 'rencana' ? (editingPlanId ? 'Edit Program Rencana Kerja Reklamasi' : 'Pendaftaran Program Rencana Kerja Reklamasi Baru') : 'Pencatatan Realisasi Program Kerja Reklamasi'}</span>
                 </h3>
-                <div className="flex gap-1.5 p-1 bg-white rounded-lg border border-slate-200 shrink-0">
+                <div className="flex gap-1.5 p-1 bg-bg-1 rounded-lg border border-border-subtle shrink-0">
                   <button
                     type="button"
                     onClick={() => {
                       setPlanFormTab('rencana');
                     }}
                     className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${
-                      planFormTab === 'rencana' ? 'bg-teal-500 text-slate-950 font-black' : 'text-slate-500 hover:text-slate-700'
+                      planFormTab === 'rencana' ? 'bg-neon-cyan text-bg-0 font-black' : 'text-text-low hover:text-text-hi'
                     }`}
                   >
                     1. Input Target Rencana
@@ -1377,7 +1396,7 @@ export default function ReclamationView({
                       setPlanFormTab('realisasi');
                     }}
                     className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${
-                      planFormTab === 'realisasi' ? 'bg-teal-500 text-slate-950 font-black' : 'text-slate-500 hover:text-slate-700'
+                      planFormTab === 'realisasi' ? 'bg-neon-cyan text-bg-0 font-black' : 'text-text-low hover:text-text-hi'
                     }`}
                   >
                     2. Input Realisasi Lapangan
@@ -1390,19 +1409,19 @@ export default function ReclamationView({
                 <div className="space-y-4 animate-fade-in font-sans">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Nama Blok Kerja / Area Penambangan</label>
+                      <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Nama Blok Kerja / Area Penambangan</label>
                       <input
                         id="plan-field-area"
                         type="text"
                         required
                         placeholder="Contoh: Disposal Area Utara Sektor G (LWG-01)"
                         value={pArea}
-						onChange={(e) => setPArea(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                        onChange={(e) => setPArea(e.target.value)}
+                        className="w-full px-3 py-2 text-xs"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Luas Target Rencana (Ha)</label>
+                      <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Luas Target Rencana (Ha)</label>
                       <input
                         id="plan-field-size"
                         type="number"
@@ -1410,25 +1429,25 @@ export default function ReclamationView({
                         required
                         value={pSize}
                         onChange={(e) => setPSize(Number(e.target.value))}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono"
+                        className="w-full px-3 py-2 text-xs font-mono tabular-nums"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Target Fisik (Tahun)</label>
+                      <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Target Fisik (Tahun)</label>
                       <input
                         id="plan-field-year"
                         type="number"
                         required
                         value={pYear}
                         onChange={(e) => setPYear(Number(e.target.value))}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono"
+                        className="w-full px-3 py-2 text-xs font-mono tabular-nums"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Komposisi Vegetasi Rencana</label>
+                      <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Komposisi Vegetasi Rencana</label>
                       <input
                         id="plan-field-plants"
                         type="text"
@@ -1436,11 +1455,11 @@ export default function ReclamationView({
                         placeholder="Contoh: Trembesi & Sengon"
                         value={pPlants}
                         onChange={(e) => setPPlants(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                        className="w-full px-3 py-2 text-xs"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Metode Rencana Kerja Kerja</label>
+                      <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Metode Rencana Kerja Kerja</label>
                       <input
                         id="plan-field-method"
                         type="text"
@@ -1448,36 +1467,36 @@ export default function ReclamationView({
                         placeholder="Contoh: Pot Tanam Langsung"
                         value={pMethod}
                         onChange={(e) => setPMethod(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                        className="w-full px-3 py-2 text-xs"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Estimasi Anggaran Target (IDR)</label>
+                      <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Estimasi Anggaran Target (IDR)</label>
                       <input
                         id="plan-field-cost"
                         type="number"
                         required
                         value={pCost}
                         onChange={(e) => setPCost(Number(e.target.value))}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 text-teal-600 font-semibold font-mono"
+                        className="w-full px-3 py-2 text-xs text-neon-cyan font-semibold font-mono tabular-nums"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">PIC Penanggung Jawab</label>
+                      <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">PIC Penanggung Jawab</label>
                       <input
                         id="plan-field-pic"
                         type="text"
                         required
                         value={pPic}
                         onChange={(e) => setPPic(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                        className="w-full px-3 py-2 text-xs"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Status Kelayakan Awal</label>
-                    <div className="flex gap-2">
+                    <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Status Kelayakan Awal</label>
+                    <div className="flex flex-wrap gap-2">
                       {['Draft', 'Approved', 'In Progress', 'Completed'].map(state => (
                         <button
                           id={`plan-status-btn-${state}`}
@@ -1486,8 +1505,8 @@ export default function ReclamationView({
                           onClick={() => setPStatus(state as any)}
                           className={`px-4 py-1.5 rounded-lg border text-[11px] font-bold transition-all cursor-pointer ${
                             pStatus === state 
-                              ? 'bg-teal-500/10 border-teal-500 text-teal-600' 
-                              : 'bg-white border-slate-200 text-slate-500 hover:text-slate-700'
+                              ? 'bg-neon-cyan/15 border-neon-cyan text-neon-cyan' 
+                              : 'bg-bg-2 border-border-subtle text-text-low hover:text-text-hi'
                           }`}
                         >
                           {state === 'Draft' ? 'Konsep / Draft' :
@@ -1503,12 +1522,12 @@ export default function ReclamationView({
                 <div className="space-y-4 animate-fade-in font-sans">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Pilih Target Area Reklamasi</label>
+                      <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Pilih Target Area Reklamasi</label>
                       <select
                         value={selectedPlanId}
                         onChange={(e) => handleSelectPlan(e.target.value)}
                         required
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                        className="w-full px-3 py-2 text-xs"
                       >
                         <option value="">-- Pilih target rencana area dlu --</option>
                         {plans.map(p => (
@@ -1519,7 +1538,7 @@ export default function ReclamationView({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Luas Realisasi Lapangan (Ha)</label>
+                      <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Luas Realisasi Lapangan (Ha)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -1528,11 +1547,11 @@ export default function ReclamationView({
                         placeholder={!selectedPlanId ? "Pilih rencana area dahulu..." : "Masukkan luas terealisasi"}
                         value={rSize}
                         onChange={(e) => setRSize(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono disabled:opacity-50"
+                        className="w-full px-3 py-2 text-xs font-mono tabular-nums disabled:opacity-50"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Tahun Realisasi Aktual</label>
+                      <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Tahun Realisasi Aktual</label>
                       <input
                         type="number"
                         required
@@ -1540,7 +1559,7 @@ export default function ReclamationView({
                         placeholder={!selectedPlanId ? "Pilih rencana area dahulu..." : "Contoh: 2026"}
                         value={rYear}
                         onChange={(e) => setRYear(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono disabled:opacity-50"
+                        className="w-full px-3 py-2 text-xs font-mono tabular-nums disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -1548,36 +1567,36 @@ export default function ReclamationView({
                   {selectedPlanId && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slide-up">
                       <div>
-                        <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Vegetasi Lapangan Terpasang (Aktual)</label>
+                        <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Vegetasi Lapangan Terpasang (Aktual)</label>
                         <input
                           type="text"
                           required
                           placeholder="Spesies tanaman yang riil ditanam..."
                           value={rPlants}
                           onChange={(e) => setRPlants(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                          className="w-full px-3 py-2 text-xs"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Metode Lapangan Terapan (Aktual)</label>
+                        <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Metode Lapangan Terapan (Aktual)</label>
                         <input
                           type="text"
                           required
                           placeholder="Contoh: Hydroseeding sipil"
                           value={rMethod}
                           onChange={(e) => setRMethod(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                          className="w-full px-3 py-2 text-xs"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Biaya Realisasi Aktual (IDR)</label>
+                        <label className="block text-[10px] text-text-low font-bold mb-1.5 uppercase">Biaya Realisasi Aktual (IDR)</label>
                         <input
                           type="number"
                           required
                           placeholder="Nominal rupiah yang dikeluarkan..."
                           value={rCost}
                           onChange={(e) => setRCost(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono text-teal-600 font-semibold"
+                          className="w-full px-3 py-2 text-xs font-mono tabular-nums text-neon-cyan font-semibold"
                         />
                       </div>
                     </div>
@@ -1585,7 +1604,7 @@ export default function ReclamationView({
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-3.5 pt-3.5 border-t border-slate-200 mt-5">
+              <div className="flex items-center justify-end gap-3.5 pt-3.5 border-t border-border-subtle mt-5">
                 <button
                   id="plans-form-cancel"
                   type="button"
@@ -1599,14 +1618,14 @@ export default function ReclamationView({
                     setRCost('');
                     setEditingPlanId(null);
                   }}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-900 cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-text-mid hover:text-text-hi cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   id="plans-form-submit"
                   type="submit"
-                  className="px-5 py-2.5 bg-teal-500 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer transition-colors hover:bg-teal-600"
+                  className="px-5 py-2.5 neon-btn-primary text-xs cursor-pointer"
                 >
                   {planFormTab === 'rencana' ? (editingPlanId ? 'Update Target Rencana' : 'Daftarkan Target Rencana') : 'Simpan Realisasi Aktual'}
                 </button>
@@ -1615,34 +1634,40 @@ export default function ReclamationView({
           )}
 
           {/* Comparative Table display */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden text-left shadow animate-fade-in">
-            <div className="px-5 py-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+          <div className="glass-panel rounded-2xl overflow-hidden text-left animate-fade-in">
+            <div className="px-5 py-4 border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-2.5">
               <div>
-                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">Tabel Komparasi Rencana vs Realisasi Kerja Reklamasi</h4>
-                <p className="text-[10px] text-slate-500 mt-1">Daftar blok reklamasi beserta targets (RKL) dan progres aktual di lapangan (RPL)</p>
+                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-text-hi">Tabel Komparasi Rencana vs Realisasi Kerja Reklamasi</h4>
+                <p className="text-[10px] text-text-low mt-1">Daftar blok reklamasi beserta targets (RKL) dan progres aktual di lapangan (RPL)</p>
               </div>
-              <span className="text-[10px] bg-white text-slate-500 px-3 py-1 rounded-lg border border-slate-200 font-mono self-start md:self-auto">Status: Komparasi Terpisah Aktif</span>
+              <span className="text-[10px] bg-bg-2 text-neon-cyan px-3 py-1 rounded-lg border border-border-neon font-mono self-start md:self-auto">Status: Komparasi Terpisah Aktif</span>
             </div>
             
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="neon-table">
                 <thead>
-                  <tr className="border-y border-slate-200 bg-slate-50 text-[10px] text-slate-600 font-mono tracking-wider uppercase">
-                    <th className="p-3.5 pl-5">Blok / Wilayah</th>
-                    <th className="p-3.5">Sasaran Rencana (Rencana)</th>
-                    <th className="p-3.5">Realisasi Lapangan (Realisasi)</th>
-                    <th className="p-3.5 text-center">Tahun Fisik</th>
-                    <th className="p-3.5 text-center">Progres Ha (Fisik)</th>
-                    <th className="p-3.5 text-center">Bibit Ditanam</th>
-                    <th className="p-3.5 text-right">Perbandingan Anggaran</th>
-                    <th className="p-3.5 text-center">Status</th>
-                    <th className="p-3.5 text-center pr-5">Aksi</th>
+                  <tr>
+                    <th className="pl-5">Blok / Wilayah</th>
+                    <th>Sasaran Rencana (Rencana)</th>
+                    <th>Realisasi Lapangan (Realisasi)</th>
+                    <th className="text-center">Tahun Fisik</th>
+                    <th className="text-center">Progres Ha (Fisik)</th>
+                    <th className="text-center">Bibit Ditanam</th>
+                    <th className="text-right">Perbandingan Anggaran</th>
+                    <th className="text-center">Status</th>
+                    <th className="text-center pr-5">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
+                <tbody className="text-xs">
                   {filteredPlans.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="p-10 text-center text-slate-600 italic">Tidak ada agenda rencana/realisasi reklamasi yang diajukan.</td>
+                      <td colSpan={9} className="p-4">
+                        <EmptyState
+                          icon={Trees}
+                          title="Belum ada rencana reklamasi"
+                          description="Tidak ada agenda rencana/realisasi reklamasi yang diajukan atau cocok dengan pencarian."
+                        />
+                      </td>
                     </tr>
                   ) : (
                     filteredPlans.map(item => {
@@ -1654,37 +1679,45 @@ export default function ReclamationView({
                         ? item.estimatedCost - item.realizedCost
                         : null;
                       const bibitDitanam = nurseryStockOut?.filter(out => out.kapling === item.id && out.jenisTransaksi === 'Penanaman').reduce((sum, out) => sum + out.jumlahKeluar, 0) || 0;
+                      const planBadgeStatus =
+                        item.status === 'Completed' ? 'Selesai' :
+                        item.status === 'In Progress' ? 'In Progress' :
+                        item.status === 'Approved' ? 'Approved' : 'Dipantau';
+                      const planBadgeLabel =
+                        item.status === 'Draft' ? 'Draft' :
+                        item.status === 'Approved' ? 'Disetujui' :
+                        item.status === 'In Progress' ? 'Pekerjaan' : 'Selesai';
 
-  return (
-                        <tr key={item.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
-                          <td className="p-3.5 pl-5 font-sans">
-                            <span className="text-[10px] font-mono text-slate-500 block mb-0.5">{item.id}</span>
-                            <span className="font-bold text-slate-800 block text-xs leading-tight">{item.areaName}</span>
-                            <span className="text-[10px] text-slate-500 block mt-1">PIC: {item.pic}</span>
+                      return (
+                        <tr key={item.id} className="group">
+                          <td className="pl-5 font-sans">
+                            <span className="text-[10px] font-mono text-text-low block mb-0.5">{item.id}</span>
+                            <span className="font-bold text-text-hi block text-xs leading-tight">{item.areaName}</span>
+                            <span className="text-[10px] text-text-low block mt-1">PIC: {item.pic}</span>
                           </td>
-                          <td className="p-3.5 py-4 align-top">
+                          <td className="py-4 align-top">
                             <div className="flex flex-col space-y-1">
-                              <span className="text-slate-600 font-semibold flex items-center gap-1">
-                                <span className="text-emerald-500 text-[10px]">● TARGET</span>
+                              <span className="text-text-mid font-semibold flex items-center gap-1">
+                                <span className="text-neon-green text-[10px]">● TARGET</span>
                               </span>
-                              <span className="text-slate-800 font-medium">{item.plantType}</span>
-                              <span className="text-[10px] text-slate-500 font-mono">{item.method}</span>
-                              <div className="text-[11px] font-bold text-slate-500 pt-1">Pagu Luas: {item.sizeHa} Ha</div>
+                              <span className="text-text-hi font-medium">{item.plantType}</span>
+                              <span className="text-[10px] text-text-low font-mono">{item.method}</span>
+                              <div className="text-[11px] font-bold font-mono tabular-nums text-text-mid pt-1">Pagu Luas: {item.sizeHa} Ha</div>
                             </div>
                           </td>
-                          <td className="p-3.5 py-4 align-top">
+                          <td className="py-4 align-top">
                             {item.realizedSizeHa !== undefined ? (
                               <div className="flex flex-col space-y-1">
-                                <span className="text-teal-600 font-semibold flex items-center gap-1">
-                                  <span className="text-teal-600 text-[10px]">● AKTUAL</span>
+                                <span className="text-neon-cyan font-semibold flex items-center gap-1">
+                                  <span className="text-neon-cyan text-[10px]">● AKTUAL</span>
                                 </span>
-                                <span className="text-teal-300 font-bold">{item.realizedPlantType || item.plantType}</span>
-                                <span className="text-[10px] text-teal-600 font-mono">{item.realizedMethod || item.method}</span>
-                                <div className="text-[11px] font-bold text-teal-600 pt-1">Hasil Riil: {item.realizedSizeHa} Ha</div>
+                                <span className="text-neon-cyan font-bold">{item.realizedPlantType || item.plantType}</span>
+                                <span className="text-[10px] text-text-mid font-mono">{item.realizedMethod || item.method}</span>
+                                <div className="text-[11px] font-bold font-mono tabular-nums text-neon-cyan pt-1">Hasil Riil: {item.realizedSizeHa} Ha</div>
                               </div>
                             ) : (
                               <div className="py-2.5">
-                                <span className="text-slate-600 text-xs italic block mb-2">Belum terealisasi</span>
+                                <span className="text-text-low text-xs italic block mb-2">Belum terealisasi</span>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1692,59 +1725,59 @@ export default function ReclamationView({
                                     handleSelectPlan(item.id);
                                     setShowPlanForm(true);
                                   }}
-                                  className="text-[11px] text-teal-600 font-bold hover:text-teal-300 transition-all underline shrink-0 cursor-pointer text-left block"
+                                  className="text-[11px] text-neon-cyan font-bold hover:underline shrink-0 cursor-pointer text-left block"
                                 >
                                   + Catat Realisasi Lapangan
                                 </button>
                               </div>
                             )}
                           </td>
-                          <td className="p-3.5 text-center font-bold text-slate-600 font-mono align-top py-4">
+                          <td className="text-center font-bold text-text-mid font-mono tabular-nums align-top py-4">
                             <div className="flex flex-col items-center justify-start space-y-1.5 h-full">
-                              <span className="text-slate-500 text-[10px] uppercase font-bold bg-white/60 px-1.5 py-0.5 rounded border border-slate-200">Target: {item.targetYear}</span>
+                              <span className="text-text-mid text-[10px] uppercase font-bold bg-bg-2 px-1.5 py-0.5 rounded border border-border-subtle">Target: {item.targetYear}</span>
                               {item.realizedYear ? (
-                                <span className="text-teal-600 text-[11px] bg-teal-500/10 px-1.5 py-0.5 rounded border border-teal-500/20 font-bold mt-1 shadow-sm">Real: {item.realizedYear}</span>
+                                <span className="text-neon-cyan text-[11px] bg-neon-cyan/10 px-1.5 py-0.5 rounded border border-neon-cyan/25 font-bold mt-1">Real: {item.realizedYear}</span>
                               ) : (
-                                <span className="text-slate-600 text-[10px] mt-1 italic">Blm Ada</span>
+                                <span className="text-text-low text-[10px] mt-1 italic">Blm Ada</span>
                               )}
                             </div>
                           </td>
-                          <td className="p-3.5 text-center align-top min-w-[130px] py-4">
+                          <td className="text-center align-top min-w-[130px] py-4">
                             <div className="flex flex-col items-center justify-start">
-                              <div className="flex items-baseline gap-1 font-bold text-slate-600 font-mono text-xs">
-                                <span className={item.realizedSizeHa !== undefined ? "text-teal-600" : "text-slate-500"}>
+                              <div className="flex items-baseline gap-1 font-bold text-text-mid font-mono tabular-nums text-xs">
+                                <span className={item.realizedSizeHa !== undefined ? "text-neon-cyan" : "text-text-low"}>
                                   {item.realizedSizeHa !== undefined ? item.realizedSizeHa : 0}
                                 </span>
-                                <span className="text-slate-600 text-[10px]">/</span>
-                                <span className="text-slate-500">{item.sizeHa} Ha</span>
+                                <span className="text-text-low text-[10px]">/</span>
+                                <span className="text-text-mid">{item.sizeHa} Ha</span>
                               </div>
                               
-                              <div className="w-full max-w-[85px] bg-white border border-slate-200/80 h-2 rounded-full mt-2.5 overflow-hidden shadow-inner">
-                                <div className="bg-teal-500 h-full rounded-full transition-all duration-300" style={{ width: `${Math.min(100, pctLuas)}%` }}></div>
+                              <div className="w-full max-w-[85px] bg-bg-1 border border-border-subtle h-2 rounded-full mt-2.5 overflow-hidden">
+                                <div className="bg-neon-cyan h-full rounded-full transition-all duration-300" style={{ width: `${Math.min(100, pctLuas)}%` }}></div>
                               </div>
                               
                               {item.realizedSizeHa !== undefined && (
-                                <span className="text-[10px] text-slate-500 mt-2 font-mono font-bold bg-white/80 px-1.5 py-0.5 rounded">
+                                <span className="text-[10px] text-text-mid mt-2 font-mono tabular-nums font-bold bg-bg-2 px-1.5 py-0.5 rounded border border-border-subtle">
                                   {pctLuas.toFixed(0)}% Selesai
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="p-3.5 text-center font-bold font-mono align-top py-4">
-                            <span className="text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200 shadow-sm text-[11px]">
-                               {bibitDitanam.toLocaleString('id-ID')}
+                          <td className="text-center font-bold font-mono tabular-nums align-top py-4">
+                            <span className="text-neon-green bg-neon-green/10 px-2 py-1 rounded-lg border border-neon-green/25 text-[11px]">
+                              {bibitDitanam.toLocaleString('id-ID')}
                             </span>
                           </td>
-                          <td className="p-3.5 text-right font-bold font-mono align-top py-4 min-w-[140px]">
+                          <td className="text-right font-bold font-mono tabular-nums align-top py-4 min-w-[140px]" data-numeric="true">
                             <div className="flex flex-col items-end space-y-1.5">
-                              <div className="text-[11px] text-slate-500"><span className="text-[9px] uppercase font-mono text-slate-500">Rcn:</span> {formatIDR(item.estimatedCost)}</div>
+                              <div className="text-[11px] text-text-mid"><span className="text-[9px] uppercase font-mono text-text-low">Rcn:</span> {formatIDR(item.estimatedCost)}</div>
                               {item.realizedCost !== undefined ? (
                                 <>
-                                  <div className="text-[11px] text-emerald-600"><span className="text-[9px] uppercase font-mono text-slate-500">Real:</span> {formatIDR(item.realizedCost)}</div>
+                                  <div className="text-[11px] text-neon-green"><span className="text-[9px] uppercase font-mono text-text-low">Real:</span> {formatIDR(item.realizedCost)}</div>
                                   {selisihBiaya !== null && (
                                     <div className="pt-1">
-                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                                        selisihBiaya >= 0 ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-red-500/10 text-red-600 border border-red-500/20'
+                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                                        selisihBiaya >= 0 ? 'bg-neon-green/10 text-neon-green border-neon-green/25' : 'bg-neon-red/10 text-neon-red border-neon-red/25'
                                       }`}>
                                         {selisihBiaya >= 0 ? `Hemat: ${formatIDR(selisihBiaya)}` : `Over: ${formatIDR(Math.abs(selisihBiaya))}`}
                                       </span>
@@ -1752,27 +1785,19 @@ export default function ReclamationView({
                                   )}
                                 </>
                               ) : (
-                                <span className="text-slate-600 text-[10px] italic">-</span>
+                                <span className="text-text-low text-[10px] italic">-</span>
                               )}
                             </div>
                           </td>
-                          <td className="p-3.5 text-center align-top py-4">
-                            <span className={`text-[9px] px-2.5 py-1 rounded border font-bold uppercase block text-center ${
-                              item.status === 'Completed' ? 'bg-emerald-500/15 border-emerald-500/20 text-emerald-600' :
-                              item.status === 'In Progress' ? 'bg-blue-500/15 border-blue-500/20 text-blue-600' :
-                              item.status === 'Approved' ? 'bg-teal-500/15 border-teal-500/20 text-teal-600' :
-                              'bg-white border-slate-700 text-slate-500'
-                            }`}>
-                              {item.status === 'Draft' ? 'Draft' :
-                               item.status === 'Approved' ? 'Disetujui' :
-                               item.status === 'In Progress' ? 'Pekerjaan' : 'Selesai'}
-                            </span>
-                            
-                            {item.realizedSizeHa !== undefined && item.status !== 'Completed' && (
-                              <span className="text-[9px] text-teal-600 font-semibold block mt-1.5 font-mono">✓ Lapangan</span>
-                            )}
+                          <td className="text-center align-top py-4">
+                            <div className="flex flex-col items-center gap-1">
+                              <StatusBadge status={planBadgeStatus} label={planBadgeLabel} size="xs" />
+                              {item.realizedSizeHa !== undefined && item.status !== 'Completed' && (
+                                <span className="text-[9px] text-neon-cyan font-semibold font-mono">✓ Lapangan</span>
+                              )}
+                            </div>
                           </td>
-                          <td className="p-3.5 text-center pr-5 align-top py-4">
+                          <td className="text-center pr-5 align-top py-4">
                             <div className="flex flex-col md:flex-row items-center justify-center gap-1.5">
                               {item.realizedSizeHa !== undefined && (
                                 <button
@@ -1786,7 +1811,7 @@ export default function ReclamationView({
                                       message: `Reset atau hapus data realisasi lapangan untuk area ${item.id}?`
                                     });
                                   }}
-                                  className="text-[9px] text-amber-500 hover:text-amber-600 hover:underline cursor-pointer border border-amber-500/10 px-1.5 py-0.5 rounded font-bold transition-all"
+                                  className="text-[9px] text-neon-amber hover:underline cursor-pointer border border-neon-amber/25 bg-neon-amber/10 px-1.5 py-0.5 rounded font-bold transition-all"
                                 >
                                   Reset Realisasi
                                 </button>
@@ -1798,7 +1823,7 @@ export default function ReclamationView({
                                   if (!canEdit) return onUnauthorizedAction("Ubah Rencana Reklamasi");
                                   startEditPlan(item);
                                 }}
-                                className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
+                                className="p-1.5 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 border border-neon-cyan/20 rounded-lg cursor-pointer transition-colors"
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>
@@ -1812,7 +1837,7 @@ export default function ReclamationView({
                                     message: `Hapus program kerja reklamasi ${item.id} beserta seluruh data rencana & realisasinya?`
                                   });
                                 }}
-                                className="p-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg cursor-pointer transition-colors"
+                                className="p-1.5 bg-neon-red/10 text-neon-red hover:bg-neon-red/20 border border-neon-red/20 rounded-lg cursor-pointer transition-colors"
                               >
                                 <Trash2 className="h-4.5 w-4.5" />
                               </button>
@@ -1832,14 +1857,14 @@ export default function ReclamationView({
       {activeTab === 'guarantees' && (
         <div id="reclamation-guarantees-panel" className="space-y-6">
           {/* Danger alert for soon expired items */}
-          <div className="bg-[#b91c1c]/10 border border-red-500/30 p-4.5 rounded-2xl flex items-start gap-4 mb-3 text-left">
-            <ShieldAlert className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="bg-neon-red/10 border border-neon-red/30 p-4.5 rounded-2xl flex items-start gap-4 mb-3 text-left">
+            <ShieldAlert className="h-5 w-5 text-neon-red shrink-0 mt-0.5" />
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-red-600">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-neon-red">
                 Ketentuan Kepmen ESDM No. 344.K/MB.01/MEM.B/2025 (Berlaku 23 Oktober 2025)
               </h4>
-              <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                Setiap pemegang IUP OP wajib menempatkan Jaminan Reklamasi dan Jaminan Pascatambang tepat waktu. Berdasarkan <strong>Kepmen ESDM No. 344.K/MB.01/MEM.B/2025</strong>, penempatan jaminan baru wajib dalam bentuk <strong>Deposito Berjangka (Time Deposit) pada Bank Pemerintah</strong>. Dokumen lama berbentuk Bank Guarantee / Environmental Bond tetap dapat dipantau namun memerlukan penyesuaian ke deposito berjangka.
+              <p className="text-xs text-text-mid mt-0.5 leading-relaxed">
+                Setiap pemegang IUP OP wajib menempatkan Jaminan Reklamasi dan Jaminan Pascatambang tepat waktu. Berdasarkan <strong className="text-text-hi">Kepmen ESDM No. 344.K/MB.01/MEM.B/2025</strong>, penempatan jaminan baru wajib dalam bentuk <strong className="text-text-hi">Deposito Berjangka (Time Deposit) pada Bank Pemerintah</strong>. Dokumen lama berbentuk Bank Guarantee / Environmental Bond tetap dapat dipantau namun memerlukan penyesuaian ke deposito berjangka.
               </p>
             </div>
           </div>
@@ -1857,7 +1882,7 @@ export default function ReclamationView({
                   resetGuaranteeForm();
                 }
               }}
-              className="flex items-center justify-center gap-2 px-4.5 py-2.5 bg-teal-500 text-slate-950 font-bold rounded-xl text-xs shadow cursor-pointer hover:bg-teal-400 transition-colors"
+              className="flex items-center justify-center gap-2 px-4.5 py-2.5 neon-btn-primary text-xs cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               Registrasi Jaminan Reklamasi (Escrow)
@@ -1869,15 +1894,15 @@ export default function ReclamationView({
             <form 
               id="guarantees-form-element"
               onSubmit={handleGuaranteeSubmit}
-              className="bg-white/80 p-5 rounded-2xl border border-slate-200 text-left animate-slide-up"
+              className="glass-panel p-5 rounded-2xl text-left animate-slide-up"
             >
-              <h3 className="text-sm font-bold uppercase tracking-wider text-teal-600 mb-4 pb-2 border-b border-slate-200">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-neon-cyan mb-4 pb-2 border-b border-border-subtle">
                 {editingGuaranteeId ? 'Edit Data Penempatan Jaminan Finansial Reklamasi' : 'Data Penempatan Jaminan Finansial Reklamasi Tambang'}
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Nomor Surat Jaminan / Deposit</label>
+                  <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase">Nomor Surat Jaminan / Deposit</label>
                   <input
                     id="guarantees-field-no"
                     type="text"
@@ -1885,28 +1910,28 @@ export default function ReclamationView({
                     placeholder="JAMREK-2026-PTDKB-XXX"
                     value={gNo}
                     onChange={(e) => setGNo(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Kategori Jaminan</label>
+                  <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase">Kategori Jaminan</label>
                   <select
                     id="guarantees-field-category"
                     value={gCategory}
                     onChange={(e) => setGCategory(e.target.value as 'Jaminan Reklamasi' | 'Jaminan Pascatambang')}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   >
                     <option value="Jaminan Reklamasi">Jaminan Reklamasi (Jamrek)</option>
                     <option value="Jaminan Pascatambang">Jaminan Pascatambang (JamPT)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Tipe Jaminan Finansial</label>
+                  <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase">Tipe Jaminan Finansial</label>
                   <select
                     id="guarantees-field-type"
                     value={gType}
                     onChange={(e) => setGType(e.target.value as any)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   >
                     <option value="Time Deposit">Time Deposit / Deposito Berjangka (Kepmen ESDM 344.K/2025)</option>
                     {editingGuaranteeId && gType === 'Bank Guarantee' && (
@@ -1917,25 +1942,25 @@ export default function ReclamationView({
                     )}
                   </select>
                   {gType !== 'Time Deposit' && (
-                    <span className="text-[10px] text-amber-700 font-medium block mt-1">
+                    <span className="text-[10px] text-neon-amber font-medium block mt-1">
                       Bentuk lama — perlu penyesuaian ke deposito berjangka.
                     </span>
                   )}
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Jenis Bank Penerbit</label>
+                  <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase">Jenis Bank Penerbit</label>
                   <select
                     id="guarantees-field-bank-type"
                     value={gBankType}
                     onChange={(e) => setGBankType(e.target.value as 'Bank Pemerintah' | 'Lainnya')}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   >
                     <option value="Bank Pemerintah">Bank Pemerintah (Mandiri / BRI / BNI / BTN)</option>
                     <option value="Lainnya">Lainnya (Perlu verifikasi Kepmen 344.K/2025)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Lembaga Keuangan Penerbit</label>
+                  <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase">Lembaga Keuangan Penerbit</label>
                   <input
                     id="guarantees-field-institution"
                     type="text"
@@ -1943,26 +1968,26 @@ export default function ReclamationView({
                     placeholder="Contoh: PT Bank Mandiri (Persero) Tbk"
                     value={gInst}
                     onChange={(e) => setGInst(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Nilai Jaminan Finansial (IDR)</label>
+                  <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase">Nilai Jaminan Finansial (IDR)</label>
                   <input
                     id="guarantees-field-value"
                     type="number"
                     required
                     value={gValue}
                     onChange={(e) => setGValue(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 text-emerald-600 font-semibold"
+                    className="w-full px-3 py-2 text-xs text-neon-green font-semibold font-mono tabular-nums"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">
-                    Tahun Jaminan (Pelaksanaan) <span className="text-red-500">*</span>
+                  <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase">
+                    Tahun Jaminan (Pelaksanaan) <span className="text-neon-red">*</span>
                   </label>
                   <input
                     id="guarantees-field-period-year"
@@ -1973,38 +1998,38 @@ export default function ReclamationView({
                     value={gPeriodYear}
                     onChange={(e) => setGPeriodYear(e.target.value === '' ? '' : Number(e.target.value))}
                     placeholder="Contoh: 2026"
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800 font-mono"
+                    className="w-full px-3 py-2 text-xs font-mono tabular-nums"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Tanggal Penerbitan</label>
+                  <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase">Tanggal Penerbitan</label>
                   <input
                     id="guarantees-field-issued"
                     type="date"
                     required
                     value={gIssue}
                     onChange={(e) => setGIssue(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Tanggal Jatuh Tempo</label>
+                  <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase">Tanggal Jatuh Tempo</label>
                   <input
                     id="guarantees-field-due"
                     type="date"
                     required
                     value={gDue}
                     onChange={(e) => setGDue(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 uppercase">Status Kepatuhan Dokumen</label>
+                  <label className="block text-[11px] text-text-low font-bold mb-1.5 uppercase">Status Kepatuhan Dokumen</label>
                   <select
                     id="guarantees-field-status"
                     value={gStatus}
                     onChange={(e) => setGStatus(e.target.value as any)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-teal-500 outline-none text-slate-800"
+                    className="w-full px-3 py-2 text-xs"
                   >
                     <option value="Active">✅ Active & Valid</option>
                     <option value="Renewal Needed">⚠️ Renewal Needed / Segera Habis</option>
@@ -2014,7 +2039,7 @@ export default function ReclamationView({
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3.5 pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-end gap-3.5 pt-3 border-t border-border-subtle">
                 <button
                   id="guarantees-form-cancel"
                   type="button"
@@ -2023,7 +2048,7 @@ export default function ReclamationView({
                     setShowGuaranteeForm(false);
                     resetGuaranteeForm();
                   }}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 text-xs font-semibold text-text-mid hover:text-text-hi cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Batal
                 </button>
@@ -2031,7 +2056,7 @@ export default function ReclamationView({
                   id="guarantees-form-submit"
                   type="submit"
                   disabled={isSubmittingGuarantee}
-                  className="px-5 py-2.5 bg-teal-500 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-teal-400 transition-colors"
+                  className="px-5 py-2.5 neon-btn-primary text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmittingGuarantee ? 'Menyimpan...' : (editingGuaranteeId ? 'Update Jamrek' : 'Daftarkan Jamrek')}
                 </button>
@@ -2040,24 +2065,24 @@ export default function ReclamationView({
           )}
 
           {/* Guarantee list table */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden text-left shadow">
-            <div className="px-5 py-4 border-b border-slate-200">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Daftar Dokumen Penempatan Jaminan Pascatambang & Reklamasi</h4>
+          <div className="glass-panel rounded-2xl overflow-hidden text-left">
+            <div className="px-5 py-4 border-b border-border-subtle">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-text-hi">Daftar Dokumen Penempatan Jaminan Pascatambang & Reklamasi</h4>
             </div>
 
             {/* Toolbar filter & sort */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-slate-50 border-b border-slate-200">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-bg-2/70 border-b border-border-subtle">
               <div className="flex flex-wrap items-center gap-3">
                 {/* Dropdown Filter Tahun */}
                 <div className="flex items-center gap-2">
-                  <label htmlFor="guarantees-year-filter" className="text-xs font-semibold text-slate-600">
+                  <label htmlFor="guarantees-year-filter" className="text-xs font-semibold text-text-mid">
                     Filter Tahun:
                   </label>
                   <select
                     id="guarantees-year-filter"
                     value={selectedYearFilter}
                     onChange={(e) => setSelectedYearFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                    className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                    className="px-3 py-1.5 text-xs cursor-pointer"
                   >
                     <option value="all">Semua Tahun</option>
                     {uniqueGuaranteeYears.map(year => (
@@ -2068,14 +2093,14 @@ export default function ReclamationView({
 
                 {/* Dropdown Urutkan */}
                 <div className="flex items-center gap-2">
-                  <label htmlFor="guarantees-sort-select" className="text-xs font-semibold text-slate-600">
+                  <label htmlFor="guarantees-sort-select" className="text-xs font-semibold text-text-mid">
                     Urutkan:
                   </label>
                   <select
                     id="guarantees-sort-select"
                     value={guaranteeSort}
                     onChange={(e) => setGuaranteeSort(e.target.value as any)}
-                    className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                    className="px-3 py-1.5 text-xs cursor-pointer"
                   >
                     <option value="year-desc">Tahun Terbaru → Terlama</option>
                     <option value="year-asc">Tahun Terlama → Terbaru</option>
@@ -2087,25 +2112,25 @@ export default function ReclamationView({
 
               {/* Search input */}
               <div className="relative w-full md:w-64">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-text-low absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   id="guarantees-search-input"
                   type="text"
                   placeholder="Cari No Jaminan / Bank..."
                   value={guaranteeSearch}
                   onChange={(e) => setGuaranteeSearch(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs"
                 />
               </div>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="neon-table">
                 <thead>
-                  <tr className="border-y border-slate-200 bg-slate-50 text-[10px] text-slate-600 font-mono tracking-wider uppercase">
-                    <th className="p-3.5 pl-5">No Rekening / Jaminan</th>
+                  <tr>
+                    <th className="pl-5">No Rekening / Jaminan</th>
                     <th 
-                      className="p-3.5 cursor-pointer hover:bg-slate-100 transition-colors select-none group"
+                      className="cursor-pointer hover:text-neon-cyan transition-colors select-none group"
                       onClick={() => {
                         setGuaranteeSort(prev => prev === 'year-desc' ? 'year-asc' : 'year-desc');
                       }}
@@ -2113,29 +2138,37 @@ export default function ReclamationView({
                     >
                       <div className="flex items-center gap-1.5">
                         <span>Tahun</span>
-                        <ArrowUpDown className="w-3 h-3 text-slate-400 group-hover:text-teal-600 transition-colors" />
+                        <ArrowUpDown className="w-3 h-3 text-text-low group-hover:text-neon-cyan transition-colors" />
                       </div>
                     </th>
-                    <th className="p-3.5">Instrumen Jaminan</th>
-                    <th className="p-3.5 text-right">Nilai Jaminan Finansial</th>
-                    <th className="p-3.5">Lembaga Keuangan Penerbit</th>
-                    <th className="p-3.5 text-center">Tgl Terbit</th>
-                    <th className="p-3.5 text-center">Expired Date</th>
-                    <th className="p-3.5 text-center">Status Keaktifan</th>
-                    <th className="p-3.5 text-center pr-5">Aksi</th>
+                    <th>Instrumen Jaminan</th>
+                    <th className="text-right">Nilai Jaminan Finansial</th>
+                    <th>Lembaga Keuangan Penerbit</th>
+                    <th className="text-center">Tgl Terbit</th>
+                    <th className="text-center">Expired Date</th>
+                    <th className="text-center">Status Keaktifan</th>
+                    <th className="text-center pr-5">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
+                <tbody className="text-xs">
                   {guarantees.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="p-10 text-center text-slate-500">
-                        Belum ada jaminan finansial yang dicatatkan.
+                      <td colSpan={9} className="p-4">
+                        <EmptyState
+                          icon={Landmark}
+                          title="Belum ada jaminan finansial"
+                          description="Belum ada jaminan finansial reklamasi atau pascatambang yang dicatatkan."
+                        />
                       </td>
                     </tr>
                   ) : sortedAndFilteredGuarantees.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="p-10 text-center text-slate-500">
-                        Tidak ada data jaminan untuk filter yang dipilih.
+                      <td colSpan={9} className="p-4">
+                        <EmptyState
+                          icon={Search}
+                          title="Tidak ada hasil"
+                          description="Tidak ada data jaminan untuk filter atau pencarian yang dipilih."
+                        />
                       </td>
                     </tr>
                   ) : (
@@ -2155,93 +2188,91 @@ export default function ReclamationView({
                         const isExpiredActive = item.status === 'Active' && diffDays < 0;
 
                         const stat = yearGroupStats.get(itemYear);
+                        const guaranteeBadgeStatus =
+                          item.status === 'Released' || item.status === 'Claimed' ? 'Dipantau' :
+                          isWarning ? 'Tidak Memenuhi' : 'Active';
+                        const guaranteeBadgeLabel =
+                          item.status === 'Active' && !isWarning ? 'Valid' :
+                          item.status === 'Active' && isWarning ? 'Segera Habis' :
+                          item.status === 'Renewal Needed' ? 'Renewal segera' : item.status;
 
                         return (
                           <React.Fragment key={item.id}>
                             {shouldShowDivider && stat && (
-                              <tr className="bg-slate-100/90 border-y border-slate-200">
-                                <td colSpan={9} className="py-2.5 px-5 font-bold text-xs text-slate-700">
+                              <tr className="bg-bg-2 border-y border-border-subtle">
+                                <td colSpan={9} className="py-2.5 px-5 font-bold text-xs text-text-hi">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="flex items-center gap-2">
-                                      <Calendar className="w-3.5 h-3.5 text-teal-600" />
+                                      <Calendar className="w-3.5 h-3.5 text-neon-cyan" />
                                       Tahun Pelaksanaan {itemYear !== null ? itemYear : 'Tidak Ditentukan'}
-                                      <span className="text-[10px] font-normal text-slate-500">
+                                      <span className="text-[10px] font-normal text-text-low">
                                         ({stat.count} dokumen)
                                       </span>
                                     </span>
-                                    <span className="font-mono text-xs text-emerald-700 font-bold">
+                                    <span className="font-mono tabular-nums text-xs text-neon-green font-bold">
                                       Subtotal Nilai: {formatIDR(stat.totalValue)}
                                     </span>
                                   </div>
                                 </td>
                               </tr>
                             )}
-                            <tr className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
-                              <td className="p-3.5 pl-5 font-mono font-bold text-slate-700">
-                                <span className="text-slate-500 text-[9px] block mb-0.5">{item.id}</span>
+                            <tr className="group">
+                              <td className="pl-5 font-mono font-bold text-text-hi">
+                                <span className="text-text-low text-[9px] block mb-0.5">{item.id}</span>
                                 {item.guaranteeNo}
                               </td>
-                              <td className="p-3.5 font-bold text-slate-700 font-mono">
+                              <td className="font-bold text-text-hi font-mono tabular-nums">
                                 {itemYear !== null ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/25">
                                     {itemYear}
                                   </span>
                                 ) : (
-                                  <span className="text-slate-400 text-xs italic">-</span>
+                                  <span className="text-text-low text-xs italic">-</span>
                                 )}
                               </td>
-                              <td className="p-3.5">
+                              <td>
                                 <div className="flex flex-col items-start gap-1">
                                   {item.guaranteeCategory && (
-                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 font-bold">
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/25 font-bold">
                                       {item.guaranteeCategory}
                                     </span>
                                   )}
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] border bg-white border-slate-200 font-semibold text-slate-600">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] border bg-bg-2 border-border-subtle font-semibold text-text-mid">
                                     {item.guaranteeType === 'Time Deposit' ? 'Deposito Berjangka (Time Deposit)' : item.guaranteeType}
                                   </span>
                                   {(item.guaranteeType === 'Bank Guarantee' || item.guaranteeType === 'Environmental Bond') && (
-                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-neon-amber/10 text-neon-amber border border-neon-amber/25 font-semibold">
                                       Bentuk lama — perlu penyesuaian ke deposito berjangka
                                     </span>
                                   )}
                                 </div>
                               </td>
-                              <td className="p-3.5 text-right font-bold text-emerald-600 font-mono text-sm">
+                              <td className="text-right font-bold text-neon-green font-mono tabular-nums text-sm" data-numeric="true">
                                 {formatIDR(item.value)}
                               </td>
-                              <td className="p-3.5 font-semibold text-slate-600">
+                              <td className="font-semibold text-text-hi">
                                 <span>{item.issuingInstitution}</span>
                                 {item.bankType && (
-                                  <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
+                                  <span className="block text-[10px] text-text-low font-normal mt-0.5">
                                     {item.bankType}
                                   </span>
                                 )}
                               </td>
-                              <td className="p-3.5 text-center text-slate-500">{item.issuedDate}</td>
-                              <td className="p-3.5 text-center font-mono">
-                                <span className={`font-bold ${isWarning ? 'text-red-600' : 'text-slate-600'}`}>
+                              <td className="text-center text-text-mid font-mono tabular-nums">{item.issuedDate}</td>
+                              <td className="text-center font-mono tabular-nums">
+                                <span className={`font-bold ${isWarning ? 'text-neon-red' : 'text-text-mid'}`}>
                                   {item.dueDate}
                                 </span>
                                 {isExpiredActive && (
-                                  <span className="block text-[9px] text-red-600 font-bold mt-0.5">
+                                  <span className="block text-[9px] text-neon-red font-bold mt-0.5">
                                     Kedaluwarsa
                                   </span>
                                 )}
                               </td>
-                              <td className="p-3.5 text-center">
-                                <span className={`text-[10px] px-2.5 py-1 rounded border font-bold uppercase ${
-                                  item.status === 'Released' || item.status === 'Claimed'
-                                    ? 'bg-slate-100 border-slate-300 text-slate-600'
-                                    : isWarning
-                                    ? 'bg-red-500/10 border-red-500/20 text-red-600 font-extrabold animate-pulse'
-                                    : 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                                }`}>
-                                  {item.status === 'Active' ? 'Valid' :
-                                   item.status === 'Renewal Needed' ? 'Renewal segera' : item.status}
-                                </span>
+                              <td className="text-center">
+                                <StatusBadge status={guaranteeBadgeStatus} label={guaranteeBadgeLabel} size="xs" />
                               </td>
-                              <td className="p-3.5 text-center pr-5">
+                              <td className="text-center pr-5">
                                 <div className="flex items-center justify-center gap-1.5">
                                   <button
                                     id={`guarantees-edit-btn-${item.id}`}
@@ -2251,7 +2282,7 @@ export default function ReclamationView({
                                       if (!canEdit) return onUnauthorizedAction("Ubah Jaminan Reklamasi");
                                       startEditGuarantee(item);
                                     }}
-                                    className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg cursor-pointer transition-colors"
+                                    className="p-1.5 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 border border-neon-cyan/20 rounded-lg cursor-pointer transition-colors"
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </button>
@@ -2267,7 +2298,7 @@ export default function ReclamationView({
                                         message: `Hapus records penjaminan ${item.guaranteeNo}?`
                                       });
                                     }}
-                                    className="p-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg cursor-pointer transition-colors"
+                                    className="p-1.5 bg-neon-red/10 text-neon-red hover:bg-neon-red/20 border border-neon-red/20 rounded-lg cursor-pointer transition-colors"
                                   >
                                     <Trash2 className="h-4.5 w-4.5" />
                                   </button>
@@ -2284,9 +2315,9 @@ export default function ReclamationView({
             </div>
 
             {/* Bottom summary bar */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-600">
+            <div className="p-4 bg-bg-2/70 border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-text-mid">
               <div>
-                Menampilkan <strong className="text-slate-800">{sortedAndFilteredGuarantees.length}</strong> dari <strong className="text-slate-800">{guarantees.length}</strong> dokumen · Total nilai: <strong className="text-emerald-700 font-mono">{formatIDR(filteredTotalValue)}</strong>
+                Menampilkan <strong className="text-text-hi font-mono tabular-nums">{sortedAndFilteredGuarantees.length}</strong> dari <strong className="text-text-hi font-mono tabular-nums">{guarantees.length}</strong> dokumen · Total nilai: <strong className="text-neon-green font-mono tabular-nums">{formatIDR(filteredTotalValue)}</strong>
               </div>
             </div>
           </div>
@@ -2296,33 +2327,33 @@ export default function ReclamationView({
       
       {nurseryHistoryId && (
         <ModalPortal>
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-5xl w-full shadow-2xl text-slate-700 text-left max-h-[85vh] flex flex-col">
-              <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
-                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  <Activity size={18} className="text-blue-500" />
+          <div className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="glass-panel rounded-3xl p-6 max-w-5xl w-full text-text-mid text-left max-h-[85vh] flex flex-col">
+              <div className="flex justify-between items-center mb-4 border-b border-border-subtle pb-4">
+                <h3 className="text-base font-bold text-text-hi flex items-center gap-2">
+                  <Activity size={18} className="text-neon-cyan" />
                   Riwayat Transaksi: {nursery.find(n => n.id === nurseryHistoryId)?.plantType}
                 </h3>
-                <button onClick={() => setNurseryHistoryId(null)} className="text-slate-400 hover:text-slate-600 p-1 bg-slate-100 rounded-full">
-                  <Plus size={20} className="rotate-45" />
+                <button onClick={() => setNurseryHistoryId(null)} className="text-text-mid hover:text-text-hi p-1.5 bg-bg-2 border border-border-subtle rounded-full cursor-pointer">
+                  <Plus size={18} className="rotate-45" />
                 </button>
               </div>
               <div className="flex-1 overflow-x-auto overflow-y-auto">
-                <table className="w-full text-left border-collapse min-w-[800px]">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-500 text-[10px] uppercase tracking-wider sticky top-0">
-                      <th className="p-3 font-bold">No. Transaksi</th>
-                      <th className="p-3 font-bold">Tanggal</th>
-                      <th className="p-3 font-bold">Jenis Transaksi</th>
-                      <th className="p-3 text-center font-bold">Masuk</th>
-                      <th className="p-3 text-center font-bold">Keluar</th>
-                      <th className="p-3 font-bold">Batch</th>
-                      <th className="p-3 font-bold">Lokasi / Kapling</th>
-                      <th className="p-3 font-bold">PIC</th>
-                      <th className="p-3 font-bold">Keterangan</th>
+                <table className="neon-table min-w-[800px]">
+                  <thead className="sticky top-0 z-10">
+                    <tr>
+                      <th>No. Transaksi</th>
+                      <th>Tanggal</th>
+                      <th>Jenis Transaksi</th>
+                      <th className="text-center">Masuk</th>
+                      <th className="text-center">Keluar</th>
+                      <th>Batch</th>
+                      <th>Lokasi / Kapling</th>
+                      <th>PIC</th>
+                      <th>Keterangan</th>
                     </tr>
                   </thead>
-                  <tbody className="text-xs divide-y divide-slate-100">
+                  <tbody className="text-xs">
                     {(() => {
                       const itemIn = nursery.find(n => n.id === nurseryHistoryId);
                       const outs = nurseryStockOut.filter(o => o.jenisBibitId === nurseryHistoryId);
@@ -2358,26 +2389,28 @@ export default function ReclamationView({
                       if (history.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={9} className="p-6 text-center text-slate-500 bg-slate-50/50">Belum ada histori transaksi.</td>
+                            <td colSpan={9} className="p-4">
+                              <EmptyState icon={Activity} title="Belum ada histori transaksi" description="Riwayat masuk/keluar bibit untuk jenis ini masih kosong." />
+                            </td>
                           </tr>
                         );
                       }
 
                       return history.map((h, i) => (
-                        <tr key={i} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-3 font-mono text-[10px] text-slate-500">{h.no}</td>
-                          <td className="p-3 font-mono text-slate-600">{h.date}</td>
-                          <td className="p-3 font-bold text-slate-700">{h.type}</td>
-                          <td className="p-3 text-center font-bold text-emerald-600 font-mono">
+                        <tr key={i}>
+                          <td className="font-mono text-[10px] text-text-low">{h.no}</td>
+                          <td className="font-mono tabular-nums text-text-mid">{h.date}</td>
+                          <td className="font-bold text-text-hi">{h.type}</td>
+                          <td className="text-center font-bold text-neon-green font-mono tabular-nums">
                             {h.masuk > 0 ? `+${h.masuk.toLocaleString('id-ID')}` : '-'}
                           </td>
-                          <td className="p-3 text-center font-bold text-rose-600 font-mono">
+                          <td className="text-center font-bold text-neon-red font-mono tabular-nums">
                             {h.keluar > 0 ? `-${h.keluar.toLocaleString('id-ID')}` : '-'}
                           </td>
-                          <td className="p-3 font-mono text-[10px]">{h.batch}</td>
-                          <td className="p-3 text-[11px]">{h.lokasi}</td>
-                          <td className="p-3">{h.pic}</td>
-                          <td className="p-3 text-[11px] text-slate-500 max-w-[150px] truncate" title={h.notes}>{h.notes}</td>
+                          <td className="font-mono text-[10px] text-text-mid">{h.batch}</td>
+                          <td className="text-[11px] text-text-mid">{h.lokasi}</td>
+                          <td className="text-text-hi">{h.pic}</td>
+                          <td className="text-[11px] text-text-low max-w-[150px] truncate" title={h.notes}>{h.notes}</td>
                         </tr>
                       ));
                     })()}
@@ -2391,22 +2424,22 @@ export default function ReclamationView({
 
       {deleteConfirm && (
         <ModalPortal>
-          <div id="delete-confirm-modal-rec" className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-700 text-left">
-              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-red-500/10 text-red-500">
+          <div id="delete-confirm-modal-rec" className="fixed inset-0 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="glass-panel rounded-3xl p-6 max-w-sm w-full text-text-mid text-left">
+              <h3 className="text-sm font-bold text-text-hi flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-neon-red/15 text-neon-red border border-neon-red/30">
                   <Trash2 size={16} />
                 </span>
                 Konfirmasi Tindakan
               </h3>
-              <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+              <p className="text-xs text-text-mid mt-3 leading-relaxed">
                 {deleteConfirm.message}
               </p>
               <div className="flex justify-end gap-2 mt-5">
                 <button
                   disabled={isProcessing}
                   onClick={() => setDeleteConfirm(null)}
-                  className="px-3.5 py-2 rounded-xl text-xs bg-white hover:bg-slate-100 text-slate-600 font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3.5 py-2 rounded-xl text-xs bg-bg-2 hover:bg-bg-1 border border-border-subtle text-text-mid hover:text-text-hi font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Batal
                 </button>
@@ -2457,7 +2490,7 @@ export default function ReclamationView({
                       setIsProcessing(false);
                     }
                   }}
-                  className="px-3.5 py-2 rounded-xl text-xs bg-red-600 hover:bg-red-500 text-white font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3.5 py-2 rounded-xl text-xs neon-btn-danger font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isProcessing ? 'Memproses...' : 'Konfirmasi'}
                 </button>

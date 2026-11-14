@@ -83,6 +83,12 @@ import {
 import type { BackupStatus } from './services/backupService';
 import { getScopedKey } from './utils/googleSync';
 import { buildWasteLedger } from './utils/wasteLedger';
+import {
+  ThemePreference,
+  applyThemeToDocument,
+  getStoredThemePreference,
+  saveThemePreference,
+} from './utils/theme';
 
 import { VALID_TABS, AppTabId } from './data/navigation';
 import { ShieldAlert } from 'lucide-react';
@@ -129,6 +135,31 @@ export default function App() {
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [regulatorySearchSeed, setRegulatorySearchSeed] = useState('');
+
+  // Theme mode preference ("Neon Gelap" | "Terang Lapangan" | "Sistem")
+  const themeUserKey = profile?.email || user?.email || user?.uid || null;
+  const [themePref, setThemePref] = useState<ThemePreference>(() =>
+    getStoredThemePreference(themeUserKey)
+  );
+
+  useEffect(() => {
+    setThemePref(getStoredThemePreference(themeUserKey));
+  }, [themeUserKey]);
+
+  useEffect(() => {
+    applyThemeToDocument(themePref);
+    if (themePref !== 'system' || typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const handler = () => applyThemeToDocument('system');
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [themePref]);
+
+  const handleThemeChange = (next: ThemePreference) => {
+    setThemePref(next);
+    saveThemePreference(next, themeUserKey);
+    applyThemeToDocument(next);
+  };
 
   // Global Ctrl/Cmd+K shortcut for Menu Search
   useEffect(() => {
@@ -833,8 +864,8 @@ export default function App() {
       case 'monitoring':
         if (isLoadingWastewater || isLoadingSurfaceWater || isLoadingRainfall) {
           return (
-            <div className="bg-white border border-slate-200/50 rounded-xl p-6">
-              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT DATA MONITORING LINGKUNGAN...</h3>
+            <div className="glass-panel rounded-2xl p-6">
+              <h3 className="text-xs font-semibold font-mono tracking-widest text-neon-cyan uppercase mb-4">MEMUAT DATA MONITORING LINGKUNGAN...</h3>
               <TableSkeleton columns={5} rows={4} />
             </div>
           );
@@ -867,8 +898,8 @@ export default function App() {
       case 'reclamation':
         if (isLoadingNursery || isLoadingReclamation) {
           return (
-            <div className="bg-white border border-slate-200/50 rounded-xl p-6">
-              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT DATA REKLAMASI & NURSERY...</h3>
+            <div className="glass-panel rounded-2xl p-6">
+              <h3 className="text-xs font-semibold font-mono tracking-widest text-neon-cyan uppercase mb-4">MEMUAT DATA REKLAMASI &amp; NURSERY...</h3>
               <TableSkeleton columns={6} rows={4} />
             </div>
           );
@@ -922,8 +953,8 @@ export default function App() {
       case 'waste':
         if (isLoadingWaste) {
           return (
-            <div className="bg-white border border-slate-200/50 rounded-xl p-6">
-              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT DATA PERSEDIAAN LIMBAH B3...</h3>
+            <div className="glass-panel rounded-2xl p-6">
+              <h3 className="text-xs font-semibold font-mono tracking-widest text-neon-cyan uppercase mb-4">MEMUAT DATA PERSEDIAAN LIMBAH B3...</h3>
               <TableSkeleton columns={6} rows={4} />
             </div>
           );
@@ -952,8 +983,8 @@ export default function App() {
       case 'solid_waste':
         if (isLoadingSolidWaste) {
           return (
-            <div className="bg-white border border-slate-200/50 rounded-xl p-6">
-              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT REKAMAN DATA PENGOLAHAN SAMPAH...</h3>
+            <div className="glass-panel rounded-2xl p-6">
+              <h3 className="text-xs font-semibold font-mono tracking-widest text-neon-cyan uppercase mb-4">MEMUAT REKAMAN DATA PENGOLAHAN SAMPAH...</h3>
               <TableSkeleton columns={8} rows={4} />
             </div>
           );
@@ -973,12 +1004,12 @@ export default function App() {
       case 'executive':
         if (!canAccessModule(profile, 'executive')) {
           return (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
-              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+            <div className="glass-panel border-neon-red/40 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 badge-exceeded rounded-full flex items-center justify-center mx-auto">
                 <ShieldAlert className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
+              <h3 className="text-lg font-bold text-text-hi font-heading">Akses Ditolak</h3>
+              <p className="text-sm text-text-mid leading-relaxed">
                 Dashboard Eksekutif hanya dapat diakses oleh Environment Superintendent, Environment Manager, atau Administrator.
               </p>
             </div>
@@ -998,13 +1029,13 @@ export default function App() {
       case 'proper_rkab':
         if (!canAccessModule(profile, 'proper_rkab')) {
           return (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
-              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+            <div className="glass-panel border-neon-red/40 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 badge-exceeded rounded-full flex items-center justify-center mx-auto">
                 <ShieldAlert className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Modul PROPER & RKAB hanya dapat diakses oleh Environment Superintendent ke atas.
+              <h3 className="text-lg font-bold text-text-hi font-heading">Akses Ditolak</h3>
+              <p className="text-sm text-text-mid leading-relaxed">
+                Modul PROPER &amp; RKAB hanya dapat diakses oleh Environment Superintendent ke atas.
               </p>
             </div>
           );
@@ -1088,8 +1119,8 @@ export default function App() {
       case 'documents':
         if (isLoadingDocuments) {
           return (
-            <div className="bg-white border border-slate-200/50 rounded-xl p-6">
-              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT DOKUMEN & AGENDA KEPATUHAN...</h3>
+            <div className="glass-panel rounded-2xl p-6">
+              <h3 className="text-xs font-semibold font-mono tracking-widest text-neon-cyan uppercase mb-4">MEMUAT DOKUMEN &amp; AGENDA KEPATUHAN...</h3>
               <TableSkeleton columns={6} rows={4} />
             </div>
           );
@@ -1178,12 +1209,12 @@ export default function App() {
       case 'regulatory_watch':
         if (!canAccessModule(profile, 'regulatory_watch')) {
           return (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
-              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+            <div className="glass-panel border-neon-red/40 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 badge-exceeded rounded-full flex items-center justify-center mx-auto">
                 <ShieldAlert className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
+              <h3 className="text-lg font-bold text-text-hi font-heading">Akses Ditolak</h3>
+              <p className="text-sm text-text-mid leading-relaxed">
                 Modul Regulatory Watch hanya dapat diakses oleh Environment Superintendent ke atas.
               </p>
             </div>
@@ -1307,12 +1338,12 @@ export default function App() {
       case 'standards_master':
         if (!canAccessModule(profile, 'standards_master')) {
           return (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
-              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+            <div className="glass-panel border-neon-red/40 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 badge-exceeded rounded-full flex items-center justify-center mx-auto">
                 <ShieldAlert className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
+              <h3 className="text-lg font-bold text-text-hi font-heading">Akses Ditolak</h3>
+              <p className="text-sm text-text-mid leading-relaxed">
                 Modul Master Baku Mutu &amp; Konfigurasi hanya dapat diakses oleh Environment Superintendent ke atas.
               </p>
             </div>
@@ -1377,12 +1408,12 @@ export default function App() {
       case 'costs':
         if (!canAccessModule(profile, 'costs')) {
           return (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
-              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+            <div className="glass-panel border-neon-red/40 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 badge-exceeded rounded-full flex items-center justify-center mx-auto">
                 <ShieldAlert className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
+              <h3 className="text-lg font-bold text-text-hi font-heading">Akses Ditolak</h3>
+              <p className="text-sm text-text-mid leading-relaxed">
                 Modul Biaya Lingkungan hanya dapat diakses oleh Environment Superintendent ke atas.
               </p>
             </div>
@@ -1390,8 +1421,8 @@ export default function App() {
         }
         if (isLoadingCosts) {
           return (
-            <div className="bg-white border border-slate-200/50 rounded-xl p-6">
-              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT DATA ANGGARAN & BIAYA LINGKUNGAN...</h3>
+            <div className="glass-panel rounded-2xl p-6">
+              <h3 className="text-xs font-semibold font-mono tracking-widest text-neon-cyan uppercase mb-4">MEMUAT DATA ANGGARAN &amp; BIAYA LINGKUNGAN...</h3>
               <TableSkeleton columns={4} rows={3} />
             </div>
           );
@@ -1412,8 +1443,8 @@ export default function App() {
       case 'notifications':
         if (isLoadingAlerts) {
           return (
-            <div className="bg-white border border-slate-200/50 rounded-xl p-6">
-              <h3 className="text-xs font-semibold font-mono tracking-widest text-slate-500 uppercase mb-4">MEMUAT NOTIFIKASI SYSTEM...</h3>
+            <div className="glass-panel rounded-2xl p-6">
+              <h3 className="text-xs font-semibold font-mono tracking-widest text-neon-cyan uppercase mb-4">MEMUAT NOTIFIKASI SYSTEM...</h3>
               <TableSkeleton columns={3} rows={4} />
             </div>
           );
@@ -1437,12 +1468,12 @@ export default function App() {
       case 'audit_log': {
         if (!canAccessModule(profile, activeTab)) {
           return (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
-              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-500">
+            <div className="glass-panel border-neon-red/40 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 badge-exceeded rounded-full flex items-center justify-center mx-auto">
                 <ShieldAlert className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Akses Ditolak</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
+              <h3 className="text-lg font-bold text-text-hi font-heading">Akses Ditolak</h3>
+              <p className="text-sm text-text-mid leading-relaxed">
                 {activeTab === 'audit_log'
                   ? 'Modul Audit Trail Sistem hanya dapat diakses oleh Environment Superintendent ke atas.'
                   : 'Modul administrasi ini hanya dapat diakses oleh Environment Manager atau Administrator sistem.'}
@@ -1468,7 +1499,7 @@ export default function App() {
       }
 
       default:
-        return <div className="p-8 text-center text-slate-900">Modul tidak ditemukan.</div>;
+        return <div className="p-8 text-center text-text-hi">Modul tidak ditemukan.</div>;
     }
   };
 
@@ -1477,10 +1508,10 @@ export default function App() {
   // Show a full-screen sleek loader if checking auth states
   if (loading && !user && !authError) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-slate-700 font-sans">
-        <div className="h-10 w-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-        <h2 className="text-sm font-semibold text-slate-500 font-mono uppercase tracking-widest mt-4">DIVA KENCANA BORNEO SECURE ENCLAVE</h2>
-        <p className="text-xs text-slate-500 mt-2">Menyiapkan konektivitas data terenkripsi...</p>
+      <div className="min-h-screen app-grid-bg bg-bg-0 flex flex-col items-center justify-center p-6 text-text-hi font-sans">
+        <div className="h-10 w-10 border-4 border-neon-cyan border-t-transparent rounded-full animate-spin" />
+        <h2 className="text-sm font-semibold text-neon-cyan font-mono uppercase tracking-widest mt-4">DIVA KENCANA BORNEO SECURE ENCLAVE</h2>
+        <p className="text-xs text-text-mid mt-2">Menyiapkan konektivitas data terenkripsi...</p>
       </div>
     );
   }
@@ -1506,7 +1537,7 @@ export default function App() {
   }
 
   return (
-    <div id="app-workspace-shell" className="min-h-screen bg-white text-slate-800 flex flex-col md:flex-row font-sans relative overflow-hidden">
+    <div id="app-workspace-shell" className="min-h-screen app-grid-bg bg-bg-0 text-text-hi flex flex-col md:flex-row font-sans relative overflow-x-hidden">
       
       {/* Collapsible Sidebar Navigation Panel */}
       <Sidebar 
@@ -1545,10 +1576,12 @@ export default function App() {
           onSync={handleGoogleSync}
           onOpenRegulatory={openRegulatoryWatch}
           onOpenSearch={() => setSearchModalOpen(true)}
+          themePreference={themePref}
+          onChangeTheme={handleThemeChange}
         />
 
         {/* Scrollable Content Views */}
-        <main className="flex-1 p-5 md:p-8 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full pb-20 relative z-10">
+        <main className="flex-1 p-4 sm:p-6 md:p-8 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full pb-24 md:pb-12 relative z-10">
           {renderCurrentView()}
         </main>
       </div>
@@ -1579,21 +1612,22 @@ export default function App() {
       {toast && (
         <div 
           id="global-system-toast" 
-          className={`fixed bottom-24 md:bottom-6 left-6 z-50 max-w-sm sm:max-w-md border shadow-lg shadow-slate-200/60 rounded-2xl p-4 flex items-center gap-3.5 animate-bounce-short backdrop-blur-md ${
-            toast.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-800' :
-            toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
-            toast.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
-            'bg-white/95 border-slate-200 text-slate-700'
+          className={`fixed bottom-24 md:bottom-6 left-6 z-50 no-print max-w-sm sm:max-w-md glass-panel rounded-2xl p-4 flex items-center gap-3.5 animate-bounce-short ${
+            toast.type === 'error' ? 'border-neon-red/50 text-neon-red shadow-glow-red' :
+            toast.type === 'success' ? 'border-neon-green/50 text-neon-green shadow-glow-green' :
+            toast.type === 'warning' ? 'border-neon-amber/50 text-neon-amber shadow-glow-amber' :
+            'border-neon-cyan/40 text-text-hi shadow-glow-cyan'
           }`}
         >
           <div className="flex-1">
-            <p className="text-[11.5px] font-sans font-medium leading-relaxed">
+            <p className="text-[11.5px] font-sans font-medium leading-relaxed text-text-hi">
               {toast.message}
             </p>
           </div>
           <button 
             onClick={() => setToast(null)}
-            className="text-slate-500 hover:text-slate-900 transition-colors cursor-pointer p-0.5 ml-1"
+            className="text-text-mid hover:text-text-hi transition-colors cursor-pointer p-1 ml-1"
+            aria-label="Tutup notifikasi"
           >
             ✕
           </button>
@@ -1604,7 +1638,7 @@ export default function App() {
       {!isOnline && (
         <div 
           id="network-offline-ribbon" 
-          className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-rose-600 text-white border border-rose-500/30 shadow-lg px-4 py-1.5 rounded-full text-[11px] font-mono uppercase tracking-wider flex items-center gap-2 animate-pulse"
+          className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-50 no-print bg-neon-red text-white border border-neon-red shadow-glow-red px-4 py-1.5 rounded-full text-[11px] font-mono uppercase tracking-wider flex items-center gap-2 animate-critical-pulse"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-white block" />
           <span>Offline Mode / Kerja Lokal Aktif</span>
@@ -1613,19 +1647,20 @@ export default function App() {
 
       {/* Floating Alert Trigger for Access Violations */}
       {authorityAlert && (
-        <div className="fixed bottom-24 md:bottom-6 right-6 z-50 max-w-sm sm:max-w-md bg-white border border-red-500/30 shadow-[0_10px_40px_rgba(239,68,68,0.15)] rounded-2xl p-4 flex items-start gap-3.5 text-slate-800 animate-fade-in backdrop-blur-md">
-          <div className="p-2 rounded-xl bg-red-500/10 text-red-600 border border-red-500/20">
+        <div className="fixed bottom-24 md:bottom-6 right-6 z-50 no-print max-w-sm sm:max-w-md glass-panel border-neon-red/45 shadow-glow-red rounded-2xl p-4 flex items-start gap-3.5 text-text-hi animate-fade-in">
+          <div className="p-2 rounded-xl badge-exceeded">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide-shield-alert"><path d="M20 13c0 5-3.5 7.5-7.66 9.7a1 1 0 0 1-.68 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 .76-.97l8-2a1 1 0 0 1 .48 0l8 2A1 1 0 0 1 20 6z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
           </div>
           <div className="flex-1">
-            <h4 className="text-xs font-bold text-red-600 uppercase tracking-widest font-mono">Akses Ditolak (View-Only)</h4>
-            <p className="text-[11.5px] text-slate-600 mt-1 leading-relaxed">
-              Gagal memproses <span className="font-bold text-slate-900">"{authorityAlert}"</span>. Jabatan Anda sebagai <span className="font-semibold text-amber-600">{profile?.role || 'Guest'}</span> tidak memiliki wewenang untuk mengubah database tambang.
+            <h4 className="text-xs font-bold text-neon-red uppercase tracking-widest font-mono">Akses Ditolak (View-Only)</h4>
+            <p className="text-[11.5px] text-text-mid mt-1 leading-relaxed">
+              Gagal memproses <span className="font-bold text-text-hi">&ldquo;{authorityAlert}&rdquo;</span>. Jabatan Anda sebagai <span className="font-semibold text-neon-amber">{profile?.role || 'Guest'}</span> tidak memiliki wewenang untuk mengubah database tambang.
             </p>
           </div>
           <button 
             onClick={() => setAuthorityAlert(null)}
-            className="text-slate-500 hover:text-slate-600 transition-colors cursor-pointer p-0.5"
+            className="text-text-mid hover:text-text-hi transition-colors cursor-pointer p-1"
+            aria-label="Tutup peringatan"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
