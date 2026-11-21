@@ -26,7 +26,10 @@
         "debit": { "type": "number" },
         "fe": { "type": "number" },
         "mn": { "type": "number" },
-        "status": { "type": "string", "enum": ["Safe", "Warning", "Exceeded"] },
+        "status": { "type": "string", "enum": ["Safe", "Warning", "Exceeded", "Incomplete", "Unevaluated", "NotApplicable"] },
+        "evaluationStatus": { "type": "string", "enum": ["MEMENUHI", "TIDAK MEMENUHI", "DATA TIDAK LENGKAP", "BELUM DIEVALUASI", "TIDAK BERLAKU"] },
+        "evaluationReason": { "type": "string" },
+        "unitMap": { "type": "object" },
         "monitoringType": { "type": "string", "enum": ["Harian", "Bulanan"] },
         "sampleTime": { "type": "string" },
         "weather": { "type": "string", "enum": ["Cerah", "Berawan", "Hujan Ringan", "Hujan Lebat"] },
@@ -34,7 +37,9 @@
         "locationCode": { "type": "string" },
         "hasPhoto": { "type": "boolean" },
         "standardId": { "type": "string" },
-        "standardSnapshot": { "type": "object" }
+        "standardBasis": { "type": "string" },
+        "standardSnapshot": { "type": "object" },
+        "correctionReason": { "type": "string" }
       },
       "required": ["id", "date", "location", "officer", "ph", "tss", "debit", "fe", "mn", "status"]
     },
@@ -54,11 +59,16 @@
         "cod": { "type": "number" },
         "fe": { "type": "number" },
         "mn": { "type": "number" },
-        "status": { "type": "string", "enum": ["Safe", "Warning", "Exceeded"] },
+        "status": { "type": "string", "enum": ["Safe", "Warning", "Exceeded", "Incomplete", "Unevaluated", "NotApplicable"] },
+        "evaluationStatus": { "type": "string", "enum": ["MEMENUHI", "TIDAK MEMENUHI", "DATA TIDAK LENGKAP", "BELUM DIEVALUASI", "TIDAK BERLAKU"] },
+        "evaluationReason": { "type": "string" },
+        "unitMap": { "type": "object" },
         "monitoringType": { "type": "string", "enum": ["Harian", "Bulanan"] },
         "kelasAir": { "type": "string", "enum": ["I", "II", "III", "IV"] },
         "standardId": { "type": "string" },
-        "standardSnapshot": { "type": "object" }
+        "standardBasis": { "type": "string" },
+        "standardSnapshot": { "type": "object" },
+        "correctionReason": { "type": "string" }
       },
       "required": ["id", "date", "location", "officer", "ph", "tss", "doVal", "bod", "cod", "fe", "mn", "status"]
     },
@@ -318,18 +328,26 @@
     },
     "AuditLog": {
       "title": "Database Mutation Audit Trail",
-      "description": "Automated logs monitoring data modification, insertion, and deletion",
+      "description": "Structured immutable audit logs monitoring data mutation, restoration, approvals, and export actions",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "uid": { "type": "string" },
         "timestamp": { "type": "string" },
         "user": { "type": "string" },
+        "actorName": { "type": "string" },
+        "actorRole": { "type": "string" },
+        "module": { "type": "string" },
         "collection": { "type": "string" },
         "recordId": { "type": "string" },
         "action": { "type": "string" },
-        "details": { "type": "string" }
+        "details": { "type": "string" },
+        "beforeData": { "type": ["object", "null"] },
+        "afterData": { "type": ["object", "null"] },
+        "correctionReason": { "type": ["string", "null"] },
+        "status": { "type": "string", "enum": ["SUCCESS", "FAILED"] }
       },
-      "required": ["id", "timestamp", "user", "collection", "recordId", "action", "details"]
+      "required": ["id", "uid", "timestamp", "user", "collection", "recordId", "action", "details"]
     },
     "SolidWaste": {
       "title": "Solid Waste Processing Entry",
@@ -485,7 +503,7 @@
     },
     "EnvironmentalStandard": {
       "title": "Environmental Quality Standard Master",
-      "description": "Dynamic environmental regulatory standard threshold entry with verification status",
+      "description": "Dynamic environmental regulatory standard threshold entry with verification status and revision history",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -493,14 +511,22 @@
         "parameterKey": { "type": "string" },
         "parameterLabel": { "type": "string" },
         "unit": { "type": "string" },
-        "minLimit": { "type": "number" },
-        "maxLimit": { "type": "number" },
+        "minLimit": { "type": ["number", "null"] },
+        "maxLimit": { "type": ["number", "null"] },
         "basisRegulasi": { "type": "string" },
+        "approvalDocNo": { "type": "string" },
+        "decreeDate": { "type": "string" },
         "effectiveFrom": { "type": "string" },
+        "effectiveTo": { "type": ["string", "null"] },
+        "sourceDocument": { "type": "string" },
+        "sourceUrl": { "type": "string" },
         "locationCode": { "type": "string" },
         "kelasAir": { "type": "string", "enum": ["I", "II", "III", "IV"] },
         "isActive": { "type": "boolean" },
+        "applicable": { "type": "boolean" },
         "verificationStatus": { "type": "string", "enum": ["Terverifikasi", "Perlu verifikasi"] },
+        "effectiveStatus": { "type": "string", "enum": ["DRAFT", "MENUNGGU VERIFIKASI", "BERLAKU", "DIUBAH", "DICABUT"] },
+        "revisionHistory": { "type": "array" },
         "notes": { "type": "string" }
       },
       "required": ["id", "media", "parameterKey", "parameterLabel", "unit", "basisRegulasi", "isActive", "verificationStatus"]
@@ -572,13 +598,16 @@
         "ammonia": { "type": "number" },
         "totalColiform": { "type": "number" },
         "debitM3Day": { "type": "number" },
-        "complianceStatus": { "type": "string" }
+        "complianceStatus": { "type": "string" },
+        "evaluationStatus": { "type": "string" },
+        "evaluationReason": { "type": "string" },
+        "standardBasis": { "type": "string" }
       },
       "required": ["id", "date", "facilityName", "ph", "bod", "cod", "tss", "oilGrease", "ammonia", "totalColiform", "debitM3Day", "complianceStatus"]
     },
     "GhgEmissionFactor": {
       "title": "GHG Emission Factor Master",
-      "description": "Faktor emisi GRK yang dikelola pengguna beserta sumber referensi",
+      "description": "Faktor emisi GRK yang dikelola pengguna beserta sumber referensi & GWP",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -588,13 +617,15 @@
         "factorKgCo2ePerUnit": { "type": "number" },
         "gasScope": { "type": "string" },
         "referenceSource": { "type": "string" },
-        "effectiveYear": { "type": "number" }
+        "effectiveYear": { "type": "number" },
+        "gwpReference": { "type": "string" },
+        "verificationStatus": { "type": "string", "enum": ["Terverifikasi", "PERLU VERIFIKASI"] }
       },
       "required": ["id", "activityCategory", "factorName", "unit", "factorKgCo2ePerUnit", "gasScope", "referenceSource", "effectiveYear"]
     },
     "GhgActivity": {
       "title": "GHG Emission Activity Log",
-      "description": "Log aktivitas sumber emisi GRK (Perpres 110/2025 & Permen LH/BPLH 7/2026)",
+      "description": "Log aktivitas sumber emisi GRK dengan snapshot faktor historis (Perpres 110/2025 & Permen LH/BPLH 7/2026)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -603,7 +634,10 @@
         "monthPeriod": { "type": "string" },
         "activityCategory": { "type": "string" },
         "quantity": { "type": "number" },
-        "emissionsTco2e": { "type": "number" }
+        "emissionsTco2e": { "type": ["number", "null"] },
+        "calculationStatus": { "type": "string", "enum": ["TERHITUNG", "BELUM TERHITUNG", "PERLU VERIFIKASI"] },
+        "calculationNote": { "type": "string" },
+        "gwpSnapshot": { "type": "string" }
       },
       "required": ["id", "date", "reportingYear", "monthPeriod", "activityCategory", "quantity", "emissionsTco2e"]
     }

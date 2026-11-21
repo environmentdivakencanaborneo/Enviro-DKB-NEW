@@ -72,6 +72,7 @@ import {
   GhgActivityData
 } from '../types';
 import { DEFAULT_INTERNAL_THRESHOLDS, DEFAULT_PROPER_CRITERIA } from '../data/regulations';
+import { isSuperintendent, effectiveRole } from '../services/permissionService';
 
 export function useFirestoreData(activeTab: string) {
   const { user, profile } = useAuth();
@@ -145,6 +146,7 @@ export function useFirestoreData(activeTab: string) {
 
   // Persistent subscriptions ref across tab navigation
   const subscriptionsRef = useRef<Map<string, () => void>>(new Map());
+  const confidentialScopeRef = useRef<boolean | null>(null);
 
   // Cleanup all listeners and reset state on logout
   useEffect(() => {
@@ -153,6 +155,7 @@ export function useFirestoreData(activeTab: string) {
         try { unsub(); } catch {}
       });
       subscriptionsRef.current.clear();
+      confidentialScopeRef.current = null;
 
       setWastewater([]); setSurfaceWater([]); setRainfall([]);
       setNursery([]); setNurseryStockOut([]); setReclamationPlans([]); setReclamationGuarantees([]);
@@ -184,12 +187,39 @@ export function useFirestoreData(activeTab: string) {
   useEffect(() => {
     if (!user || !profile) return;
 
+    const canReadConfidential = isSuperintendent(profile) || effectiveRole(profile) === 'Auditor';
+    if (confidentialScopeRef.current !== null && confidentialScopeRef.current !== canReadConfidential) {
+      const recUnsub = subscriptionsRef.current.get('reclamation');
+      if (recUnsub) {
+        try { recUnsub(); } catch {}
+        subscriptionsRef.current.delete('reclamation');
+      }
+      if (!canReadConfidential) {
+        const costsUnsub = subscriptionsRef.current.get('costs');
+        if (costsUnsub) {
+          try { costsUnsub(); } catch {}
+          subscriptionsRef.current.delete('costs');
+        }
+        const properUnsub = subscriptionsRef.current.get('proper_rkab');
+        if (properUnsub) {
+          try { properUnsub(); } catch {}
+          subscriptionsRef.current.delete('proper_rkab');
+        }
+        setReclamationGuarantees([]);
+        setEnvironmentalCosts([]);
+        setProperRkab([]);
+        setIsLoadingCosts(false);
+        setIsLoadingProperRkab(false);
+      }
+    }
+    confidentialScopeRef.current = canReadConfidential;
+
     const needsMonitoring = ['dashboard', 'monitoring', 'reports', 'evidence'].includes(activeTab);
     const needsReclamation = ['dashboard', 'reclamation', 'reclamation_guarantee', 'reports', 'executive'].includes(activeTab);
     const needsWaste = ['dashboard', 'waste', 'reports'].includes(activeTab);
     const needsSolidWaste = ['dashboard', 'solid_waste', 'reports'].includes(activeTab);
     const needsDocuments = ['dashboard', 'documents', 'reports', 'executive'].includes(activeTab);
-    const needsCosts = ['dashboard', 'costs', 'reports'].includes(activeTab);
+    const needsCosts = canReadConfidential && ['dashboard', 'costs', 'reports'].includes(activeTab);
     const needsCapa = ['dashboard', 'findings', 'supervision', 'reports', 'executive'].includes(activeTab);
     const needsCompliance = ['dashboard', 'compliance_matrix', 'reports', 'executive'].includes(activeTab);
     const needsIncidents = ['dashboard', 'incidents', 'reports', 'executive'].includes(activeTab);
@@ -199,7 +229,7 @@ export function useFirestoreData(activeTab: string) {
     const needsTopsoil = ['dashboard', 'topsoil_erosion', 'reclamation', 'reports'].includes(activeTab);
     const needsBiodiversity = ['dashboard', 'biodiversity', 'reports'].includes(activeTab);
     const needsIadl = ['dashboard', 'iadl_risk', 'reports', 'executive'].includes(activeTab);
-    const needsProperRkab = ['dashboard', 'proper_rkab', 'reports', 'executive'].includes(activeTab);
+    const needsProperRkab = canReadConfidential && ['dashboard', 'proper_rkab', 'reports', 'executive'].includes(activeTab);
     const needsStandards = ['dashboard', 'monitoring', 'domestic_wastewater', 'standards_master', 'solid_waste', 'reports', 'evidence', 'executive'].includes(activeTab);
     const needsPertekSlo = ['dashboard', 'pertek_slo', 'reports', 'executive'].includes(activeTab);
     const needsReportingCalendar = ['dashboard', 'reporting_calendar', 'reports', 'executive'].includes(activeTab);
@@ -237,7 +267,7 @@ export function useFirestoreData(activeTab: string) {
           setNursery(data); setIsLoadingNursery(false);
         });
 
-        let plansLoaded = false, guaranteesLoaded = false;
+        let plansLoaded = false, guaranteesLoaded = !canReadConfidential;
         const u3 = reclamationService.subscribeAll(
           (plans) => {
             setReclamationPlans(plans); plansLoaded = true;
@@ -246,7 +276,8 @@ export function useFirestoreData(activeTab: string) {
           (guarantees) => {
             setReclamationGuarantees(guarantees); guaranteesLoaded = true;
             if (plansLoaded && guaranteesLoaded) setIsLoadingReclamation(false);
-          }
+          },
+          { includeGuarantees: canReadConfidential }
         );
 
         subscriptionsRef.current.set('reclamation', () => { u1(); u2(); u3(); });

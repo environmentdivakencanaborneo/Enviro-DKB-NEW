@@ -39,7 +39,6 @@ export interface NavItem {
   name: string;
   icon: LucideIcon;
   hasBadge?: boolean;
-  isNew?: boolean;
   subtitle: string;
   regulationBasis?: string;
   regulationSearchKey?: string;
@@ -95,7 +94,6 @@ export const APP_MENU_GROUPS: NavGroup[] = [
         id: 'pertek_slo',
         name: 'Register Pertek & SLO',
         icon: FileBadge2,
-        isNew: true,
         subtitle: 'Register Persetujuan Teknis & Surat Kelayakan Operasional',
         regulationBasis: 'Permen LHK No. 5 Tahun 2021',
         regulationSearchKey: 'Pertek',
@@ -112,7 +110,6 @@ export const APP_MENU_GROUPS: NavGroup[] = [
         id: 'reporting_calendar',
         name: 'Kalender Pelaporan Wajib',
         icon: CalendarClock,
-        isNew: true,
         subtitle: 'Jadwal & Tanda Terima RKL-RPL, Pertek, LB3, GRK, RKAB & Reklamasi',
         regulationBasis: 'PP 22/2021 · Permen ESDM 17/2025 · Permen LH/BPLH 7/2026',
         regulationSearchKey: 'RKAB',
@@ -137,7 +134,6 @@ export const APP_MENU_GROUPS: NavGroup[] = [
         id: 'supervision',
         name: 'Pengawasan Eksternal & Sanksi Administratif',
         icon: ClipboardCheck,
-        isNew: true,
         subtitle: 'Catatan Inspeksi DLH/KLH/ESDM/Kehutanan & Sanksi Administratif',
         regulationBasis: 'Permen LH/BPLH No. 6 Tahun 2026',
         regulationSearchKey: 'Pengawasan',
@@ -167,7 +163,6 @@ export const APP_MENU_GROUPS: NavGroup[] = [
         id: 'domestic_wastewater',
         name: 'Air Limbah Domestik (IPAL Camp & Kantor)',
         icon: ShowerHead,
-        isNew: true,
         subtitle: 'Pemantauan Efluen IPAL Camp, Mess & Kantor Menggunakan Master Baku Mutu',
         regulationBasis: 'Permen LH/BPLH No. 11 Tahun 2025',
         regulationSearchKey: 'Domestik',
@@ -197,7 +192,6 @@ export const APP_MENU_GROUPS: NavGroup[] = [
         id: 'ghg_inventory',
         name: 'Inventarisasi Emisi GRK',
         icon: CloudCog,
-        isNew: true,
         subtitle: 'Log Aktivitas, Master Faktor Emisi & Rekap Tahunan (Pelaporan Maret)',
         regulationBasis: 'Perpres No. 110 Tahun 2025 · Permen LH/BPLH No. 7 Tahun 2026',
         regulationSearchKey: 'GRK',
@@ -240,7 +234,6 @@ export const APP_MENU_GROUPS: NavGroup[] = [
         id: 'reclamation_guarantee',
         name: 'Jaminan Reklamasi & Pascatambang',
         icon: Landmark,
-        isNew: true,
         subtitle: 'Deposito Berjangka Bank Pemerintah & Pemantauan Jatuh Tempo Jamrek/JamPT',
         regulationBasis: 'Kepmen ESDM No. 344.K/MB.01/MEM.B/2025',
         regulationSearchKey: '344',
@@ -343,7 +336,6 @@ export const APP_MENU_GROUPS: NavGroup[] = [
         id: 'standards_master',
         name: 'Master Baku Mutu & Konfigurasi',
         icon: Sliders,
-        isNew: true,
         subtitle: 'Pengelolaan Koleksi standards/{id} & Ambang Internal Perusahaan',
         regulationBasis: 'Kepmen LH 113/2003 · Permen LH/BPLH 11/2025 · PP 22/2021',
         regulationSearchKey: '113',

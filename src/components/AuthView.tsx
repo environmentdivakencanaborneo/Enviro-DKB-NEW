@@ -34,9 +34,12 @@ export default function AuthView() {
   const { 
     user, 
     profile, 
+    emailVerified,
     loginWithGoogle, 
     loginWithEmail,
     registerUser,
+    resendVerificationEmail,
+    checkEmailVerification,
     sendPasswordReset,
     logout,
     refreshProfile,
@@ -224,10 +227,58 @@ export default function AuthView() {
     setMode('login');
   };
 
-  // CHECK LOGGED IN USER PENDING OR REJECTED OR DISABLED STATUS
-  const isPendingUser = user && (profile?.status === 'Pending' || profile?.isApproved === false || !profile);
-  const isRejectedUser = user && profile?.status === 'Rejected';
-  const isDisabledUser = user && (profile?.status === 'Disabled' || profile?.isActive === false);
+  // CHECK LOGGED IN USER EMAIL VERIFICATION, SUSPENDED, PENDING, REJECTED OR DISABLED STATUS
+  const isUnverifiedEmail = Boolean(user && !emailVerified);
+  const isSuspendedUser = Boolean(user && emailVerified && profile?.status === 'Suspended');
+  const isRejectedUser = Boolean(user && emailVerified && profile?.status === 'Rejected');
+  const isDisabledUser = Boolean(
+    user &&
+      emailVerified &&
+      !isSuspendedUser &&
+      !isRejectedUser &&
+      (profile?.status === 'Disabled' || profile?.isActive === false || profile?.deleted === true)
+  );
+  const isPendingUser = Boolean(
+    user &&
+      emailVerified &&
+      !isSuspendedUser &&
+      !isRejectedUser &&
+      !isDisabledUser &&
+      (profile?.status === 'Pending' || profile?.isApproved === false || !profile)
+  );
+
+  const handleResendVerification = async () => {
+    setErrorMsg('');
+    setSuccessMsg('');
+    setSubmitting(true);
+    try {
+      await resendVerificationEmail();
+      setSuccessMsg(`Email verifikasi baru telah dikirim ke ${user?.email}. Periksa Inbox atau folder Spam.`);
+      triggerToast('Email verifikasi berhasil dikirim ulang.', 'success');
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Gagal mengirim ulang email verifikasi.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCheckVerification = async () => {
+    setErrorMsg('');
+    setSuccessMsg('');
+    setSubmitting(true);
+    try {
+      const ok = await checkEmailVerification();
+      if (ok) {
+        triggerToast('Email terverifikasi! Memeriksa status persetujuan Administrator...', 'success');
+      } else {
+        setErrorMsg('Email Anda masih belum diverifikasi. Silakan klik tautan konfirmasi di email Anda lalu coba lagi.');
+      }
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Gagal memeriksa status verifikasi email.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div 
@@ -292,6 +343,74 @@ export default function AuthView() {
           <div className="flex flex-col items-center justify-center py-10 space-y-3">
             <RefreshCw className="h-8 w-8 text-neon-cyan animate-spin" />
             <p className="text-xs text-text-mid font-mono">Memverifikasi Enclave Autentikasi...</p>
+          </div>
+        ) : isUnverifiedEmail ? (
+          /* EMAIL BELUM DIVERIFIKASI */
+          <div className="space-y-5 text-center animate-fade-in py-2">
+            <div className="w-16 h-16 badge-warning rounded-2xl flex items-center justify-center mx-auto">
+              <Mail className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-text-hi font-heading">Verifikasi Email Diperlukan</h2>
+              <p className="text-xs text-text-mid leading-relaxed max-w-md mx-auto">
+                Tautan verifikasi telah dikirim ke <strong className="text-neon-cyan font-mono">{user?.email}</strong>.
+                Anda wajib memverifikasi email sebelum dapat memproses persetujuan akun atau mengakses data sistem.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleCheckVerification}
+                className="py-3 neon-btn-primary rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${submitting ? 'animate-spin' : ''}`} />
+                Saya Sudah Verifikasi
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleResendVerification}
+                className="py-3 bg-bg-2 hover:border-neon-cyan border border-border-neon text-text-hi font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <Mail className="w-4 h-4 text-neon-cyan" />
+                Kirim Ulang Email
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleReturnToLogin}
+              className="w-full py-2.5 text-text-mid hover:text-text-hi text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Keluar &amp; Gunakan Akun Lain
+            </button>
+          </div>
+        ) : isSuspendedUser ? (
+          /* AKUN DITANGGUHKAN (SUSPENDED) */
+          <div className="space-y-6 text-center animate-fade-in py-2">
+            <div className="w-16 h-16 badge-exceeded rounded-2xl flex items-center justify-center mx-auto">
+              <Shield className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-neon-red font-heading">Akun Ditangguhkan (Suspended)</h2>
+              <p className="text-xs text-text-mid leading-relaxed max-w-md mx-auto">
+                Akses Anda untuk <strong className="font-mono text-text-hi">{user?.email}</strong> sedang ditangguhkan oleh Administrator keamanan sistem PT Diva Kencana Borneo.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleReturnToLogin}
+              className="w-full py-3 bg-bg-2 hover:border-neon-cyan border border-border-neon text-text-hi font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              Keluar ke Layar Login
+            </button>
           </div>
         ) : isPendingUser ? (
           /* MENUNGGU PERSETUJUAN ADMINISTRATOR SCREEN */
@@ -408,15 +527,16 @@ export default function AuthView() {
             <div className="space-y-3">
               <h2 className="text-2xl font-bold text-text-hi font-heading">Pendaftaran Berhasil</h2>
               <p className="text-xs text-text-mid leading-relaxed max-w-md mx-auto">
-                Akun Anda berhasil dibuat. Saat ini akun masih menunggu persetujuan Administrator. Anda akan dapat menggunakan aplikasi setelah akun disetujui.
+                Akun Anda berhasil dibuat. Silakan klik tautan <strong>verifikasi email</strong> yang dikirim ke kotak masuk Anda, lalu tunggu persetujuan Administrator sebelum mengakses sistem.
               </p>
             </div>
 
             <div className="p-4 bg-bg-1 border border-border-neon rounded-2xl text-xs text-text-mid text-left leading-relaxed">
               <p className="font-semibold text-neon-green mb-1">Catatan Keamanan &amp; Hak Akses:</p>
               <ul className="list-disc list-inside space-y-1 text-[11px]">
-                <li>Peran default diawali sebagai <strong className="text-neon-cyan">Viewer</strong>.</li>
-                <li>Administrator akan meninjau Departemen, Jabatan, dan NIK Anda sebelum memberikan otorisasi penuh.</li>
+                <li>Verifikasi alamat email wajib diselesaikan pada langkah pertama.</li>
+                <li>Peran default diawali sebagai <strong className="text-neon-cyan">Viewer</strong> (status Pending).</li>
+                <li>Administrator akan meninjau Departemen, Jabatan, dan NIK Anda sebelum memberikan otorisasi aktif.</li>
               </ul>
             </div>
 

@@ -614,62 +614,69 @@ export default function App() {
       throw e;
     }
   };
-  const handleUpdateWasteIn = async (id: string, item: any) => {
+  const handleUpdateWasteIn = async (id: string, item: any, reason?: string) => {
     if (!hasWriteAuthority) {
       showAuthorityWarning("Ubah Log Masuk Limbah B3");
       return;
     }
     try {
-      await wasteB3Service.updateIn(id, item);
+      await wasteB3Service.updateIn(id, item, reason);
     } catch (e: any) {
       handleGlobalError(e, "Ubah Log Masuk Limbah B3");
       throw e;
     }
   };
-  const handleDeleteWasteIn = async (id: string) => {
+  const handleDeleteWasteIn = async (id: string, reason?: string) => {
     if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Log Masuk Limbah B3");
       return;
     }
     try {
-      await wasteB3Service.deleteIn(id);
+      await wasteB3Service.deleteIn(id, reason);
     } catch (e: any) {
       handleGlobalError(e, "Hapus Log Masuk Limbah B3");
       throw e;
     }
   };
 
-  const handleAddWasteOut = async (item: any) => {
+  const handleAddWasteOut = async (
+    item: any,
+    options?: { correctionOverride?: { authorized: boolean; reason?: string } }
+  ) => {
     if (!hasWriteAuthority) {
       showAuthorityWarning("Log Keluar Limbah B3");
       return;
     }
     try {
-      await wasteB3Service.addOut(item);
+      await wasteB3Service.addOut(item, options);
     } catch (e: any) {
       handleGlobalError(e, "Log Keluar Limbah B3");
       throw e;
     }
   };
-  const handleUpdateWasteOut = async (id: string, item: any) => {
+  const handleUpdateWasteOut = async (
+    id: string,
+    item: any,
+    options?: { correctionOverride?: { authorized: boolean; reason?: string } }
+  ) => {
     if (!hasWriteAuthority) {
       showAuthorityWarning("Ubah Log Keluar Limbah B3");
       return;
     }
     try {
-      await wasteB3Service.updateOut(id, item);
+      await wasteB3Service.updateOut(id, item, options);
     } catch (e: any) {
       handleGlobalError(e, "Ubah Log Keluar Limbah B3");
       throw e;
     }
   };
-  const handleDeleteWasteOut = async (id: string) => {
+  const handleDeleteWasteOut = async (id: string, reason?: string) => {
     if (!canDelete(profile)) {
       showAuthorityWarning("Hapus Log Keluar Limbah B3");
       return;
     }
     try {
-      await wasteB3Service.deleteOut(id);
+      await wasteB3Service.deleteOut(id, reason);
     } catch (e: any) {
       handleGlobalError(e, "Hapus Log Keluar Limbah B3");
       throw e;
@@ -852,6 +859,8 @@ export default function App() {
               alerts={alerts}
               calendar={calendarEvents}
               environmentalCosts={environmentalCosts}
+              standards={standards}
+              internalThresholds={internalThresholds}
               solidWasteTargetPct={internalThresholds.solidWasteTargetPct}
               setCurrentTab={setTabAndHash}
             />
@@ -922,6 +931,8 @@ export default function App() {
                 onUpdateGuarantee={handleUpdateGuarantee}
                 onDeleteGuarantee={handleDeleteGuarantee}
                 canEdit={hasWriteAuthority}
+                canEditGuarantee={isSuperintendent(profile)}
+                canViewGuarantees={canAccessModule(profile, 'reclamation_guarantee')}
                 canDelete={canDelete(profile)}
                 onUnauthorizedAction={showAuthorityWarning}
                 onOpenGuaranteesModule={() => setTabAndHash('reclamation_guarantee')}
@@ -931,13 +942,26 @@ export default function App() {
         );
 
       case 'reclamation_guarantee':
+        if (!canAccessModule(profile, 'reclamation_guarantee')) {
+          return (
+            <div className="glass-panel border-neon-red/40 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 space-y-4">
+              <div className="w-12 h-12 badge-exceeded rounded-full flex items-center justify-center mx-auto">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-text-hi font-heading">Akses Ditolak</h3>
+              <p className="text-sm text-text-mid leading-relaxed">
+                Modul Jaminan Reklamasi &amp; Pascatambang hanya dapat diakses oleh Environment Superintendent ke atas atau Auditor.
+              </p>
+            </div>
+          );
+        }
         return (
           <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
             <ModuleErrorBoundary moduleName="Jaminan Reklamasi & Pascatambang">
               <ReclamationGuaranteeView
                 guarantees={reclamationGuarantees}
                 isLoading={isLoadingReclamation}
-                canEdit={hasWriteAuthority}
+                canEdit={isSuperintendent(profile)}
                 canDelete={canDelete(profile)}
                 onAddGuarantee={handleAddGuarantee}
                 onUpdateGuarantee={handleUpdateGuarantee}
@@ -972,6 +996,7 @@ export default function App() {
                 onDeleteOut={handleDeleteWasteOut}
                 canEdit={hasWriteAuthority}
                 canDelete={canDelete(profile)}
+                canOverrideShortfall={isSuperintendent(profile)}
                 onUnauthorizedAction={showAuthorityWarning}
               />
             </ModuleErrorBoundary>
@@ -1149,7 +1174,9 @@ export default function App() {
               <ComplianceMatrixView
                 data={complianceMatrix}
                 isLoading={isLoadingCompliance}
+                canCreate={isSuperintendent(profile)}
                 canEdit={hasWriteAuthority}
+                canEditFull={isSuperintendent(profile)}
                 canDelete={canDelete(profile)}
                 onUnauthorizedAction={showAuthorityWarning}
               />
@@ -1256,7 +1283,7 @@ export default function App() {
               <ReportingCalendarView
                 data={reportingCalendar}
                 isLoading={isLoadingReportingCalendar}
-                canEdit={hasWriteAuthority}
+                canEdit={isSuperintendent(profile)}
                 canDelete={canDelete(profile)}
                 onUnauthorizedAction={showAuthorityWarning}
               />
@@ -1310,6 +1337,7 @@ export default function App() {
                 activities={ghgActivities}
                 isLoading={isLoadingGhgInventory}
                 canEdit={hasWriteAuthority}
+                canManageFactors={isSuperintendent(profile)}
                 canDelete={canDelete(profile)}
                 onUnauthorizedAction={showAuthorityWarning}
               />
@@ -1372,6 +1400,8 @@ export default function App() {
                 biodiversity={biodiversity}
                 iadlRisks={iadlRisks}
                 properRkab={properRkab}
+                standards={standards}
+                internalThresholds={internalThresholds}
                 user={profile}
               />
             </ModuleErrorBoundary>
@@ -1382,7 +1412,12 @@ export default function App() {
         return (
           <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
             <ModuleErrorBoundary moduleName="Evidence Hub">
-              <EvidenceHub wastewater={wastewater} user={profile} />
+              <EvidenceHub
+                wastewater={wastewater}
+                user={profile}
+                standards={standards}
+                internalThresholds={internalThresholds}
+              />
             </ModuleErrorBoundary>
           </Suspense>
         );
@@ -1417,7 +1452,7 @@ export default function App() {
               onUpdateCost={handleUpdateCost}
               onDeleteCost={handleDeleteCost}
               canEdit={isSuperintendent(profile)}
-              canDelete={canDelete(profile)}
+              canDelete={isAdmin(profile)}
               onUnauthorizedAction={showAuthorityWarning}
             />
           </ModuleErrorBoundary>
@@ -1485,7 +1520,7 @@ export default function App() {
     }
   };
 
-  const isApprovedUser = Boolean(user && isActiveApproved(profile));
+  const isApprovedUser = Boolean(user && user.emailVerified && isActiveApproved(profile));
 
   // Show a full-screen sleek loader if checking auth states
   if (loading && !user && !authError) {

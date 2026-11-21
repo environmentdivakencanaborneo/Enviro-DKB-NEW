@@ -147,11 +147,6 @@ export default function MenuSearchModal({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-text-hi truncate">{item.name}</span>
-                        {item.isNew && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/35 uppercase font-mono">
-                            BARU
-                          </span>
-                        )}
                         <span className="text-[10px] font-mono text-text-mid truncate ml-auto">{group}</span>
                       </div>
                       <p className="text-[11px] text-text-mid truncate mt-0.5">{item.subtitle}</p>

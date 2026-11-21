@@ -4,61 +4,12 @@ rules_version = '2';
 // FIRESTORE SECURITY RULES - DEM (DIVA ENVIRO MONITOR)
 // ============================================================================
 //  Aplikasi : Diva Enviro Monitor (DEM) - Sistem Manajemen Lingkungan Tambang
-//  Revisi   : 05
+//  Revisi   : 07 (Pengerasan Rules: Role Source Tunggal, State Machine Evidence,
+//             Kerahasiaan T-02, Otorisasi Master T-03, Integritas ID S-07, S-08)
 //  Tanggal  : 2026
-//  Fokus    : Hardened ABAC Security Rules with Strict Field Validation,
-//             Break-Glass Admin Isolation, and Least-Privilege Access
-// ============================================================================
-//  CATATAN PERUBAHAN REVISI 05 (FASE 3 - STRUKTUR MENU & MODUL BARU):
-//  - Penambahan 6 koleksi operasional baru + validator ketat:
-//    pertek_slo, reporting_calendar, external_supervisions,
-//    domestic_wastewater, ghg_factors, ghg_activities.
-//  - vEnvironmentalStandard: dukung media 'air_limbah_domestik' (Permen LH/BPLH 11/2025).
-//  - vAmdTreatment: dukung treatmentMethod ('Pengapuran Aktif', 'Lahan Basah Buatan', 'Hibrida').
-// ============================================================================
-//  CATATAN PERUBAHAN REVISI 04 (FASE 2 - PEMUTAKHIRAN REGULASI):
-//  - Penambahan koleksi /standards/{docId} & validator vEnvironmentalStandard()
-//    (Superintendent+ create/update, Admin delete) untuk master baku mutu dinamis.
-//  - /app_meta/{metaId}: izinkan Superintendent+ menulis dokumen 'env_thresholds'
-//    dan 'proper_criteria' (Permen LH/BPLH 7/2025 & ambang internal).
-//  - vWastewater & vSurfaceWater: dukung standardId, standardSnapshot, dan kelasAir.
-//  - vReclamationGuarantee: dukung bankType & guaranteeCategory (Kepmen ESDM 344.K/2025).
-//  - vRegulatory: dukung status 'Perlu Kajian'.
-//  - vBiodiversity: dukung 'Dilindungi (Permen LHK P.106/2018)' & kompatibilitas data lama.
-//  - vProperRkab: dukung actualProperRating termasuk peringkat 'Hitam'.
-// ============================================================================
-//  CATATAN PERUBAHAN REVISI 03:
-//  1. [SR-01] audit_logs create hardening:
-//     - request.resource.data.uid == request.auth.uid
-//     - data.user == request.auth.token.email
-//     - data.timestamp == request.time
-//     - data.action in ['insert','update','delete','sync','backup','login','logout','approve','role_change']
-//     - keys().hasOnly(['id','uid','timestamp','user','collection','recordId','action','details'])
-//     - details.size() <= 1000
-//     - update dan delete diblokir permanen (immutable audit log).
-//  2. [SR-02] isApprovedUser() hardening:
-//     - Menghapus cabang '!exists(users/uid)'. User wajib memiliki dokumen users
-//       dengan isApproved == true atau status == 'Active'.
-//     - Alur registrasi/login pertama dipastikan tidak terblokir melalui izin create
-//       khusus pada /users/{userId}.
-//  3. [SR-03] users read hardening:
-//     - Akses baca /users/{userId} dibatasi hanya untuk pemilik akun (auth.uid == userId)
-//       atau Administrator (isAdmin()).
-//  4. [SR-04] notifications & alerts:
-//     - create & update diwajibkan isActiveMember() + vNotification().
-//     - delete dibatasi hanya untuk isActiveMember() && isSuperintendent().
-//  5. [SR-05] Validator create/update skema domain:
-//     - /reclamation/{docId}: membedakan prefix 'RP-' (vReclamationPlan) dan 'RG-'
-//       (vReclamationGuarantee), menolak prefix lainnya. Mendukung field opsional
-//       periodYear serta audit trail (createdBy, createdAt, updatedBy, updatedAt).
-//     - Penambahan validator: vNursery, vNurseryStockOut, vWasteIn ('WI-'), vWasteOut ('WO-'),
-//       vSolidWaste, vSurfaceWater, vRainfall, vCost, dan vNotification.
-//  6. [SR-06] Sinkronisasi mapping peran dan hirarki ROLE_RANK:
-//     - Viewer (0) < Auditor (1) < Operator (2) < Foreman (2.5) <
-//       Environment Superintendent (3) < Environment Manager (4) < Admin (5).
-//     - 'Manager' dan 'Env Manager' dipetakan ke tingkat Environment Manager (tercakup di isAdmin()).
-//  7. [SR-07] Hardcoded admin email diisolasi secara ketat ke isBreakGlassAdmin()
-//     untuk akses darurat (break-glass); akses administratif reguler via /roles/{email}.
+//  Fokus    : Hardened ABAC Security Rules, Single /roles Source (K-03),
+//             Strict Evidence Workflow State Machine (K-02), Confidentiality Read
+//             Gates (T-02), Master Write Protection (T-03), S-07 & S-08
 // ============================================================================
 
 service cloud.firestore {
@@ -83,45 +34,45 @@ service cloud.firestore {
     function isOptText(val, maxLen) {
       return val == null || (val is string && val.size() <= maxLen);
     }
-    
-    // Helper: Is user authenticated
+
+    // Helper: Is user authenticated AND email verified
     function isVerifiedUser() {
-      return request.auth != null;
+      return request.auth != null
+        && request.auth.token != null
+        && request.auth.token.email_verified == true;
     }
 
-    // Helper: Check if user is approved & active [SR-02, CRIT-01]
-    // Menolak akun Disabled, Deleted, Rejected, Pending, atau isActive == false maupun deleted == true
+    // Helper: Check if user is strictly approved & active (AND condition)
+    // Menolak Suspended, Disabled, Deleted, Rejected, Pending, atau Active tanpa isApproved == true
     function isApprovedUser() {
       let uid = request.auth.uid;
       let userDoc = get(/databases/$(database)/documents/users/$(uid)).data;
       return request.auth != null
         && exists(/databases/$(database)/documents/users/$(uid))
-        && (userDoc.get('isApproved', false) == true || userDoc.get('status', '') == 'Active')
-        && !(userDoc.get('status', '') in ['Disabled', 'Deleted', 'Rejected', 'Pending'])
+        && userDoc.get('isApproved', false) == true
+        && userDoc.get('status', '') == 'Active'
+        && !(userDoc.get('status', '') in ['Disabled', 'Deleted', 'Rejected', 'Suspended', 'Pending'])
         && userDoc.get('isActive', true) != false
         && userDoc.get('deleted', false) != true;
     }
 
-    // Helper: Check if user is authenticated and approved member
+    // Helper: Check if user is authenticated, email-verified, and strictly approved active member
     function isActiveMember() {
       return isVerifiedUser() && isApprovedUser();
     }
-    
-    // Helper: Get user role from Firestore (/roles/{email} prioritized, then /users/{uid})
+
+    // Helper: [K-03] Sumber peran tunggal dari /roles/{email}; kembalikan 'Viewer' bila tidak ada
     function getUserRole() {
-      let uid = request.auth.uid;
       let hasEmail = request.auth.token != null && 'email' in request.auth.token && request.auth.token.email != null;
       let email = hasEmail ? request.auth.token.email : '';
-      
+
       return (hasEmail && exists(/databases/$(database)/documents/roles/$(email)))
         ? get(/databases/$(database)/documents/roles/$(email)).data.level
-        : (exists(/databases/$(database)/documents/users/$(uid))
-          ? get(/databases/$(database)/documents/users/$(uid)).data.role
-          : 'Viewer');
+        : 'Viewer';
     }
 
     // Helper: [SR-07] Akses darurat (Break-Glass) untuk pemulihan kegagalan sistem.
-    // Seluruh hak akses administratif reguler HARUS dikelola melalui koleksi /roles/{email}.
+    // Tetap dipagari oleh isActiveMember() pada rule koleksi.
     function isBreakGlassAdmin() {
       let hasEmail = request.auth.token != null && 'email' in request.auth.token && request.auth.token.email != null;
       let email = hasEmail ? request.auth.token.email : '';
@@ -135,6 +86,28 @@ service cloud.firestore {
       let role = getUserRole();
       return isBreakGlassAdmin()
         || role in ['Admin', 'ADMIN', 'admin', 'Super Admin', 'Environment Manager', 'Env Manager', 'Manager'];
+    }
+
+    // Khusus pemegang hak Admin penuh (rank 5) atau break-glass
+    function isStrictAdmin() {
+      let role = getUserRole();
+      return isBreakGlassAdmin()
+        || role in ['Admin', 'ADMIN', 'admin', 'Super Admin'];
+    }
+
+    // [K-03] Khusus Environment Manager (rank 4) & daftar peran yang boleh ditetapkannya
+    function isManager() {
+      let role = getUserRole();
+      return role in ['Environment Manager', 'Env Manager', 'Manager'];
+    }
+
+    function managerAssignableRoles() {
+      return ['Viewer', 'Auditor', 'Operator', 'Foreman', 'Environment Superintendent'];
+    }
+
+    // [T-02] Helper peran Auditor eksplisit (read-only audit & data rahasia tertentu)
+    function isAuditorRole() {
+      return getUserRole() in ['Auditor', 'auditor'];
     }
 
     // Environment Superintendent (Rank 3)
@@ -165,29 +138,41 @@ service cloud.firestore {
         || role in ['Auditor', 'auditor'];
     }
 
-    // --- DOMAIN VALIDATORS [SR-01, SR-05] ---
+    // --- DOMAIN VALIDATORS ---
 
-    // [SR-01] Audit Log Schema Validator
+    // [SR-01] Structured Audit Log Schema Validator (Immutable Append-Only)
     function vAuditLog() {
       let d = request.resource.data;
       return d.keys().hasAll(['id', 'uid', 'timestamp', 'user', 'collection', 'recordId', 'action', 'details'])
-        && d.keys().hasOnly(['id', 'uid', 'timestamp', 'user', 'collection', 'recordId', 'action', 'details'])
+        && d.keys().hasOnly([
+          'id', 'uid', 'timestamp', 'user', 'actorName', 'actorRole', 'module',
+          'collection', 'recordId', 'action', 'details',
+          'beforeData', 'afterData', 'correctionReason', 'status'
+        ])
         && d.uid == request.auth.uid
         && request.auth.token != null && 'email' in request.auth.token
         && d.user == request.auth.token.email
         && d.timestamp == request.time
-        && d.action in ['insert', 'update', 'delete', 'sync', 'backup', 'login', 'logout', 'approve', 'role_change']
+        && d.action in ['insert', 'update', 'delete', 'sync', 'backup', 'restore', 'export', 'login', 'logout', 'approve', 'reject', 'role_change', 'correct']
         && isText(d.id, 128)
         && isText(d.collection, 64)
         && isText(d.recordId, 128)
-        && isText(d.details, 1000);
+        && isText(d.details, 1000)
+        && isOptText(d.get('module', null), 64)
+        && isOptText(d.get('actorName', null), 120)
+        && isOptText(d.get('actorRole', null), 60)
+        && isOptText(d.get('correctionReason', null), 400)
+        && (d.get('beforeData', null) == null || d.beforeData is map)
+        && (d.get('afterData', null) == null || d.afterData is map)
+        && (d.get('status', null) == null || d.status in ['SUCCESS', 'FAILED']);
     }
 
-    // [SR-04, SR-05] Notification & Alert Validator
-    function vNotification() {
+    // [SR-04, SR-05, S-07] Notification & Alert Validator
+    function vNotification(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id', 'timestamp', 'type', 'category', 'title', 'message', 'read', 'createdBy'])
-        && shapeOk(12)
+        && shapeOk(14)
+        && d.id == docId
         && isValidDocId(d.id)
         && d.type in ['Critical', 'Warning', 'Info']
         && d.category in ['Wastewater', 'B3 Waste', 'Permit', 'Guarantee', 'SurfaceWater', 'Solid Waste', 'Air & Emission', 'AMD Treatment', 'Biodiversity', 'Incident']
@@ -199,21 +184,27 @@ service cloud.firestore {
         && (d.get('clearedBy', null) == null || d.clearedBy is list);
     }
 
-    // Wastewater Validator
-    function vWastewater() {
+    // Wastewater Validator (5-state evaluationStatus + legacy fallback compat + T-07 nullable)
+    function vWastewater(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','location','officer','ph','tss','debit','fe','mn','status'])
-        && shapeOk(28)
+        && shapeOk(36)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 20)
         && isText(d.location, 150)
         && isText(d.officer, 100)
-        && d.ph is number && d.ph >= 0 && d.ph <= 14
-        && d.tss is number && d.tss >= 0
-        && d.debit is number && d.debit >= 0
-        && d.fe is number && d.fe >= 0
-        && d.mn is number && d.mn >= 0
-        && d.status in ['Safe', 'Warning', 'Exceeded']
+        && (d.ph == null ? (d.get('missingReasons', null) is map && 'ph' in d.missingReasons) : (d.ph is number && d.ph >= 0 && d.ph <= 14))
+        && (d.tss == null ? (d.get('missingReasons', null) is map && 'tss' in d.missingReasons) : (d.tss is number && d.tss >= 0))
+        && (d.debit == null ? (d.get('missingReasons', null) is map && 'debit' in d.missingReasons) : (d.debit is number && d.debit >= 0))
+        && (d.fe == null ? (d.get('missingReasons', null) is map && 'fe' in d.missingReasons) : (d.fe is number && d.fe >= 0))
+        && (d.mn == null ? (d.get('missingReasons', null) is map && 'mn' in d.missingReasons) : (d.mn is number && d.mn >= 0))
+        && (d.get('missingReasons', null) == null || d.missingReasons is map)
+        && (d.get('evaluationHistory', null) == null || d.evaluationHistory is list)
+        && d.status in ['Safe', 'Warning', 'Exceeded', 'Incomplete', 'Unevaluated', 'NotApplicable']
+        && (d.get('evaluationStatus', null) == null || d.evaluationStatus in ['MEMENUHI', 'TIDAK MEMENUHI', 'DATA TIDAK LENGKAP', 'BELUM DIEVALUASI', 'TIDAK BERLAKU'])
+        && isOptText(d.get('evaluationReason', null), 1000)
+        && (d.get('unitMap', null) == null || d.unitMap is map)
         && (d.get('monitoringType', null) == null || d.monitoringType in ['Harian', 'Bulanan'])
         && (d.get('sampleTime', null) == null || (d.sampleTime is string && d.sampleTime.size() == 5))
         && (d.get('weather', null) == null || d.weather in ['Cerah', 'Berawan', 'Hujan Ringan', 'Hujan Lebat'])
@@ -221,41 +212,52 @@ service cloud.firestore {
         && isOptText(d.get('locationCode', null), 50)
         && (d.get('hasPhoto', null) == null || d.hasPhoto is bool)
         && isOptText(d.get('standardId', null), 128)
+        && isOptText(d.get('standardBasis', null), 400)
         && (d.get('standardSnapshot', null) == null || d.standardSnapshot is map)
+        && isOptText(d.get('correctionReason', null), 500)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05] Surface Water Validator
-    function vSurfaceWater() {
+    // [SR-05, S-07, T-07] Surface Water Validator
+    function vSurfaceWater(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','location','officer','ph','tss','doVal','bod','cod','fe','mn','status'])
-        && shapeOk(24)
+        && shapeOk(34)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 50)
         && isText(d.location, 150)
         && isText(d.officer, 100)
-        && d.ph is number && d.ph >= 0 && d.ph <= 14
-        && d.tss is number && d.tss >= 0
-        && d.doVal is number && d.doVal >= 0
-        && d.bod is number && d.bod >= 0
-        && d.cod is number && d.cod >= 0
-        && d.fe is number && d.fe >= 0
-        && d.mn is number && d.mn >= 0
-        && d.status in ['Safe', 'Warning', 'Exceeded']
+        && (d.ph == null ? (d.get('missingReasons', null) is map && 'ph' in d.missingReasons) : (d.ph is number && d.ph >= 0 && d.ph <= 14))
+        && (d.tss == null ? (d.get('missingReasons', null) is map && 'tss' in d.missingReasons) : (d.tss is number && d.tss >= 0))
+        && (d.doVal == null ? (d.get('missingReasons', null) is map && 'doVal' in d.missingReasons) : (d.doVal is number && d.doVal >= 0))
+        && (d.bod == null ? (d.get('missingReasons', null) is map && 'bod' in d.missingReasons) : (d.bod is number && d.bod >= 0))
+        && (d.cod == null ? (d.get('missingReasons', null) is map && 'cod' in d.missingReasons) : (d.cod is number && d.cod >= 0))
+        && (d.fe == null ? (d.get('missingReasons', null) is map && 'fe' in d.missingReasons) : (d.fe is number && d.fe >= 0))
+        && (d.mn == null ? (d.get('missingReasons', null) is map && 'mn' in d.missingReasons) : (d.mn is number && d.mn >= 0))
+        && (d.get('missingReasons', null) == null || d.missingReasons is map)
+        && (d.get('evaluationHistory', null) == null || d.evaluationHistory is list)
+        && d.status in ['Safe', 'Warning', 'Exceeded', 'Incomplete', 'Unevaluated', 'NotApplicable']
+        && (d.get('evaluationStatus', null) == null || d.evaluationStatus in ['MEMENUHI', 'TIDAK MEMENUHI', 'DATA TIDAK LENGKAP', 'BELUM DIEVALUASI', 'TIDAK BERLAKU'])
+        && isOptText(d.get('evaluationReason', null), 1000)
+        && (d.get('unitMap', null) == null || d.unitMap is map)
         && (d.get('monitoringType', null) == null || d.monitoringType in ['Harian', 'Bulanan'])
         && (d.get('kelasAir', null) == null || d.kelasAir in ['I', 'II', 'III', 'IV'])
         && isOptText(d.get('standardId', null), 128)
+        && isOptText(d.get('standardBasis', null), 400)
         && (d.get('standardSnapshot', null) == null || d.standardSnapshot is map)
+        && isOptText(d.get('correctionReason', null), 500)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05] Rainfall Validator
-    function vRainfall() {
+    // [SR-05, S-07] Rainfall Validator
+    function vRainfall(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','startTime','endTime','duration','station','gaugeType','rainfall','intensity','weather'])
         && shapeOk(16)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 50)
         && isText(d.startTime, 50)
@@ -271,11 +273,12 @@ service cloud.firestore {
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05] Nursery Validator
-    function vNursery() {
+    // [SR-05, S-07] Nursery Validator
+    function vNursery(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','plantType','quantity','source','ageWeeks','heightCm','status','location','dateIn'])
         && shapeOk(18)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.plantType, 200)
         && d.quantity is number && d.quantity >= 0
@@ -292,11 +295,12 @@ service cloud.firestore {
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05, CRIT-02] Nursery Stock Out Validator
-    function vNurseryStockOut() {
+    // [SR-05, CRIT-02, S-07] Nursery Stock Out Validator
+    function vNurseryStockOut(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','tanggal','jenisBibitId','namaBibit','species','jumlahKeluar','satuan','tujuan','lokasiPenanaman','luasReklamasi','penanggungJawab','createdBy','createdAt'])
         && shapeOk(25)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.tanggal, 50)
         && isText(d.jenisBibitId, 128)
@@ -321,11 +325,12 @@ service cloud.firestore {
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05] Reclamation Plan Validator (Prefix 'RP-')
-    function vReclamationPlan() {
+    // [SR-05, S-07] Reclamation Plan Validator (Prefix 'RP-')
+    function vReclamationPlan(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','areaName','sizeHa','targetYear','plantType','method','estimatedCost','status','pic'])
         && shapeOk(22)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.areaName, 200)
         && d.sizeHa is number && d.sizeHa >= 0
@@ -344,11 +349,12 @@ service cloud.firestore {
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05] Reclamation Guarantee Validator (Prefix 'RG-')
-    function vReclamationGuarantee() {
+    // [SR-05, S-07] Reclamation Guarantee Validator (Prefix 'RG-')
+    function vReclamationGuarantee(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','guaranteeNo','guaranteeType','value','issuingInstitution','issuedDate','dueDate','status'])
         && shapeOk(22)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.guaranteeNo, 100)
         && (d.get('periodYear', null) == null || (d.periodYear is number && d.periodYear >= 2000 && d.periodYear <= 2100))
@@ -365,11 +371,12 @@ service cloud.firestore {
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05] Hazardous Waste In Validator (Prefix 'WI-')
-    function vWasteIn() {
+    // [SR-05, S-07] Hazardous Waste In Validator (Prefix 'WI-')
+    function vWasteIn(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','dateIn','wasteType','source','weightKg','characteristic','code','tpsLocation','officer'])
-        && shapeOk(17)
+        && shapeOk(22)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.dateIn, 50)
         && isText(d.wasteType, 200)
@@ -380,15 +387,17 @@ service cloud.firestore {
         && isText(d.tpsLocation, 100)
         && isText(d.officer, 100)
         && isOptText(d.get('documentationUrl', null), 2000)
+        && isOptText(d.get('correctionReason', null), 500)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05] Hazardous Waste Out Validator (Prefix 'WO-')
-    function vWasteOut() {
+    // [SR-05, S-07] Hazardous Waste Out Validator (Prefix 'WO-')
+    function vWasteOut(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','dateOut','wasteType','weightKg','destination','transporter','manifestNo','vehicleNo','driverName','recipient'])
-        && shapeOk(17)
+        && shapeOk(22)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.dateOut, 50)
         && isText(d.wasteType, 200)
@@ -400,15 +409,17 @@ service cloud.firestore {
         && isText(d.driverName, 100)
         && isText(d.recipient, 100)
         && isOptText(d.get('documentationUrl', null), 2000)
+        && isOptText(d.get('correctionReason', null), 500)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05] Solid Waste Validator
-    function vSolidWaste() {
+    // [SR-05, S-07] Solid Waste Validator
+    function vSolidWaste(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','source','organicKg','inorganicKg','residueKg','compostedKg','recycledKg','officer'])
         && shapeOk(17)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 50)
         && isText(d.source, 150)
@@ -425,11 +436,12 @@ service cloud.firestore {
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05] Environmental Cost Validator
-    function vCost() {
+    // [SR-05, S-07] Environmental Cost Validator
+    function vCost(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','year','period','category','plannedOpex','plannedCapex','realizedOpex','realizedCapex','officer'])
         && shapeOk(18)
+        && d.id == docId
         && isValidDocId(d.id)
         && isOptText(d.get('budgetCode', null), 80)
         && d.year is number && d.year >= 2000 && d.year <= 2100
@@ -446,10 +458,11 @@ service cloud.firestore {
     }
 
     // CAPA Finding Validator
-    function vCapa() {
+    function vCapa(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','source','title','status'])
         && shapeOk(30)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.title, 300)
         && isText(d.status, 50)
@@ -462,11 +475,12 @@ service cloud.firestore {
         && isOptText(d.get('pic', null), 100);
     }
 
-    // Environmental Document Validator (Prefix 'DOC-') [CRIT-03]
-    function vEnvDocument() {
+    // Environmental Document Validator (Prefix 'DOC-') [CRIT-03, S-07]
+    function vEnvDocument(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','name','type','docNo','issuedDate','expiryDate','status','pic'])
         && shapeOk(20)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.name, 300)
         && d.type in ['AMDAL','UKL-UPL','Persetujuan Lingkungan','Pertek Air Limbah',
@@ -486,10 +500,11 @@ service cloud.firestore {
     }
 
     // Compliance Event Validator (Prefix 'EV-')
-    function vComplianceEvent() {
+    function vComplianceEvent(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','title','type','description','status'])
         && shapeOk(14)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 20)
         && isText(d.title, 300)
@@ -499,10 +514,11 @@ service cloud.firestore {
     }
 
     // Incident Validator
-    function vIncident() {
+    function vIncident(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','time','category','location','chronology','firstAction','status','environmentalLoss','reporter'])
         && shapeOk(20)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 20)
         && isText(d.time, 20)
@@ -518,10 +534,11 @@ service cloud.firestore {
     }
 
     // Compliance Matrix Validator
-    function vComplianceMatrix() {
+    function vComplianceMatrix(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','period','aspect','impactDetails','target','status'])
         && shapeOk(15)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.period, 50)
         && d.aspect in ['Kualitas Air', 'Kualitas Udara/Emisi', 'Pengelolaan Limbah B3', 'Sosial/Masyarakat', 'Flora/Fauna', 'Lainnya']
@@ -533,43 +550,98 @@ service cloud.firestore {
         && isOptText(d.get('createdBy', null), 100);
     }
 
-    // Regulatory Watch Validator
-    function vRegulatory() {
+    // Regulatory Watch Validator (Lifecycle & Metadata History)
+    function vRegulatory(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','source','regulationNo','about','issueDate','implication','status'])
-        && shapeOk(18)
+        && shapeOk(32)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.source, 200)
-        && isText(d.regulationNo, 100)
+        && isOptText(d.get('issuer', null), 200)
+        && isText(d.regulationNo, 150)
         && isText(d.about, 2000)
         && isText(d.issueDate, 50)
+        && isOptText(d.get('enactedDate', null), 50)
+        && isOptText(d.get('promulgatedDate', null), 50)
+        && isOptText(d.get('effectiveDate', null), 50)
         && isText(d.implication, 4000)
-        && d.status in ['Draft', 'Berlaku', 'Dicabut', 'Perlu Kajian']
+        && isOptText(d.get('requiredActions', null), 2000)
+        && (d.get('affectedModules', null) == null || d.affectedModules is list)
+        && isOptText(d.get('amendedBy', null), 200)
+        && isOptText(d.get('revokedBy', null), 200)
+        && isOptText(d.get('relationNotes', null), 2000)
+        && d.status in ['DRAFT', 'MENUNGGU VERIFIKASI', 'BERLAKU', 'DIUBAH', 'DICABUT', 'Draft', 'Berlaku', 'Dicabut', 'Perlu Kajian']
+        && (d.get('verificationStatus', null) == null || d.verificationStatus in ['Terverifikasi', 'Perlu verifikasi'])
         && isOptText(d.get('link', null), 2000)
+        && isOptText(d.get('officialSourceUrl', null), 2000)
+        && (d.get('metadataHistory', null) == null || d.metadataHistory is list)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [HIGH-03] Pengamanan Dokumen Verifikasi QR Publik
+    // [K-02] Validator Tanda Tangan Evidence
+    function vEvidenceSignature(sig) {
+      return sig is map
+        && sig.keys().hasAll(['uid', 'email', 'name', 'position', 'signedAt', 'signatureDataUrl'])
+        && sig.keys().hasOnly(['uid', 'email', 'name', 'position', 'signedAt', 'signatureDataUrl'])
+        && isText(sig.uid, 128) && sig.uid.size() > 0
+        && isText(sig.email, 120) && sig.email.size() > 0
+        && isText(sig.name, 150) && sig.name.size() > 0
+        && isText(sig.position, 150)
+        && isText(sig.signedAt, 60)
+        && sig.signatureDataUrl is string && sig.signatureDataUrl.size() <= 100000;
+    }
+
+    // [K-02, S-07] Validator Dokumen Evidence Harian & Bulanan
+    function vEvidenceReport(docId) {
+      let d = request.resource.data;
+      return d.keys().hasAll(['id', 'type', 'documentNo', 'revision', 'period', 'locationCode', 'status', 'snapshot', 'snapshotHash', 'signatures', 'createdBy'])
+        && shapeOk(24)
+        && d.id == docId
+        && isValidDocId(d.id)
+        && d.type in ['daily', 'monthly']
+        && isText(d.documentNo, 100) && d.documentNo.size() > 0
+        && d.revision is number && d.revision >= 0
+        && isText(d.period, 20)
+        && isText(d.locationCode, 50)
+        && d.status in ['Disiapkan', 'Diperiksa', 'Disetujui', 'Dibatalkan']
+        && d.snapshot is map
+        && isText(d.snapshotHash, 128) && d.snapshotHash.size() > 0
+        && d.signatures is map
+        && isText(d.createdBy, 120)
+        && isOptText(d.get('updatedBy', null), 120)
+        && isOptText(d.get('verifyToken', null), 64)
+        && isOptText(d.get('issuedAt', null), 60)
+        && isOptText(d.get('wastewaterId', null), 128)
+        && isOptText(d.get('date', null), 20)
+        && isOptText(d.get('followUpAction', null), 2000)
+        && isOptText(d.get('cancellationReason', null), 500)
+        && (d.get('revisionHistory', null) == null || d.revisionHistory is list);
+    }
+
+    // [HIGH-03, K-02] Pengamanan Dokumen Verifikasi QR Publik (terikat reportId)
     function vEvidenceVerify() {
       let d = request.resource.data;
-      return d.keys().hasAll(['documentNo', 'type', 'period', 'locationCode', 'issuedAt', 'status', 'overall', 'hashPrefix'])
+      return d.keys().hasAll(['reportId', 'documentNo', 'type', 'period', 'locationCode', 'issuedAt', 'status', 'overall', 'hashPrefix'])
         && shapeOk(10)
+        && isValidDocId(d.reportId)
         && isText(d.documentNo, 100)
         && d.type in ['daily', 'monthly']
         && isText(d.period, 20)
         && isText(d.locationCode, 50)
         && isText(d.issuedAt, 60)
         && d.status in ['Draft', 'Disiapkan', 'Diperiksa', 'Disetujui', 'Dibatalkan']
-        && d.overall in ['MEMENUHI', 'TIDAK MEMENUHI', 'BELUM ADA DATA']
+        && d.overall in ['MEMENUHI', 'TIDAK MEMENUHI', 'DATA TIDAK LENGKAP', 'BELUM DIEVALUASI', 'TIDAK BERLAKU', 'BELUM ADA DATA']
         && isText(d.hashPrefix, 64);
     }
 
     // AMD / AAT Treatment Validator
-    function vAmdTreatment() {
+    function vAmdTreatment(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','location','treatmentZone','inflowPh','outflowPh','inflowDebitM3s','outflowDebitM3s','limeKg','alumKg','complianceStatus','officer'])
         && shapeOk(22)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 20)
         && isText(d.location, 150)
@@ -590,10 +662,11 @@ service cloud.firestore {
     }
 
     // Air Quality, Emission & Noise Validator
-    function vAirEmission() {
+    function vAirEmission(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','monitoringCategory','location','pm10','pm25','tsp','so2','no2','co','noiseDb','status','officer'])
         && shapeOk(20)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 20)
         && d.monitoringCategory in ['Udara Ambien', 'Emisi Genset', 'Emisi Alat Berat', 'Kebisingan']
@@ -614,10 +687,11 @@ service cloud.firestore {
     }
 
     // Topsoil & Erosion Control Validator
-    function vTopsoilErosion() {
+    function vTopsoilErosion(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','blockLocation','topsoilVolumeM3','stockpileUsedM3','cumulativeBalanceM3','thicknessCm','coverCropAreaHa','erosionSeverity','mitigationAction','officer'])
         && shapeOk(18)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 20)
         && isText(d.blockLocation, 150)
@@ -635,10 +709,11 @@ service cloud.firestore {
     }
 
     // Biodiversity Monitoring Validator
-    function vBiodiversity() {
+    function vBiodiversity(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','zone','category','speciesName','scientificName','conservationStatus','count','observationMethod','condition','officer'])
         && shapeOk(18)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 20)
         && isText(d.zone, 150)
@@ -656,10 +731,11 @@ service cloud.firestore {
     }
 
     // IADL ISO 14001 Risk Register Validator
-    function vIadlRisk() {
+    function vIadlRisk(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','code','activity','aspect','impact','environmentalCondition','severityScore','likelihoodScore','riskScore','riskLevel','controlMeasure','legalRef','pic','status'])
         && shapeOk(20)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.code, 50)
         && isText(d.activity, 250)
@@ -680,10 +756,11 @@ service cloud.firestore {
     }
 
     // PROPER & RKAB Evaluation Validator
-    function vProperRkab() {
+    function vProperRkab(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','year','period','recordType','category','indicatorName','targetValue','realizedValue','scoreWeight','selfScore','targetProperRating','status','pic'])
         && shapeOk(24)
+        && d.id == docId
         && isValidDocId(d.id)
         && d.year is number && d.year >= 2000 && d.year <= 2100
         && isText(d.period, 50)
@@ -705,10 +782,11 @@ service cloud.firestore {
     }
 
     // Master Baku Mutu Lingkungan Validator (/standards/{docId})
-    function vEnvironmentalStandard() {
+    function vEnvironmentalStandard(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','media','parameterKey','parameterLabel','unit','basisRegulasi','isActive','verificationStatus'])
-        && shapeOk(20)
+        && shapeOk(30)
+        && d.id == docId
         && isValidDocId(d.id)
         && d.media in ['air_limbah', 'air_limbah_domestik', 'air_permukaan', 'udara', 'kebisingan', 'lainnya']
         && isText(d.parameterKey, 60)
@@ -717,21 +795,30 @@ service cloud.firestore {
         && (d.get('minLimit', null) == null || d.minLimit is number)
         && (d.get('maxLimit', null) == null || d.maxLimit is number)
         && isText(d.basisRegulasi, 300)
+        && isOptText(d.get('approvalDocNo', null), 200)
+        && isOptText(d.get('decreeDate', null), 30)
         && isOptText(d.get('effectiveFrom', null), 30)
+        && isOptText(d.get('effectiveTo', null), 30)
+        && isOptText(d.get('sourceDocument', null), 250)
+        && isOptText(d.get('sourceUrl', null), 1500)
         && isOptText(d.get('locationCode', null), 50)
         && (d.get('kelasAir', null) == null || d.kelasAir in ['I', 'II', 'III', 'IV'])
         && d.isActive is bool
+        && (d.get('applicable', null) == null || d.applicable is bool)
         && d.verificationStatus in ['Terverifikasi', 'Perlu verifikasi']
+        && (d.get('effectiveStatus', null) == null || d.effectiveStatus in ['DRAFT', 'MENUNGGU VERIFIKASI', 'BERLAKU', 'DIUBAH', 'DICABUT'])
+        && (d.get('revisionHistory', null) == null || d.revisionHistory is list)
         && isOptText(d.get('notes', null), 1000)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
     }
 
     // Register Pertek & SLO Validator
-    function vPertekSlo() {
+    function vPertekSlo(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','docKind','category','permitNumber','title','issuingAuthority','issuedDate','expiryDate','compliancePoint','reportingObligation','status','pic'])
         && shapeOk(20)
+        && d.id == docId
         && isValidDocId(d.id)
         && d.docKind in ['Pertek', 'SLO']
         && d.category in ['Pembuangan Air Limbah', 'Pemanfaatan Air Limbah', 'Emisi Udara', 'Penyimpanan LB3', 'Lainnya']
@@ -751,10 +838,11 @@ service cloud.firestore {
     }
 
     // Kalender Pelaporan Wajib Validator
-    function vReportingCalendar() {
+    function vReportingCalendar(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','reportType','periodLabel','dueDate','targetAgency','pic','status'])
         && shapeOk(18)
+        && d.id == docId
         && isValidDocId(d.id)
         && d.reportType in ['RKL-RPL Semester', 'Laporan Pertek', 'Neraca & Logbook LB3', 'Laporan GRK Tahunan (Maret)', 'RKAB Lingkungan', 'Laporan Reklamasi & Pascatambang']
         && isText(d.periodLabel, 120)
@@ -771,10 +859,11 @@ service cloud.firestore {
     }
 
     // Pengawasan Eksternal & Sanksi Administratif Validator
-    function vExternalSupervision() {
+    function vExternalSupervision(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','inspectionDate','agency','officialDocNo','inspectionScope','findingsSummary','sanctionCategory','followUpDeadline','resolutionStatus','pic'])
         && shapeOk(20)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.inspectionDate, 30)
         && d.agency in ['DLH Provinsi/Kab', 'KLH/BPLH', 'Inspektur Tambang ESDM', 'Kementerian Kehutanan']
@@ -792,26 +881,34 @@ service cloud.firestore {
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // Air Limbah Domestik Validator
-    function vDomesticWastewater() {
+    // Air Limbah Domestik Validator [T-07 nullable]
+    function vDomesticWastewater(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','facilityName','ph','bod','cod','tss','oilGrease','ammonia','totalColiform','debitM3Day','complianceStatus','officer'])
-        && shapeOk(24)
+        && shapeOk(36)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 30)
         && isText(d.facilityName, 180)
         && isOptText(d.get('locationCode', null), 60)
-        && d.ph is number && d.ph >= 0 && d.ph <= 14
-        && d.bod is number && d.bod >= 0
-        && d.cod is number && d.cod >= 0
-        && d.tss is number && d.tss >= 0
-        && d.oilGrease is number && d.oilGrease >= 0
-        && d.ammonia is number && d.ammonia >= 0
-        && d.totalColiform is number && d.totalColiform >= 0
-        && d.debitM3Day is number && d.debitM3Day >= 0
-        && d.complianceStatus in ['Memenuhi', 'Warning', 'Tidak Memenuhi', 'Belum Ada Baku Mutu']
+        && (d.ph == null ? (d.get('missingReasons', null) is map && 'ph' in d.missingReasons) : (d.ph is number && d.ph >= 0 && d.ph <= 14))
+        && (d.bod == null ? (d.get('missingReasons', null) is map && 'bod' in d.missingReasons) : (d.bod is number && d.bod >= 0))
+        && (d.cod == null ? (d.get('missingReasons', null) is map && 'cod' in d.missingReasons) : (d.cod is number && d.cod >= 0))
+        && (d.tss == null ? (d.get('missingReasons', null) is map && 'tss' in d.missingReasons) : (d.tss is number && d.tss >= 0))
+        && (d.oilGrease == null ? (d.get('missingReasons', null) is map && 'oilGrease' in d.missingReasons) : (d.oilGrease is number && d.oilGrease >= 0))
+        && (d.ammonia == null ? (d.get('missingReasons', null) is map && 'ammonia' in d.missingReasons) : (d.ammonia is number && d.ammonia >= 0))
+        && (d.totalColiform == null ? (d.get('missingReasons', null) is map && 'totalColiform' in d.missingReasons) : (d.totalColiform is number && d.totalColiform >= 0))
+        && (d.debitM3Day == null ? (d.get('missingReasons', null) is map && 'debitM3Day' in d.missingReasons) : (d.debitM3Day is number && d.debitM3Day >= 0))
+        && (d.get('missingReasons', null) == null || d.missingReasons is map)
+        && (d.get('evaluationHistory', null) == null || d.evaluationHistory is list)
+        && d.complianceStatus in ['Memenuhi', 'Warning', 'Tidak Memenuhi', 'Belum Ada Baku Mutu', 'Data Tidak Lengkap', 'Belum Dievaluasi', 'Tidak Berlaku']
+        && (d.get('evaluationStatus', null) == null || d.evaluationStatus in ['MEMENUHI', 'TIDAK MEMENUHI', 'DATA TIDAK LENGKAP', 'BELUM DIEVALUASI', 'TIDAK BERLAKU'])
+        && isOptText(d.get('evaluationReason', null), 1000)
+        && (d.get('unitMap', null) == null || d.unitMap is map)
         && isOptText(d.get('standardId', null), 128)
         && isOptText(d.get('standardBasis', null), 350)
+        && (d.get('standardSnapshot', null) == null || d.standardSnapshot is map)
+        && isOptText(d.get('correctionReason', null), 500)
         && isText(d.officer, 100)
         && isOptText(d.get('notes', null), 1000)
         && isOptText(d.get('createdBy', null), 100)
@@ -819,10 +916,11 @@ service cloud.firestore {
     }
 
     // Faktor Emisi GRK Master Validator
-    function vGhgFactor() {
+    function vGhgFactor(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','activityCategory','factorName','unit','factorKgCo2ePerUnit','gasScope','referenceSource','effectiveYear'])
-        && shapeOk(16)
+        && shapeOk(20)
+        && d.id == docId
         && isValidDocId(d.id)
         && d.activityCategory in ['Solar Alat Berat & Hauling', 'Solar Genset & Pembangkit', 'Listrik PLN / Non-Tambang', 'Bahan Peledak (ANFO/Emulsi)', 'Perubahan Lahan Terbuka', 'Lainnya']
         && isText(d.factorName, 180)
@@ -831,16 +929,19 @@ service cloud.firestore {
         && d.gasScope in ['Scope 1 (Emisi Langsung)', 'Scope 2 (Energi Tidak Langsung)', 'Scope 3 / Lahan']
         && isText(d.referenceSource, 300)
         && d.effectiveYear is number && d.effectiveYear >= 2000 && d.effectiveYear <= 2100
+        && isOptText(d.get('gwpReference', null), 200)
+        && (d.get('verificationStatus', null) == null || d.verificationStatus in ['Terverifikasi', 'PERLU VERIFIKASI'])
         && isOptText(d.get('notes', null), 1000)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // Log Aktivitas Emisi GRK Validator
-    function vGhgActivity() {
+    // Log Aktivitas Emisi GRK Validator (emissionsTco2e nullable bila faktor belum tersedia/valid)
+    function vGhgActivity(docId) {
       let d = request.resource.data;
       return d.keys().hasAll(['id','date','reportingYear','monthPeriod','activityCategory','sourceLocation','quantity','unit','emissionsTco2e','officer'])
-        && shapeOk(22)
+        && shapeOk(32)
+        && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 30)
         && d.reportingYear is number && d.reportingYear >= 2000 && d.reportingYear <= 2100
@@ -853,7 +954,16 @@ service cloud.firestore {
         && isOptText(d.get('factorNameSnapshot', null), 180)
         && (d.get('factorValueSnapshot', null) == null || d.factorValueSnapshot is number)
         && isOptText(d.get('referenceSourceSnapshot', null), 300)
-        && d.emissionsTco2e is number && d.emissionsTco2e >= 0
+        && isOptText(d.get('gasScopeSnapshot', null), 80)
+        && isOptText(d.get('categorySnapshot', null), 120)
+        && isOptText(d.get('unitSnapshot', null), 40)
+        && (d.get('effectiveYearSnapshot', null) == null || d.effectiveYearSnapshot is number)
+        && isOptText(d.get('gwpSnapshot', null), 200)
+        && (d.get('verificationStatusSnapshot', null) == null || d.verificationStatusSnapshot in ['Terverifikasi', 'PERLU VERIFIKASI'])
+        && (d.get('calculationStatus', null) == null || d.calculationStatus in ['TERHITUNG', 'BELUM TERHITUNG', 'PERLU VERIFIKASI'])
+        && isOptText(d.get('calculationNote', null), 500)
+        && (d.emissionsTco2e == null || (d.emissionsTco2e is number && d.emissionsTco2e >= 0))
+        && isOptText(d.get('correctionReason', null), 500)
         && isText(d.officer, 100)
         && isOptText(d.get('notes', null), 1000)
         && isOptText(d.get('createdBy', null), 100)
@@ -862,302 +972,556 @@ service cloud.firestore {
 
     // --- COLLECTION MATCHES ---
 
-    // --- COLLECTION: users [SR-02, SR-03] ---
+    // --- COLLECTION: users ---
     match /users/{userId} {
-      // [SR-03] Read dibatasi hanya akun bersangkutan atau Administrator
-      allow read: if isVerifiedUser() && (request.auth.uid == userId || isAdmin());
-      // [SR-02] Create diizinkan untuk registrasi akun baru pengguna sendiri (Viewer & Pending)
-      allow create: if isVerifiedUser() && request.auth.uid == userId
-        && (!('role' in request.resource.data) || request.resource.data.role == 'Viewer')
-        && (!('isApproved' in request.resource.data) || request.resource.data.isApproved == false);
-      allow update: if isVerifiedUser() && (
-        isAdmin() || 
-        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isApproved', 'status', 'approvedBy', 'approvedAt']))
+      // Pemilik akun boleh membaca profil miliknya agar layar verifikasi/pending/suspended tampil tepat;
+      // Admin/Manager yang aktif & terverifikasi boleh membaca dan mendaftar seluruh akun.
+      allow get: if request.auth != null && (
+        request.auth.uid == userId
+        || (isActiveMember() && isAdmin())
       );
-      allow delete: if isAdmin();
-    }
-    
-    // --- COLLECTION: roles ---
-    match /roles/{email} {
-      allow read: if isVerifiedUser();
-      allow create, update, delete: if isAdmin();
+      allow list: if isActiveMember() && isAdmin();
+
+      // Pendaftaran mandiri diizinkan HANYA sebagai Viewer + Pending + Belum Disetujui
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && (!('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid)
+        && (!('email' in request.resource.data) || request.resource.data.email == request.auth.token.email)
+        && (!('role' in request.resource.data) || request.resource.data.role == 'Viewer')
+        && (!('isApproved' in request.resource.data) || request.resource.data.isApproved == false)
+        && (!('status' in request.resource.data) || request.resource.data.status == 'Pending')
+        && (!('isActive' in request.resource.data) || request.resource.data.isActive == true)
+        && (!('deleted' in request.resource.data) || request.resource.data.deleted == false);
+
+      // [K-03] Update profil non-hak-akses oleh user sendiri;
+      // Perubahan field 'role' pada /users/{userId} hanya boleh oleh Strict Admin dan bukan untuk akun sendiri.
+      allow update: if (
+        isActiveMember() && isAdmin() && (
+          request.resource.data.get('role', null) == resource.data.get('role', null)
+          || (isStrictAdmin() && userId != request.auth.uid)
+        )
+      ) || (
+        request.auth != null
+        && request.auth.uid == userId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'role', 'isApproved', 'status', 'isActive', 'deleted',
+          'uid', 'email', 'createdAt', 'approvedBy', 'approvedAt',
+          'rejectedBy', 'rejectedAt', 'deletedBy', 'deletedAt'
+        ])
+      );
+      allow delete: if isActiveMember() && isStrictAdmin();
     }
 
-    // --- COLLECTION: audit_logs (IMMUTABLE APPEND-ONLY) [SR-01] ---
+    // --- COLLECTION: roles [K-03] ---
+    match /roles/{email} {
+      allow read: if isActiveMember() && (
+        (request.auth.token != null && 'email' in request.auth.token && request.auth.token.email == email)
+        || isAdmin()
+      );
+      allow create: if isActiveMember()
+        && request.auth.token != null
+        && 'email' in request.auth.token
+        && request.auth.token.email != null
+        && email != request.auth.token.email
+        && isText(email, 128)
+        && 'level' in request.resource.data
+        && isText(request.resource.data.level, 60)
+        && (
+          isStrictAdmin()
+          || (isManager() && request.resource.data.level in managerAssignableRoles())
+        );
+      allow update: if isActiveMember()
+        && request.auth.token != null
+        && 'email' in request.auth.token
+        && request.auth.token.email != null
+        && email != request.auth.token.email
+        && 'level' in request.resource.data
+        && isText(request.resource.data.level, 60)
+        && (
+          isStrictAdmin()
+          || (
+            isManager()
+            && request.resource.data.level in managerAssignableRoles()
+            && resource.data.level in managerAssignableRoles()
+          )
+        );
+      allow delete: if isActiveMember() && isStrictAdmin();
+    }
+
+    // --- COLLECTION: audit_logs (IMMUTABLE APPEND-ONLY) ---
     match /audit_logs/{logId} {
-      allow read: if isVerifiedUser();
-      allow create: if isVerifiedUser() && vAuditLog();
-      allow update: if false; // IMMUTABLE: Update ditolak permanen
-      allow delete: if false; // IMMUTABLE: Delete ditolak permanen
+      allow read: if isActiveMember() && (isSuperintendent() || isAuditor());
+      allow create: if isActiveMember() && vAuditLog() && request.resource.data.id == logId;
+      allow update: if false; // IMMUTABLE
+      allow delete: if false; // IMMUTABLE
     }
 
     // --- COLLECTION: app_meta ---
     match /app_meta/{metaId} {
-      allow read: if isVerifiedUser();
-      allow write: if isAdmin() || (isActiveMember() && isSuperintendent() && metaId in ['env_thresholds', 'proper_criteria']);
+      allow read: if isActiveMember();
+      allow write: if isActiveMember() && (isStrictAdmin() || (isSuperintendent() && metaId in ['env_thresholds', 'proper_criteria']));
     }
 
     // --- COLLECTION: standards (Master Baku Mutu Lingkungan Dinamis) ---
     match /standards/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isSuperintendent() && vEnvironmentalStandard();
-      allow delete: if isAdmin();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isSuperintendent() && vEnvironmentalStandard(docId);
+      allow delete: if isActiveMember() && isAdmin();
     }
 
     // --- DOMAIN DATA COLLECTIONS ---
-    
-    // Compliance Matrix
+
+    // Compliance Matrix [T-03, S-07]
     match /compliance_matrix/{matrixId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vComplianceMatrix();
-      allow delete: if isAdmin() || isSuperintendent();
-    }
-    
-    // Regulatory Watch
-    match /regulatory/{regId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isSuperintendent() && vRegulatory();
-      allow delete: if isAdmin();
-    }
-    
-    // Incidents
-    match /incidents/{incidentId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vIncident();
-      allow delete: if isAdmin() || isSuperintendent();
-    }
-    
-    // CAPA Findings
-    match /capa/{capaId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vCapa();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create: if isActiveMember() && isSuperintendent() && vComplianceMatrix(matrixId);
+      allow update: if isActiveMember() && vComplianceMatrix(matrixId) && (
+        isSuperintendent()
+        || (isOperator() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['evidenceUrl', 'notes', 'updatedAt', 'updatedBy']))
+      );
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
-    // [SR-04] Notifications & Alerts
-    match /notifications/{notifId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && vNotification();
+    // Regulatory Watch
+    match /regulatory/{regId} {
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isSuperintendent() && vRegulatory(regId);
+      allow delete: if isActiveMember() && isAdmin();
+    }
+
+    // Incidents
+    match /incidents/{incidentId} {
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vIncident(incidentId);
       allow delete: if isActiveMember() && isSuperintendent();
+    }
+
+    // CAPA Findings
+    match /capa/{capaId} {
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vCapa(capaId);
+      allow delete: if isActiveMember() && isSuperintendent();
+    }
+
+    // Notifications & Alerts [S-07, S-08]
+    match /notifications/{notifId} {
+      allow read: if isActiveMember();
+      allow create: if isActiveMember() && isOperator() && vNotification(notifId);
+      allow update: if isActiveMember() && vNotification(notifId) && (
+        isSuperintendent()
+        || (
+          resource.data.createdBy == request.auth.token.email
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readBy', 'clearedBy'])
+        )
+        || (
+          resource.data.createdBy == 'system'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy', 'clearedBy'])
+          && request.resource.data.get('readBy', []).hasAll(resource.data.get('readBy', []))
+          && request.resource.data.get('clearedBy', []).hasAll(resource.data.get('clearedBy', []))
+          && request.resource.data.get('readBy', []).size() <= 100
+          && request.resource.data.get('clearedBy', []).size() <= 100
+          && request.resource.data.get('readBy', []).toSet().difference(resource.data.get('readBy', []).toSet()).hasOnly([request.auth.token.email])
+          && request.resource.data.get('clearedBy', []).toSet().difference(resource.data.get('clearedBy', []).toSet()).hasOnly([request.auth.token.email])
+        )
+      );
+      allow delete: if isActiveMember() && (
+        isSuperintendent()
+        || resource.data.createdBy == request.auth.token.email
+      );
     }
 
     match /alerts/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && vNotification();
+      allow read: if isActiveMember();
+      allow create: if isActiveMember() && isOperator() && vNotification(docId);
+      allow update: if isActiveMember() && vNotification(docId) && (
+        isSuperintendent()
+        || (
+          resource.data.createdBy == request.auth.token.email
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readBy', 'clearedBy'])
+        )
+        || (
+          resource.data.createdBy == 'system'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy', 'clearedBy'])
+          && request.resource.data.get('readBy', []).hasAll(resource.data.get('readBy', []))
+          && request.resource.data.get('clearedBy', []).hasAll(resource.data.get('clearedBy', []))
+          && request.resource.data.get('readBy', []).size() <= 100
+          && request.resource.data.get('clearedBy', []).size() <= 100
+          && request.resource.data.get('readBy', []).toSet().difference(resource.data.get('readBy', []).toSet()).hasOnly([request.auth.token.email])
+          && request.resource.data.get('clearedBy', []).toSet().difference(resource.data.get('clearedBy', []).toSet()).hasOnly([request.auth.token.email])
+        )
+      );
       allow delete: if isActiveMember() && isSuperintendent();
     }
-    
+
     // Master Titik Sampling Air Limbah (Wewenang Superintendent ke atas)
     match /wq_locations/{id} {
       allow read: if isActiveMember();
-      allow create, update: if isSuperintendent();
+      allow create, update: if isActiveMember() && isSuperintendent()
+        && (!('id' in request.resource.data) || request.resource.data.id == id);
       allow delete: if false;
     }
 
     // Foto Sampling Air Limbah (Evidence visual terpisah)
     match /wastewater_photos/{id} {
       allow read: if isActiveMember();
-      allow create, update: if isActiveMember() && isOperator() 
-        && request.resource.data.dataUrl is string 
-        && request.resource.data.dataUrl.size() <= 400000 
+      allow create, update: if isActiveMember() && isOperator()
+        && (!('id' in request.resource.data) || request.resource.data.id == id)
+        && request.resource.data.dataUrl is string
+        && request.resource.data.dataUrl.size() <= 400000
         && request.resource.data.mimeType == 'image/jpeg';
-      allow delete: if isSuperintendent();
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
-    // Evidence Reports (Dokumen Evidence Harian & Rekap Bulanan)
+    // Evidence Reports (Dokumen Evidence Harian & Rekap Bulanan) [K-02]
     match /evidence_reports/{id} {
       allow read: if isActiveMember();
-      allow create: if isActiveMember() && isOperator();
-      allow update: if isActiveMember() && isOperator() && (
-        // Draft edit
-        (resource.data.status == 'Draft') ||
-        // Status transition from Draft to Disiapkan
-        (resource.data.status == 'Draft' && request.resource.data.status == 'Disiapkan') ||
-        // Reviewed signature update by Foreman or higher, email != prepared.email
-        (request.resource.data.status == 'Diperiksa' && isForeman() && request.resource.data.signatures.reviewed.email != resource.data.signatures.prepared.email && request.resource.data.snapshotHash == resource.data.snapshotHash) ||
-        // Approved signature update by Admin/Manager, email != prepared.email and email != reviewed.email
-        (request.resource.data.status == 'Disetujui' && isAdmin() && request.resource.data.signatures.approved.email != resource.data.signatures.prepared.email && request.resource.data.signatures.approved.email != resource.data.signatures.reviewed.email && request.resource.data.snapshotHash == resource.data.snapshotHash) ||
-        // Superintendent revision update: revision number incremented
-        (isSuperintendent() && request.resource.data.revision > resource.data.revision) ||
-        // Admin cancellation:
-        (isAdmin() && request.resource.data.status == 'Dibatalkan')
-      );
-      allow delete: if isAdmin() && resource.data.status == 'Draft';
+      allow create: if isActiveMember() && isOperator()
+        && vEvidenceReport(id)
+        && request.resource.data.status == 'Disiapkan'
+        && request.resource.data.revision == 0
+        && request.resource.data.signatures.keys().hasOnly(['prepared'])
+        && vEvidenceSignature(request.resource.data.signatures.prepared)
+        && request.resource.data.signatures.prepared.uid == request.auth.uid
+        && request.resource.data.signatures.prepared.email == request.auth.token.email
+        && request.resource.data.createdBy == request.auth.token.email;
+      allow update: if isActiveMember()
+        && vEvidenceReport(id)
+        && request.resource.data.documentNo == resource.data.documentNo
+        && request.resource.data.type == resource.data.type
+        && request.resource.data.createdBy == resource.data.createdBy
+        && (
+          // 1. Disiapkan -> Diperiksa (Foreman+, berbeda dari penyiap, snapshotHash terkunci)
+          (
+            isForeman()
+            && resource.data.status == 'Disiapkan'
+            && request.resource.data.status == 'Diperiksa'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['signatures', 'status', 'updatedAt', 'updatedBy'])
+            && request.resource.data.signatures.keys().hasOnly(['prepared', 'reviewed'])
+            && request.resource.data.signatures.prepared == resource.data.signatures.prepared
+            && vEvidenceSignature(request.resource.data.signatures.reviewed)
+            && request.resource.data.signatures.reviewed.uid == request.auth.uid
+            && request.resource.data.signatures.reviewed.email == request.auth.token.email
+            && request.resource.data.signatures.reviewed.email != resource.data.signatures.prepared.email
+            && request.resource.data.snapshotHash == resource.data.snapshotHash
+          )
+          // 2. Diperiksa -> Disetujui (Manager/Admin, berbeda dari penyiap & pemeriksa, snapshotHash terkunci)
+          || (
+            isAdmin()
+            && resource.data.status == 'Diperiksa'
+            && request.resource.data.status == 'Disetujui'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['signatures', 'status', 'updatedAt', 'updatedBy'])
+            && request.resource.data.signatures.keys().hasOnly(['prepared', 'reviewed', 'approved'])
+            && request.resource.data.signatures.prepared == resource.data.signatures.prepared
+            && request.resource.data.signatures.reviewed == resource.data.signatures.reviewed
+            && vEvidenceSignature(request.resource.data.signatures.approved)
+            && request.resource.data.signatures.approved.uid == request.auth.uid
+            && request.resource.data.signatures.approved.email == request.auth.token.email
+            && request.resource.data.signatures.approved.email != resource.data.signatures.prepared.email
+            && request.resource.data.signatures.approved.email != resource.data.signatures.reviewed.email
+            && request.resource.data.snapshotHash == resource.data.snapshotHash
+          )
+          // 3. Terbit Revisi (Superintendent+, bukan dari Dibatalkan, reset TTD ke penyiap baru)
+          || (
+            isSuperintendent()
+            && resource.data.status != 'Dibatalkan'
+            && request.resource.data.status == 'Disiapkan'
+            && request.resource.data.revision == resource.data.revision + 1
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revision', 'snapshot', 'snapshotHash', 'status', 'signatures', 'revisionHistory', 'updatedAt', 'updatedBy'])
+            && request.resource.data.signatures.keys().hasOnly(['prepared'])
+            && vEvidenceSignature(request.resource.data.signatures.prepared)
+            && request.resource.data.signatures.prepared.uid == request.auth.uid
+            && request.resource.data.signatures.prepared.email == request.auth.token.email
+            && request.resource.data.revisionHistory is list
+            && request.resource.data.revisionHistory.size() == resource.data.get('revisionHistory', []).size() + 1
+          )
+          // 4. Pembatalan Dokumen (Manager/Admin, bukan dari Dibatalkan, alasan >= 10 karakter)
+          || (
+            isAdmin()
+            && resource.data.status != 'Dibatalkan'
+            && request.resource.data.status == 'Dibatalkan'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancellationReason', 'updatedAt', 'updatedBy'])
+            && request.resource.data.cancellationReason is string
+            && request.resource.data.cancellationReason.size() >= 10
+            && request.resource.data.cancellationReason.size() <= 500
+          )
+        );
+      allow delete: if isActiveMember() && isAdmin() && resource.data.status == 'Draft';
     }
 
-    // Counters (Atomic sequential numbering FR-EMS-WQ-YYYY-xxxxx)
+    // Counters (Atomic sequential numbering FR-EMS-WQ-YYYY-xxxxx) [S-08]
     match /counters/{id} {
       allow read: if isActiveMember();
-      allow create: if isActiveMember() && isOperator() && request.resource.data.value == 1;
-      allow update: if isActiveMember() && isOperator() && request.resource.data.value == resource.data.value + 1;
+      allow create: if isActiveMember() && isOperator()
+        && id.matches('^evidence(-daily-|_)[0-9]{4}$')
+        && request.resource.data.value == 1
+        && request.resource.data.keys().hasAll(['value', 'updatedAt', 'lastReportId'])
+        && shapeOk(4)
+        && isValidDocId(request.resource.data.lastReportId)
+        && existsAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.lastReportId));
+      allow update: if isActiveMember() && isOperator()
+        && id.matches('^evidence(-daily-|_)[0-9]{4}$')
+        && request.resource.data.value == resource.data.value + 1
+        && request.resource.data.keys().hasAll(['value', 'updatedAt', 'lastReportId'])
+        && shapeOk(4)
+        && isValidDocId(request.resource.data.lastReportId)
+        && existsAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.lastReportId));
       allow delete: if false;
     }
 
-    // User Signatures (Tanda Tangan Digital Pengguna)
+    // User Signatures [K-02: Hanya pemilik yang dapat membaca/mengubah]
     match /signatures/{uid} {
-      allow read: if isActiveMember();
-      allow create, update: if request.auth.uid == uid && isActiveMember() 
-        && request.resource.data.dataUrl is string 
+      allow read: if isActiveMember() && request.auth.uid == uid;
+      allow create, update: if request.auth.uid == uid && isActiveMember()
+        && request.resource.data.dataUrl is string
         && request.resource.data.dataUrl.size() <= 80000;
       allow delete: if false;
     }
 
-    // Public Verification Documents (Minimal data untuk scan QR Code tanpa login) [HIGH-03]
+    // Public Verification Documents (Minimal data untuk scan QR Code tanpa login) [K-02, K-01]
     match /evidence_verify/{token} {
       allow get: if true;
       allow list: if false;
-      allow create: if isActiveMember() && isOperator() && vEvidenceVerify() && request.resource.data.status == 'Disiapkan';
+      allow create: if isActiveMember() && vEvidenceVerify() && (
+        (
+          isOperator()
+          && request.resource.data.status == 'Disiapkan'
+          && existsAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId))
+          && getAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.verifyToken == token
+          && getAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.status == request.resource.data.status
+          && getAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.documentNo == request.resource.data.documentNo
+        ) || (
+          isStrictAdmin()
+          && exists(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId))
+          && get(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.verifyToken == token
+          && get(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.status == request.resource.data.status
+          && get(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.documentNo == request.resource.data.documentNo
+        )
+      );
       allow update: if isActiveMember() && vEvidenceVerify() && (
-        (request.resource.data.status == 'Disiapkan' && isSuperintendent()) ||
-        (request.resource.data.status == 'Diperiksa' && isForeman()) ||
-        (request.resource.data.status == 'Disetujui' && isAdmin()) ||
-        (request.resource.data.status == 'Dibatalkan' && isAdmin())
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportId', 'status', 'overall', 'hashPrefix'])
+          && existsAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId))
+          && getAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.verifyToken == token
+          && getAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.status == request.resource.data.status
+          && getAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.documentNo == request.resource.data.documentNo
+          && (
+            (request.resource.data.status == 'Disiapkan' && isSuperintendent()) ||
+            (request.resource.data.status == 'Diperiksa' && isForeman()) ||
+            (request.resource.data.status == 'Disetujui' && isAdmin()) ||
+            (request.resource.data.status == 'Dibatalkan' && isAdmin())
+          )
+        ) || (
+          isStrictAdmin()
+          && exists(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId))
+          && get(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.verifyToken == token
+          && get(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.status == request.resource.data.status
+          && get(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.documentNo == request.resource.data.documentNo
+        )
       );
       allow delete: if false;
     }
-    
-    // Environmental Monitoring Collections [SR-05]
+
+    // Environmental Monitoring Collections [D-01: Cabang Evaluasi Ulang khusus Superintendent+]
     match /wastewater/{docId} {
-      allow read: if isActiveMember() || isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vWastewater();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create: if isActiveMember() && isOperator() && vWastewater(docId)
+        && !('evaluationHistory' in request.resource.data);
+      allow update: if isActiveMember() && vWastewater(docId) && (
+        (
+          isSuperintendent()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'evaluationStatus', 'evaluationReason',
+            'standardId', 'standardBasis', 'standardSnapshot',
+            'correctionReason', 'evaluationHistory', 'updatedAt', 'updatedBy'
+          ])
+          && request.resource.data.correctionReason is string
+          && request.resource.data.correctionReason.size() >= 20
+        ) || (
+          isOperator()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['evaluationHistory'])
+        )
+      );
+      allow delete: if isActiveMember() && isSuperintendent();
     }
-    
+
     match /surfacewater/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vSurfaceWater();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create: if isActiveMember() && isOperator() && vSurfaceWater(docId)
+        && !('evaluationHistory' in request.resource.data);
+      allow update: if isActiveMember() && vSurfaceWater(docId) && (
+        (
+          isSuperintendent()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'evaluationStatus', 'evaluationReason',
+            'standardId', 'standardBasis', 'standardSnapshot',
+            'correctionReason', 'evaluationHistory', 'updatedAt', 'updatedBy'
+          ])
+          && request.resource.data.correctionReason is string
+          && request.resource.data.correctionReason.size() >= 20
+        ) || (
+          isOperator()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['evaluationHistory'])
+        )
+      );
+      allow delete: if isActiveMember() && isSuperintendent();
     }
-    
+
     match /rainfall/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vRainfall();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vRainfall(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
-    
+
     match /nursery_stock_out/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vNurseryStockOut();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vNurseryStockOut(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
     match /nursery/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vNursery();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vNursery(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
-    
+
     match /solid_waste/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vSolidWaste();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vSolidWaste(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
-    
-    // [SR-05] /reclamation/{docId}: prefix 'RP-' -> vReclamationPlan(), 'RG-' -> vReclamationGuarantee()
+
+    // [T-02, T-03, S-07] RP-* terbuka baca & operator tulis; RG-* (jaminan finansial) rahasia Superintendent+/Auditor & tulis Superintendent+
     match /reclamation/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && (
-        (docId.matches('^RP-.*') && vReclamationPlan()) ||
-        (docId.matches('^RG-.*') && vReclamationGuarantee())
+      allow read: if isActiveMember() && (
+        (docId >= 'RP-' && docId < 'RP.')
+        || docId.matches('^RP-.*')
+        || ((isSuperintendent() || isAuditorRole()) && (
+          (docId >= 'RG-' && docId < 'RG.')
+          || docId.matches('^RG-.*')
+        ))
       );
-      allow delete: if isAdmin() || isSuperintendent();
-    }
-    
-    // [SR-05] /waste_b3/{docId}: prefix 'WI-' -> vWasteIn(), 'WO-' -> vWasteOut()
-    match /waste_b3/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && (
-        (docId.matches('^WI-.*') && vWasteIn()) ||
-        (docId.matches('^WO-.*') && vWasteOut())
-      );
-      allow delete: if isAdmin() || isSuperintendent();
-    }
-    
-    match /documents/{docId} {
-      allow read: if isVerifiedUser();
       allow create, update: if isActiveMember() && (
-        (docId.matches('^DOC-.*') && isSuperintendent() && vEnvDocument()) ||
-        (docId.matches('^EV-.*') && isOperator() && vComplianceEvent())
+        (docId.matches('^RP-.*') && isOperator() && vReclamationPlan(docId)) ||
+        (docId.matches('^RG-.*') && isSuperintendent() && vReclamationGuarantee(docId))
       );
-      allow delete: if isAdmin() || (docId.matches('^EV-.*') && isSuperintendent());
+      allow delete: if isActiveMember() && isSuperintendent();
     }
-    
+
+    match /waste_b3/{docId} {
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && (
+        (docId.matches('^WI-.*') && vWasteIn(docId)) ||
+        (docId.matches('^WO-.*') && vWasteOut(docId))
+      );
+      allow delete: if isActiveMember() && isSuperintendent();
+    }
+
+    match /documents/{docId} {
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && (
+        (docId.matches('^DOC-.*') && isSuperintendent() && vEnvDocument(docId)) ||
+        (docId.matches('^EV-.*') && isOperator() && vComplianceEvent(docId))
+      );
+      allow delete: if isActiveMember() && (isAdmin() || (docId.matches('^EV-.*') && isSuperintendent()));
+    }
+
+    // [T-02] Anggaran & Biaya Lingkungan hanya untuk Superintendent ke atas & Auditor
     match /costs/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isSuperintendent() && vCost();
-      allow delete: if isAdmin();
+      allow read: if isActiveMember() && (isSuperintendent() || isAuditorRole());
+      allow create, update: if isActiveMember() && isSuperintendent() && vCost(docId);
+      allow delete: if isActiveMember() && isAdmin();
     }
 
     match /amd_treatment/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vAmdTreatment();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vAmdTreatment(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
     match /air_emission/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vAirEmission();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vAirEmission(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
     match /topsoil_erosion/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vTopsoilErosion();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vTopsoilErosion(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
     match /biodiversity/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vBiodiversity();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vBiodiversity(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
     match /iadl_risk/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vIadlRisk();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vIadlRisk(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
+    // [T-02] PROPER & RKAB hanya untuk Superintendent ke atas & Auditor
     match /proper_rkab/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isSuperintendent() && vProperRkab();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember() && (isSuperintendent() || isAuditorRole());
+      allow create, update: if isActiveMember() && isSuperintendent() && vProperRkab(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
+    // [T-03] Master Register Pertek & SLO hanya Superintendent+
     match /pertek_slo/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vPertekSlo();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isSuperintendent() && vPertekSlo(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
+    // [T-03] Master Kalender Pelaporan Wajib hanya Superintendent+
     match /reporting_calendar/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vReportingCalendar();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isSuperintendent() && vReportingCalendar(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
     match /external_supervisions/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vExternalSupervision();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vExternalSupervision(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
     match /domestic_wastewater/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vDomesticWastewater();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create: if isActiveMember() && isOperator() && vDomesticWastewater(docId)
+        && !('evaluationHistory' in request.resource.data);
+      allow update: if isActiveMember() && vDomesticWastewater(docId) && (
+        (
+          isSuperintendent()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'complianceStatus', 'evaluationStatus', 'evaluationReason',
+            'standardId', 'standardBasis', 'standardSnapshot',
+            'correctionReason', 'evaluationHistory', 'updatedAt', 'updatedBy'
+          ])
+          && request.resource.data.correctionReason is string
+          && request.resource.data.correctionReason.size() >= 20
+        ) || (
+          isOperator()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['evaluationHistory'])
+        )
+      );
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
+    // [T-03] Master Faktor Emisi GRK hanya Superintendent+
     match /ghg_factors/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vGhgFactor();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isSuperintendent() && vGhgFactor(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
 
     match /ghg_activities/{docId} {
-      allow read: if isVerifiedUser();
-      allow create, update: if isActiveMember() && isOperator() && vGhgActivity();
-      allow delete: if isAdmin() || isSuperintendent();
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember() && isOperator() && vGhgActivity(docId);
+      allow delete: if isActiveMember() && isSuperintendent();
     }
   }
 }

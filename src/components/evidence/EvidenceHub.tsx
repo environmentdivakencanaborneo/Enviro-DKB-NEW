@@ -4,15 +4,18 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  WastewaterData, 
-  EvidenceReport, 
-  WqLocation, 
+import {
+  WastewaterData,
+  EvidenceReport,
+  WqLocation,
   EvidenceSignature,
   DailyEvidenceSnapshot,
   MonthlyEvidenceSnapshot,
   MonthlyDayItem,
-  WastewaterPhoto
+  WastewaterPhoto,
+  ComplianceConclusion,
+  EnvironmentalStandard,
+  InternalThresholdsConfig,
 } from '../../types';
 import { wqLocationService } from '../../services/wqLocationService';
 import { evidenceService } from '../../services/evidenceService';
@@ -29,7 +32,8 @@ import {
   todayLocalISO, 
   getDayNameIndonesian 
 } from '../../utils/dateUtils';
-import { normalizeRole, atLeast } from '../../utils/roles';
+import { atLeast } from '../../utils/roles';
+import { effectiveRole } from '../../services/permissionService';
 import { computeSnapshotHash } from '../../utils/hash';
 import DailyEvidenceDocument from './DailyEvidenceDocument';
 import MonthlyEvidenceDocument from './MonthlyEvidenceDocument';
@@ -57,12 +61,14 @@ import {
   AlertCircle,
   Sparkles
 } from 'lucide-react';
-import { WASTEWATER_BASIS_LABEL } from '../../data/regulations';
+import { parseStrictNumber } from '../../utils/waterQualityEval';
 import StatusBadge from '../StatusBadge';
 
 interface EvidenceHubProps {
   wastewater: WastewaterData[];
   user: any;
+  standards?: EnvironmentalStandard[];
+  internalThresholds?: InternalThresholdsConfig;
 }
 
 type SigningType = 
@@ -74,7 +80,12 @@ type SigningType =
   | 'approve_monthly' 
   | 'revision_monthly';
 
-export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
+export default function EvidenceHub({
+  wastewater,
+  user,
+  standards,
+  internalThresholds,
+}: EvidenceHubProps) {
   const [activeSubTab, setActiveSubTab] = useState<'harian' | 'bulanan'>('harian');
   const [locations, setLocations] = useState<WqLocation[]>([]);
   const [selectedLocationCode, setSelectedLocationCode] = useState<string>('KPL-01');
@@ -114,13 +125,13 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
   const [preloadedPhotos, setPreloadedPhotos] = useState<Record<string, WastewaterPhoto | null>>({});
   const [isBatchPrintingActive, setIsBatchPrintingActive] = useState(false);
 
-  // Roles & permissions
-  const userRole = normalizeRole(user?.role);
+  // Roles & permissions (wajib pakai effectiveRole agar status non-aktif/belum disetujui turun ke Viewer)
+  const userRole = effectiveRole(user);
   const canPublish = atLeast(userRole, 'Operator');
   const canReview = atLeast(userRole, 'Foreman');
   const canRevise = atLeast(userRole, 'Environment Superintendent');
   const canApprove = atLeast(userRole, 'Environment Manager');
-  const canCancel = userRole === 'Admin';
+  const canCancel = atLeast(userRole, 'Environment Manager');
 
   // Load locations
   useEffect(() => {
@@ -188,7 +199,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
       record: WastewaterData | null;
       duplicateCount: number;
       report: EvidenceReport | null;
-      overall: 'MEMENUHI' | 'TIDAK MEMENUHI' | null;
+      overall: ComplianceConclusion | null;
       statusDoc: string;
     }[] = [];
 
@@ -202,9 +213,14 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
       const { selected: record, count } = selectDailyRecord(wastewater, selectedLocationCode, dateStr);
       const report = reports.find((r) => (r.type === 'daily' || !r.type) && r.date === dateStr) || null;
 
-      let overall: 'MEMENUHI' | 'TIDAK MEMENUHI' | null = null;
+      let overall: ComplianceConclusion | null = null;
       if (record) {
-        const evalRes = buildDailyEvidence(record);
+        const evalRes = buildDailyEvidence(record, {
+          locationCode: selectedLocationCode,
+          date: dateStr,
+          standards,
+          thresholds: internalThresholds,
+        });
         overall = evalRes.overall;
       } else if (report?.snapshot) {
         overall = (report.snapshot as DailyEvidenceSnapshot).overall;
@@ -230,7 +246,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
     }
 
     return days;
-  }, [selectedMonth, selectedLocationCode, wastewater, reports]);
+  }, [selectedMonth, selectedLocationCode, wastewater, reports, standards, internalThresholds]);
 
   // Monthly recap calculations
   const [yearNum, monthNum] = useMemo(() => {
@@ -241,8 +257,11 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
 
   const monthlyRecap = useMemo(() => {
     if (!selectedMonth || !selectedLocationCode) return null;
-    return buildMonthlyRecap(wastewater, selectedLocationCode, yearNum, monthNum);
-  }, [wastewater, selectedLocationCode, yearNum, monthNum]);
+    return buildMonthlyRecap(wastewater, selectedLocationCode, yearNum, monthNum, {
+      standards,
+      thresholds: internalThresholds,
+    });
+  }, [wastewater, selectedLocationCode, yearNum, monthNum, standards, internalThresholds]);
 
   // Monthly published report from Firestore
   const monthlyReport = useMemo(() => {
@@ -274,8 +293,10 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
       locationCode: selectedLocation.code,
       locationName: selectedLocation.name,
       date: activeDayItem.date,
+      standards,
+      thresholds: internalThresholds,
     });
-  }, [activeDayItem, selectedLocation]);
+  }, [activeDayItem, selectedLocation, standards, internalThresholds]);
 
   // Check if daily published snapshot is out of sync with current record
   const [isDailyHashMismatch, setIsDailyHashMismatch] = useState(false);
@@ -291,6 +312,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
         locationCode: selectedLocation.code,
         locationName: selectedLocation.name,
         date: activeDayItem.date,
+        standards,
+        thresholds: internalThresholds,
       });
 
       const currentSnapshot = {
@@ -298,7 +321,10 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
         params: currentEval.params,
         overall: currentEval.overall,
         failedParams: currentEval.failedParams,
+        incompleteParams: currentEval.incompleteParams,
+        unverifiedParams: currentEval.unverifiedParams,
         conclusionText: currentEval.conclusionText,
+        standardsBasis: currentEval.standardsBasis,
       };
 
       const freshHash = await computeSnapshotHash(currentSnapshot);
@@ -311,7 +337,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
     return () => {
       isMounted = false;
     };
-  }, [activeDayItem, selectedLocation]);
+  }, [activeDayItem, selectedLocation, standards, internalThresholds]);
 
   // Check if monthly published snapshot is out of sync with current data
   const [isMonthlyHashMismatch, setIsMonthlyHashMismatch] = useState(false);
@@ -329,11 +355,11 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
         sampleTime: d.record?.sampleTime || null,
         officer: d.record?.officer || null,
         weather: d.record?.weather || null,
-        ph: d.record?.ph != null ? Number(d.record.ph) : null,
-        tss: d.record?.tss != null ? Number(d.record.tss) : null,
-        debit: d.record?.debit != null ? Number(d.record.debit) : null,
-        fe: d.record?.fe != null ? Number(d.record.fe) : null,
-        mn: d.record?.mn != null ? Number(d.record.mn) : null,
+        ph: parseStrictNumber(d.record?.ph),
+        tss: parseStrictNumber(d.record?.tss),
+        debit: parseStrictNumber(d.record?.debit),
+        fe: parseStrictNumber(d.record?.fe),
+        mn: parseStrictNumber(d.record?.mn),
         status: d.status,
         duplicateCount: d.duplicateCount,
         dailyDocumentNo: dailyReportsMap[d.date] || null,
@@ -345,6 +371,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
         samplingDays: monthlyRecap.samplingDays,
         passDays: monthlyRecap.passDays,
         failDays: monthlyRecap.failDays,
+        incompleteDays: monthlyRecap.incompleteDays,
+        unevaluatedDays: monthlyRecap.unevaluatedDays,
         compliancePct: monthlyRecap.compliancePct,
         completenessPct: monthlyRecap.completenessPct,
         overall: monthlyRecap.overall,
@@ -353,6 +381,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
         missingDays: monthlyRecap.missingDays,
         failedParamKeys: monthlyRecap.failedParamKeys,
         conclusionText: monthlyRecap.conclusionText,
+        standardsBasis: monthlyRecap.standardsBasis,
       };
 
       const freshHash = await computeSnapshotHash(currentSnapshot);
@@ -395,7 +424,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
     setErrorMessage(null);
 
     const userName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Petugas Lingkungan';
-    const userRoleStr = user?.role || 'Operator';
+    const userRoleStr = userRole;
     const userEmail = user?.email || 'operator@divakencana.com';
     const timestampStr = `${todayLocalISO()} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA`;
 
@@ -487,11 +516,11 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
           sampleTime: d.record?.sampleTime || null,
           officer: d.record?.officer || null,
           weather: d.record?.weather || null,
-          ph: d.record?.ph != null ? Number(d.record.ph) : null,
-          tss: d.record?.tss != null ? Number(d.record.tss) : null,
-          debit: d.record?.debit != null ? Number(d.record.debit) : null,
-          fe: d.record?.fe != null ? Number(d.record.fe) : null,
-          mn: d.record?.mn != null ? Number(d.record.mn) : null,
+          ph: parseStrictNumber(d.record?.ph),
+          tss: parseStrictNumber(d.record?.tss),
+          debit: parseStrictNumber(d.record?.debit),
+          fe: parseStrictNumber(d.record?.fe),
+          mn: parseStrictNumber(d.record?.mn),
           status: d.status,
           duplicateCount: d.duplicateCount,
           dailyDocumentNo: dailyReportsMap[d.date] || null,
@@ -508,6 +537,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
           samplingDays: monthlyRecap.samplingDays,
           passDays: monthlyRecap.passDays,
           failDays: monthlyRecap.failDays,
+          incompleteDays: monthlyRecap.incompleteDays,
+          unevaluatedDays: monthlyRecap.unevaluatedDays,
           compliancePct: monthlyRecap.compliancePct,
           completenessPct: monthlyRecap.completenessPct,
           overall: monthlyRecap.overall,
@@ -516,7 +547,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
           missingDays: monthlyRecap.missingDays,
           failedParamKeys: monthlyRecap.failedParamKeys,
           conclusionText: monthlyRecap.conclusionText,
-          standardsBasis: WASTEWATER_BASIS_LABEL,
+          standardsBasis: monthlyRecap.standardsBasis,
         };
 
         await evidenceService.publishMonthlyEvidence({
@@ -548,11 +579,11 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
           sampleTime: d.record?.sampleTime || null,
           officer: d.record?.officer || null,
           weather: d.record?.weather || null,
-          ph: d.record?.ph != null ? Number(d.record.ph) : null,
-          tss: d.record?.tss != null ? Number(d.record.tss) : null,
-          debit: d.record?.debit != null ? Number(d.record.debit) : null,
-          fe: d.record?.fe != null ? Number(d.record.fe) : null,
-          mn: d.record?.mn != null ? Number(d.record.mn) : null,
+          ph: parseStrictNumber(d.record?.ph),
+          tss: parseStrictNumber(d.record?.tss),
+          debit: parseStrictNumber(d.record?.debit),
+          fe: parseStrictNumber(d.record?.fe),
+          mn: parseStrictNumber(d.record?.mn),
           status: d.status,
           duplicateCount: d.duplicateCount,
           dailyDocumentNo: dailyReportsMap[d.date] || null,
@@ -569,6 +600,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
           samplingDays: monthlyRecap.samplingDays,
           passDays: monthlyRecap.passDays,
           failDays: monthlyRecap.failDays,
+          incompleteDays: monthlyRecap.incompleteDays,
+          unevaluatedDays: monthlyRecap.unevaluatedDays,
           compliancePct: monthlyRecap.compliancePct,
           completenessPct: monthlyRecap.completenessPct,
           overall: monthlyRecap.overall,
@@ -577,6 +610,7 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
           missingDays: monthlyRecap.missingDays,
           failedParamKeys: monthlyRecap.failedParamKeys,
           conclusionText: monthlyRecap.conclusionText,
+          standardsBasis: monthlyRecap.standardsBasis,
         };
 
         await evidenceService.publishRevision(
@@ -638,12 +672,12 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
       sampleTime: d.record?.sampleTime || '-',
       officer: d.record?.officer || '-',
       weather: d.record?.weather || '-',
-      ph: d.record?.ph != null ? Number(d.record.ph) : null,
-      tss: d.record?.tss != null ? Number(d.record.tss) : null,
-      debit: d.record?.debit != null ? Number(d.record.debit) : null,
-      fe: d.record?.fe != null ? Number(d.record.fe) : null,
-      mn: d.record?.mn != null ? Number(d.record.mn) : null,
-      status: d.status === 'tanpa_data' ? 'tanpa_data' : d.status === 'memenuhi' ? 'memenuhi' : 'tidak_memenuhi',
+      ph: parseStrictNumber(d.record?.ph),
+      tss: parseStrictNumber(d.record?.tss),
+      debit: parseStrictNumber(d.record?.debit),
+      fe: parseStrictNumber(d.record?.fe),
+      mn: parseStrictNumber(d.record?.mn),
+      status: d.status,
       duplicateCount: d.duplicateCount,
       dailyDocumentNo: dailyReportsMap[d.date] || null,
     }));
@@ -881,10 +915,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                           )}
                         </td>
                         <td className="text-center">
-                          {isFailed ? (
-                            <StatusBadge status="Exceeded" label="TIDAK MEMENUHI" />
-                          ) : isPassed ? (
-                            <StatusBadge status="Safe" label="MEMENUHI" />
+                          {item.overall ? (
+                            <StatusBadge status={item.overall} label={item.overall} />
                           ) : (
                             <span className="text-text-low font-mono">-</span>
                           )}
@@ -1013,8 +1045,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                   {monthlyRecap.compliancePct !== null ? `${monthlyRecap.compliancePct.toFixed(1)}%` : '-'}
                 </span>
               </div>
-              <span className="text-[10px] text-text-low font-semibold block">
-                Kepmen LH 113/2003 &amp; SK Pertek PT DKB
+              <span className="text-[10px] text-text-low font-semibold block truncate" title={monthlyRecap.standardsBasis}>
+                {monthlyRecap.standardsBasis}
               </span>
             </div>
 
@@ -1291,6 +1323,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 year={yearNum}
                 month={monthNum}
                 dailyReportsMap={dailyReportsMap}
+                standards={standards}
+                internalThresholds={internalThresholds}
               />
             </div>
           </div>
@@ -1423,6 +1457,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 currentRecord={activeDayItem.record}
                 locationCode={selectedLocation.code}
                 locationName={selectedLocation.name}
+                standards={standards}
+                internalThresholds={internalThresholds}
               />
             </div>
           </div>
@@ -1478,6 +1514,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 year={yearNum}
                 month={monthNum}
                 dailyReportsMap={dailyReportsMap}
+                standards={standards}
+                internalThresholds={internalThresholds}
               />
             </div>
           </div>
@@ -1595,6 +1633,8 @@ export default function EvidenceHub({ wastewater, user }: EvidenceHubProps) {
                 locationCode={selectedLocation.code}
                 locationName={selectedLocation.name}
                 preloadedPhoto={preloadedPhotos[item.date]}
+                standards={standards}
+                internalThresholds={internalThresholds}
               />
             </div>
           ))}

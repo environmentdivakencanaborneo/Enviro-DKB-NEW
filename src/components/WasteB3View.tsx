@@ -35,8 +35,7 @@ import {
 import { 
   wasteB3Catalog, 
   findCatalogCode, 
-  DEFAULT_MAX_STORAGE_DAYS, 
-  WARNING_STORAGE_DAYS, 
+  WARNING_STORAGE_LEAD_DAYS, 
   TPS_CAPACITY_KG 
 } from '../constants/wasteCatalog';
 import { 
@@ -50,6 +49,7 @@ import {
   compareLatestFirst, 
   compareCreatedAtFirst 
 } from '../utils/dateUtils';
+import { triggerToast } from '../utils/errorHandler';
 import StatusBadge from './StatusBadge';
 import EmptyState from './EmptyState';
 import {
@@ -65,13 +65,21 @@ interface WasteB3ViewProps {
   wasteStocks: WasteStock[];
   ledger?: WasteLedgerResult;
   onAddIn: (item: any) => Promise<any> | void;
-  onUpdateIn?: (id: string, item: any) => Promise<any> | void;
-  onDeleteIn: (id: string) => Promise<any> | void;
-  onAddOut: (item: any) => Promise<any> | void;
-  onUpdateOut?: (id: string, item: any) => Promise<any> | void;
-  onDeleteOut: (id: string) => Promise<any> | void;
+  onUpdateIn?: (id: string, item: any, reason?: string) => Promise<any> | void;
+  onDeleteIn: (id: string, reason?: string) => Promise<any> | void;
+  onAddOut: (
+    item: any,
+    options?: { correctionOverride?: { authorized: boolean; reason?: string } }
+  ) => Promise<any> | void;
+  onUpdateOut?: (
+    id: string,
+    item: any,
+    options?: { correctionOverride?: { authorized: boolean; reason?: string } }
+  ) => Promise<any> | void;
+  onDeleteOut: (id: string, reason?: string) => Promise<any> | void;
   canEdit?: boolean;
   canDelete?: boolean;
+  canOverrideShortfall?: boolean;
   onUnauthorizedAction?: (action: string) => void;
 }
 
@@ -88,10 +96,16 @@ export default function WasteB3View({
   onDeleteOut,
   canEdit = true,
   canDelete = false,
+  canOverrideShortfall,
   onUnauthorizedAction
 }: WasteB3ViewProps) {
+  const allowCorrectionOverride = canOverrideShortfall ?? canDelete;
   const [activeTab, setActiveTab] = useState<'status' | 'intake' | 'outflow'>('status');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; type: 'in' | 'out'; message: string } | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
+
+  // Filter tanggal potong historis (asOfDate)
+  const [asOfDate, setAsOfDate] = useState<string>('');
 
   // Sorting & Filtering State
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,6 +116,7 @@ export default function WasteB3View({
   // EDIT STATE
   const [editingInId, setEditingInId] = useState<string | null>(null);
   const [editingOutId, setEditingOutId] = useState<string | null>(null);
+  const [inCorrectionReason, setInCorrectionReason] = useState('');
 
   // FORM INTAKE STATE
   const [showInForm, setShowInForm] = useState(false);
@@ -125,11 +140,16 @@ export default function WasteB3View({
   const [outVehicle, setOutVehicle] = useState('');
   const [outDriver, setOutDriver] = useState('');
   const [outRecipient, setOutRecipient] = useState('');
+  const [outOverrideAuthorized, setOutOverrideAuthorized] = useState(false);
+  const [outCorrectionReason, setOutCorrectionReason] = useState('');
 
-  // Hitung ledger aktual (FIFO per batch)
+  // Hitung ledger aktual (FIFO per batch), menghormati tanggal potong historis asOfDate bila diisi
   const currentLedger = useMemo(() => {
+    if (asOfDate.trim()) {
+      return buildWasteLedger(wasteIn, wasteOut, { asOfDate: asOfDate.trim() });
+    }
     return ledger || buildWasteLedger(wasteIn, wasteOut);
-  }, [ledger, wasteIn, wasteOut]);
+  }, [ledger, wasteIn, wasteOut, asOfDate]);
 
   const inById = currentLedger.inById;
   const outById = currentLedger.outById;
@@ -181,6 +201,7 @@ export default function WasteB3View({
     setInCode('A102d');
     setInLoc('TPS B3 Utama');
     setInOfficer('');
+    setInCorrectionReason('');
     setShowInForm(false);
   };
 
@@ -196,6 +217,8 @@ export default function WasteB3View({
     setOutVehicle('');
     setOutDriver('');
     setOutRecipient('');
+    setOutOverrideAuthorized(false);
+    setOutCorrectionReason('');
     setShowOutForm(false);
   };
 
@@ -213,6 +236,7 @@ export default function WasteB3View({
     setInCode(item.code);
     setInLoc(item.tpsLocation);
     setInOfficer(item.officer);
+    setInCorrectionReason('');
     setShowInForm(true);
   };
 
@@ -231,6 +255,8 @@ export default function WasteB3View({
     setOutVehicle(item.vehicleNo);
     setOutDriver(item.driverName);
     setOutRecipient(item.recipient);
+    setOutOverrideAuthorized(false);
+    setOutCorrectionReason('');
     setShowOutForm(true);
   };
 
@@ -242,12 +268,16 @@ export default function WasteB3View({
       return;
     }
     if (!inOfficer.trim() || !inCode.trim()) {
-      alert("Lengkapi kolom penanggung jawab & kode limbah Permen LHK No. 6 Tahun 2021.");
+      triggerToast("Lengkapi kolom penanggung jawab & kode limbah Permen LHK No. 6 Tahun 2021.", "warning");
       return;
     }
     const weightNum = Number(inWeight);
-    if (isNaN(weightNum) || weightNum <= 0) {
-      alert("Berat volume masuk harus lebih dari 0 Kg.");
+    if (!Number.isFinite(weightNum) || weightNum <= 0) {
+      triggerToast("Berat volume masuk harus lebih dari 0 Kg.", "warning");
+      return;
+    }
+    if (editingInId && inCorrectionReason.trim().length > 0 && inCorrectionReason.trim().length < 5) {
+      triggerToast("Alasan koreksi minimal 5 karakter.", "warning");
       return;
     }
 
@@ -265,7 +295,7 @@ export default function WasteB3View({
     try {
       if (editingInId) {
         if (onUpdateIn) {
-          await onUpdateIn(editingInId, payload);
+          await onUpdateIn(editingInId, payload, inCorrectionReason.trim() || undefined);
         }
       } else {
         await onAddIn(payload);
@@ -285,13 +315,13 @@ export default function WasteB3View({
     }
 
     if (!outDriver.trim() || !outRecipient.trim() || !outManifest.trim()) {
-      alert("Lengkapi Nomor Manifest, Nama Driver, dan Petugas TPS.");
+      triggerToast("Lengkapi Nomor Manifest, Nama Driver, dan Petugas TPS.", "warning");
       return;
     }
 
     const weightNum = Number(outWeight);
-    if (isNaN(weightNum) || weightNum <= 0) {
-      alert("Berat volume pengeluaran harus lebih dari 0 Kg.");
+    if (!Number.isFinite(weightNum) || weightNum <= 0) {
+      triggerToast("Berat volume pengeluaran harus lebih dari 0 Kg.", "warning");
       return;
     }
 
@@ -308,26 +338,38 @@ export default function WasteB3View({
       recipient: outRecipient.trim()
     };
 
+    const overrideOpts = outOverrideAuthorized && allowCorrectionOverride
+      ? { authorized: true, reason: outCorrectionReason.trim() }
+      : outCorrectionReason.trim()
+      ? { authorized: false, reason: outCorrectionReason.trim() }
+      : undefined;
+
     // Validasi dengan SIMULASI seluruh ledger
     const validation = simulateOutflowValidation(
-      wasteIn, 
-      wasteOut, 
-      candidatePayload, 
-      Boolean(editingOutId)
+      wasteIn,
+      wasteOut,
+      candidatePayload,
+      Boolean(editingOutId),
+      overrideOpts
     );
 
     if (!validation.isValid) {
-      alert(validation.errorMessage);
+      triggerToast(validation.errorMessage || "Validasi stok limbah B3 gagal.", "error");
       return;
     }
 
     try {
+      const serviceOptions = outOverrideAuthorized && allowCorrectionOverride
+        ? { correctionOverride: { authorized: true, reason: outCorrectionReason.trim() } }
+        : outCorrectionReason.trim()
+        ? { correctionOverride: { authorized: false, reason: outCorrectionReason.trim() } }
+        : undefined;
       if (editingOutId) {
         if (onUpdateOut) {
-          await onUpdateOut(editingOutId, candidatePayload);
+          await onUpdateOut(editingOutId, candidatePayload, serviceOptions);
         }
       } else {
-        await onAddOut(candidatePayload);
+        await onAddOut(candidatePayload, serviceOptions);
       }
       resetOutForm();
     } catch (err: any) {
@@ -335,9 +377,10 @@ export default function WasteB3View({
     }
   };
 
-  // Data Terurut & Terfilter untuk Log Masuk
+  // Data Terurut & Terfilter untuk Log Masuk (hanya <= asOfDate bila filter historis aktif)
   const sortedWasteIn = useMemo(() => {
-    let list = [...wasteIn];
+    const asOf = asOfDate.trim();
+    let list = asOf ? wasteIn.filter((w) => !w.dateIn || w.dateIn <= asOf) : [...wasteIn];
 
     // Filter "Hanya yang masih ada sisa"
     if (onlyRemaining) {
@@ -365,11 +408,12 @@ export default function WasteB3View({
       return list.sort(compareCreatedAtFirst);
     }
     return list.sort(compareLatestFirst);
-  }, [wasteIn, inById, onlyRemaining, searchQuery, inSortMode]);
+  }, [wasteIn, inById, onlyRemaining, searchQuery, inSortMode, asOfDate]);
 
-  // Data Terurut & Terfilter untuk Log Keluar
+  // Data Terurut & Terfilter untuk Log Keluar (hanya <= asOfDate bila filter historis aktif)
   const sortedWasteOut = useMemo(() => {
-    let list = [...wasteOut];
+    const asOf = asOfDate.trim();
+    let list = asOf ? wasteOut.filter((w) => !w.dateOut || w.dateOut <= asOf) : [...wasteOut];
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -388,7 +432,7 @@ export default function WasteB3View({
       return list.sort(compareCreatedAtFirst);
     }
     return list.sort(compareLatestFirst);
-  }, [wasteOut, searchQuery, outSortMode]);
+  }, [wasteOut, searchQuery, outSortMode, asOfDate]);
 
   // Daftar jenis limbah dengan stok negatif untuk banner peringatan
   const negativeStockTypes = useMemo(() => {
@@ -444,39 +488,71 @@ export default function WasteB3View({
         </div>
       )}
 
-      {/* Tab Selectors */}
-      <div className="flex flex-wrap border-b border-border-neon">
-        <button
-          id="waste-tab-status"
-          onClick={() => setActiveTab('status')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'status' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
-          }`}
-        >
-          <Gauge className="h-4 w-4" />
-          Status Stok & Kapasitas TPS
-        </button>
-        <button
-          id="waste-tab-intake"
-          onClick={() => setActiveTab('intake')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'intake' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
-          }`}
-        >
-          <ClipboardList className="h-4 w-4" />
-          Log Limbah Masuk (Inflow Log)
-        </button>
-        <button
-          id="waste-tab-outflow"
-          onClick={() => setActiveTab('outflow')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'outflow' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
-          }`}
-        >
-          <Truck className="h-4 w-4" />
-          Log Manifest Pengeluaran (Outflow Log)
-        </button>
+      {/* Tab Selectors & Cutoff Tanggal Historis */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-neon pb-1">
+        <div className="flex flex-wrap">
+          <button
+            id="waste-tab-status"
+            onClick={() => setActiveTab('status')}
+            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'status' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
+            }`}
+          >
+            <Gauge className="h-4 w-4" />
+            Status Stok & Kapasitas TPS
+          </button>
+          <button
+            id="waste-tab-intake"
+            onClick={() => setActiveTab('intake')}
+            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'intake' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
+            }`}
+          >
+            <ClipboardList className="h-4 w-4" />
+            Log Limbah Masuk (Inflow Log)
+          </button>
+          <button
+            id="waste-tab-outflow"
+            onClick={() => setActiveTab('outflow')}
+            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'outflow' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
+            }`}
+          >
+            <Truck className="h-4 w-4" />
+            Log Manifest Pengeluaran (Outflow Log)
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 px-2 pb-1.5">
+          <Calendar className="h-3.5 w-3.5 text-neon-cyan" />
+          <label className="text-[11px] font-mono text-text-mid whitespace-nowrap">Cut-off Historis:</label>
+          <input
+            id="waste-as-of-date"
+            type="date"
+            value={asOfDate}
+            onChange={(e) => setAsOfDate(e.target.value)}
+            className="px-2.5 py-1 text-xs font-mono"
+            title="Hitung saldo historis tepat per tanggal ini (abaikan transaksi setelahnya)"
+          />
+          {asOfDate && (
+            <button
+              type="button"
+              onClick={() => setAsOfDate('')}
+              className="px-2 py-1 text-[10px] font-bold text-neon-cyan border border-neon-cyan/40 rounded-lg hover:bg-neon-cyan/10 cursor-pointer"
+            >
+              Reset Hari Ini
+            </button>
+          )}
+        </div>
       </div>
+
+      {asOfDate && (
+        <div className="p-3 rounded-xl bg-neon-cyan/10 border border-neon-cyan/35 text-xs text-text-hi flex items-center justify-between gap-2">
+          <span>
+            Mode pemeriksaan historis aktif per tanggal <strong className="font-mono text-neon-cyan">{asOfDate}</strong>. Transaksi masuk/keluar setelah tanggal tersebut dikecualikan dari saldo dan umur simpan.
+          </span>
+        </div>
+      )}
 
       {/* TAB 1: STATUS NERACA & KAPASITAS */}
       {activeTab === 'status' && (
@@ -556,9 +632,7 @@ export default function WasteB3View({
                 />
               </div>
               <p className="text-[11px] text-text-mid leading-relaxed pt-1">
-                Batas waktu penyimpanan limbah B3 di TPS mengikuti izin lingkungan TPS dan kategori limbah yang bersangkutan. 
-                Nilai default batas penyimpanan pada aplikasi ini adalah <strong className="text-text-hi">{DEFAULT_MAX_STORAGE_DAYS} hari</strong> sesuai Permen LHK No. 6 Tahun 2021. 
-                Peringatan dini diaktifkan bila umur penyimpanan mencapai <strong className="text-neon-amber">{WARNING_STORAGE_DAYS} hari</strong>.
+                Batas waktu penyimpanan limbah B3 di TPS bervariasi per kategori/kode limbah (<strong className="text-text-hi">90, 180, atau 365 hari</strong>) sesuai PP No. 22/2021 jo. Permen LHK No. 6/2021 serta Rincian Teknis TPS LB3 PT DKB. Peringatan dini aktif otomatis pada <strong className="text-neon-amber">H-{WARNING_STORAGE_LEAD_DAYS} sebelum batas masing-masing spesi</strong>.
               </p>
             </div>
           </div>
@@ -709,42 +783,59 @@ export default function WasteB3View({
                   </div>
                 ) : (
                   currentLedger.stocks.map((stock, i) => {
-                    const nearExpired = stock.daysInTps >= WARNING_STORAGE_DAYS && stock.currentStock > 0;
+                    const maxDays = stock.maxStorageDays || 90;
+                    const daysRemaining = maxDays - stock.daysInTps;
+                    const isExpired = stock.currentStock > 0 && daysRemaining < 0;
+                    const nearExpired = stock.currentStock > 0 && daysRemaining <= WARNING_STORAGE_LEAD_DAYS;
                     const isNegative = stock.currentStock < 0;
 
                     return (
                       <div 
                         key={i} 
-                        className={`neon-card p-5 text-left flex flex-col justify-between min-h-[190px] ${
-                          isNegative
+                        className={`neon-card p-5 text-left flex flex-col justify-between min-h-[210px] ${
+                          isNegative || isExpired
                             ? 'border-neon-red/60 bg-neon-red/10 shadow-glow-red'
                             : nearExpired 
-                            ? 'border-neon-red/45 bg-neon-red/5' 
+                            ? 'border-neon-amber/50 bg-neon-amber/5' 
                             : ''
                         }`}
                       >
                         <div>
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="text-[10px] bg-neon-amber/10 border border-neon-amber/35 text-neon-amber px-2 py-0.5 rounded font-bold font-mono uppercase">
-                              KODE: {stock.code}
-                            </span>
+                          <div className="flex items-start justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] bg-neon-amber/10 border border-neon-amber/35 text-neon-amber px-2 py-0.5 rounded font-bold font-mono uppercase">
+                                KODE: {stock.code}
+                              </span>
+                              {stock.verificationStatus === 'PERLU VERIFIKASI' && (
+                                <span className="text-[9px] bg-neon-amber/15 border border-neon-amber/40 text-neon-amber px-1.5 py-0.5 rounded font-bold font-mono uppercase">
+                                  PERLU VERIFIKASI RINTEK
+                                </span>
+                              )}
+                            </div>
                             <span className={`text-[10px] px-2 py-0.5 rounded border flex items-center gap-1.5 font-bold font-mono tabular-nums ${
                               stock.currentStock <= 0
                                 ? 'bg-bg-2/70 text-text-low border-border-subtle'
+                                : isExpired
+                                ? 'bg-neon-red/15 text-neon-red border-neon-red/40 animate-critical-pulse'
                                 : nearExpired 
-                                ? 'bg-neon-red/15 text-neon-red border-neon-red/40 animate-critical-pulse' 
+                                ? 'bg-neon-amber/15 text-neon-amber border-neon-amber/40' 
                                 : 'bg-bg-2/70 text-text-mid border-border-subtle'
                             }`}>
                               <Clock className="h-3.5 w-3.5" />
-                              {stock.daysInTps} Hari di TPS
+                              {stock.daysInTps} / {maxDays} Hari
                             </span>
                           </div>
                           <h4 className="text-sm font-bold text-text-hi mt-2.5 leading-snug font-heading">
                             {stock.wasteType}
                           </h4>
                           <p className="text-[11px] text-text-mid mt-0.5 font-mono">
-                            Batch Pertama Aktif: {stock.earliestDateIn || '-'}
+                            Batch Tertua Aktif: {stock.earliestDateIn || '-'} {stock.currentStock > 0 ? `(Sisa ${daysRemaining} hr)` : ''}
                           </p>
+                          {stock.storageBasis && (
+                            <p className="text-[10px] text-text-low mt-1 leading-snug">
+                              {stock.storageBasis}
+                            </p>
+                          )}
                         </div>
 
                         {/* Stock Balance Gauges */}
@@ -969,6 +1060,19 @@ export default function WasteB3View({
                     className="w-full px-3 py-2 text-xs"
                   />
                 </div>
+                {editingInId && (
+                  <div>
+                    <label className="block text-[11px] text-neon-amber font-bold mb-1.5 uppercase">Alasan Koreksi Data (Audit Trail)</label>
+                    <input
+                      id="waste-in-correction-reason"
+                      type="text"
+                      placeholder="Contoh: Koreksi selisih timbang manifest"
+                      value={inCorrectionReason}
+                      onChange={(e) => setInCorrectionReason(e.target.value)}
+                      className="w-full px-3 py-2 text-xs"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-border-subtle">
@@ -1043,11 +1147,18 @@ export default function WasteB3View({
                         weightRemaining: item.weightKg,
                         status: 'Tersedia',
                         daysInTps: 0,
-                        daysRemaining: DEFAULT_MAX_STORAGE_DAYS
+                        daysRemaining: 90,
+                        maxStorageDays: 90,
+                        verificationStatus: 'Terverifikasi' as const,
                       };
 
                       const isHabis = info.status === 'Habis';
-                      const isNearLimit = info.daysInTps >= WARNING_STORAGE_DAYS && info.weightRemaining > 0;
+                      const maxDaysBatch = info.maxStorageDays ?? 90;
+                      const remainDaysBatch = info.daysRemaining ?? (maxDaysBatch - info.daysInTps);
+                      const isNearLimit =
+                        info.weightRemaining > 0 &&
+                        remainDaysBatch >= 0 &&
+                        remainDaysBatch <= WARNING_STORAGE_LEAD_DAYS;
                       const remainPercent = item.weightKg > 0 
                         ? Math.max(0, Math.min(100, (info.weightRemaining / item.weightKg) * 100))
                         : 0;
@@ -1105,11 +1216,13 @@ export default function WasteB3View({
                           <td className="p-3.5 text-center whitespace-nowrap font-mono tabular-nums">
                             {info.weightRemaining > 0 ? (
                               <span className={`px-2 py-0.5 rounded font-bold text-[10px] border ${
-                                isNearLimit 
+                                remainDaysBatch < 0
                                   ? 'bg-neon-red/15 text-neon-red border-neon-red/40 font-extrabold animate-critical-pulse'
+                                  : isNearLimit 
+                                  ? 'bg-neon-amber/15 text-neon-amber border-neon-amber/40 font-extrabold'
                                   : 'bg-bg-2/70 text-text-mid border-border-subtle'
                               }`}>
-                                {info.daysInTps} hari
+                                {info.daysInTps}/{maxDaysBatch} hr
                               </span>
                             ) : (
                               <span className="text-text-low">-</span>
@@ -1419,6 +1532,43 @@ export default function WasteB3View({
                 </div>
               </div>
 
+              {(simulatedRemainingStock < 0 || editingOutId) && (
+                <div className="mb-4 p-3.5 rounded-xl bg-neon-amber/10 border border-neon-amber/35 space-y-2.5">
+                  {simulatedRemainingStock < 0 && (
+                    <label className="flex items-start gap-2 text-xs text-text-hi cursor-pointer">
+                      <input
+                        id="waste-out-override-checkbox"
+                        type="checkbox"
+                        disabled={!allowCorrectionOverride}
+                        checked={outOverrideAuthorized && allowCorrectionOverride}
+                        onChange={(e) => setOutOverrideAuthorized(e.target.checked)}
+                        className="mt-0.5 rounded accent-neon-amber cursor-pointer"
+                      />
+                      <span>
+                        <strong className="text-neon-amber">Otorisasi Koreksi Stok Negatif</strong>{' '}
+                        {allowCorrectionOverride
+                          ? '(Superintendent/Admin: izinkan pengiriman dengan catatan selisih stok pada audit log)'
+                          : '(Hanya Environment Superintendent atau Admin yang dapat mengotorisasi koreksi selisih stok)'}
+                      </span>
+                    </label>
+                  )}
+                  <div>
+                    <label className="block text-[11px] text-neon-amber font-bold mb-1 uppercase">
+                      Alasan Koreksi / Penyesuaian {outOverrideAuthorized ? '* (Min. 5 karakter)' : '(Opsional)'}
+                    </label>
+                    <input
+                      id="waste-out-correction-reason"
+                      type="text"
+                      required={outOverrideAuthorized && allowCorrectionOverride}
+                      placeholder="Contoh: Selisih hasil penimbangan ulang transporter & stock opname TPS"
+                      value={outCorrectionReason}
+                      onChange={(e) => setOutCorrectionReason(e.target.value)}
+                      className="w-full px-3 py-2 text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-border-subtle">
                 <button
                   id="waste-out-cancel"
@@ -1592,9 +1742,21 @@ export default function WasteB3View({
               <p className="text-xs text-text-mid mt-3 leading-relaxed">
                 {deleteConfirm.message}
               </p>
+              <div className="mt-3">
+                <label className="block text-[10px] font-bold uppercase text-text-mid mb-1">
+                  Alasan Penghapusan (Audit Trail)
+                </label>
+                <input
+                  type="text"
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="Contoh: Duplikasi pencatatan / koreksi manifest"
+                  className="w-full px-3 py-1.5 text-xs"
+                />
+              </div>
               <div className="flex justify-end gap-2 mt-5">
                 <button
-                  onClick={() => setDeleteConfirm(null)}
+                  onClick={() => { setDeleteConfirm(null); setDeleteReason(''); }}
                   className="px-3.5 py-2 rounded-xl text-xs bg-bg-2 hover:bg-bg-0 border border-border-subtle text-text-mid hover:text-text-hi font-bold transition-colors cursor-pointer"
                 >
                   Batal
@@ -1602,12 +1764,14 @@ export default function WasteB3View({
                 <button
                   onClick={async () => {
                     const { id, type } = deleteConfirm;
+                    const reason = deleteReason.trim() || undefined;
                     setDeleteConfirm(null);
+                    setDeleteReason('');
                     try {
                       if (type === 'in') {
-                        await onDeleteIn(id);
+                        await onDeleteIn(id, reason);
                       } else {
-                        await onDeleteOut(id);
+                        await onDeleteOut(id, reason);
                       }
                     } catch (err: any) {
                       // Ditangani oleh toast

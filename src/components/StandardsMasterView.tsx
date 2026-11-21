@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import {
   EnvironmentalStandard,
   InternalThresholdsConfig,
+  StandardEffectiveStatus,
   StandardMedia,
   StandardVerificationStatus,
 } from '../types';
@@ -14,6 +15,7 @@ import { INITIAL_STANDARDS_SEED } from '../data/regulations';
 import { standardsService, internalThresholdsService } from '../services/dbService';
 import { triggerToast } from '../utils/errorHandler';
 import { todayLocalISO } from '../utils/dateUtils';
+import { formatStandardLimitDisplay, parseStrictNumber } from '../utils/waterQualityEval';
 import {
   Sliders,
   Plus,
@@ -22,6 +24,8 @@ import {
   Trash2,
   Database,
   ShieldCheck,
+  History,
+  ExternalLink,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 
@@ -54,6 +58,15 @@ export default function StandardsMasterView({
   const [kelasAir, setKelasAir] = useState<'' | 'I' | 'II' | 'III' | 'IV'>('II');
   const [locationCode, setLocationCode] = useState('');
   const [effectiveFrom, setEffectiveFrom] = useState(todayLocalISO());
+  const [effectiveTo, setEffectiveTo] = useState('');
+  const [approvalDocNo, setApprovalDocNo] = useState('');
+  const [decreeDate, setDecreeDate] = useState('');
+  const [sourceDocument, setSourceDocument] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [effectiveStatus, setEffectiveStatus] = useState<StandardEffectiveStatus>('MENUNGGU VERIFIKASI');
+  const [applicable, setApplicable] = useState(true);
+  const [revisionReason, setRevisionReason] = useState('');
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
   const [verificationStatus, setVerificationStatus] = useState<StandardVerificationStatus>('Perlu verifikasi');
   const [notes, setNotes] = useState('');
@@ -74,6 +87,10 @@ export default function StandardsMasterView({
   const filteredStandards =
     mediaFilter === 'all' ? displayList : displayList.filter((s) => s.media === mediaFilter);
 
+  const unverifiedList = displayList.filter(
+    (s) => s.isActive && (s.verificationStatus === 'Perlu verifikasi' || s.effectiveStatus === 'MENUNGGU VERIFIKASI')
+  );
+
   const isSeedPreviewOnly = standards.length === 0;
 
   const resetForm = () => {
@@ -88,6 +105,14 @@ export default function StandardsMasterView({
     setKelasAir('II');
     setLocationCode('');
     setEffectiveFrom(todayLocalISO());
+    setEffectiveTo('');
+    setApprovalDocNo('');
+    setDecreeDate('');
+    setSourceDocument('');
+    setSourceUrl('');
+    setEffectiveStatus('MENUNGGU VERIFIKASI');
+    setApplicable(true);
+    setRevisionReason('');
     setIsActive(true);
     setVerificationStatus('Perlu verifikasi');
     setNotes('');
@@ -105,6 +130,14 @@ export default function StandardsMasterView({
     setKelasAir(std.kelasAir || 'II');
     setLocationCode(std.locationCode || '');
     setEffectiveFrom(std.effectiveFrom || todayLocalISO());
+    setEffectiveTo(std.effectiveTo || '');
+    setApprovalDocNo(std.approvalDocNo || '');
+    setDecreeDate(std.decreeDate || '');
+    setSourceDocument(std.sourceDocument || '');
+    setSourceUrl(std.sourceUrl || '');
+    setEffectiveStatus(std.effectiveStatus || (std.verificationStatus === 'Terverifikasi' ? 'BERLAKU' : 'MENUNGGU VERIFIKASI'));
+    setApplicable(std.applicable !== false);
+    setRevisionReason('');
     setIsActive(std.isActive);
     setVerificationStatus(std.verificationStatus || 'Terverifikasi');
     setNotes(std.notes || '');
@@ -130,8 +163,12 @@ export default function StandardsMasterView({
     }
     try {
       setIsSaving(true);
-      await standardsService.update(std.id, { verificationStatus: 'Terverifikasi' });
-      triggerToast(`Parameter ${std.parameterLabel} telah ditandai Terverifikasi.`, 'success');
+      await standardsService.update(
+        std.id,
+        { verificationStatus: 'Terverifikasi', effectiveStatus: 'BERLAKU' },
+        'Verifikasi dokumen resmi oleh Superintendent/Admin'
+      );
+      triggerToast(`Parameter ${std.parameterLabel} telah ditandai Terverifikasi & BERLAKU.`, 'success');
     } catch (err: any) {
       triggerToast(err.message || 'Gagal memverifikasi baku mutu.', 'error');
     } finally {
@@ -141,13 +178,13 @@ export default function StandardsMasterView({
 
   const handleSaveStandard = async (e: React.FormEvent) => {
     e.preventDefault();
-    const minVal = minLimitStr.trim() === '' ? null : Number(minLimitStr.replace(',', '.'));
-    const maxVal = maxLimitStr.trim() === '' ? null : Number(maxLimitStr.replace(',', '.'));
-    if (minVal !== null && !Number.isFinite(minVal)) {
+    const minVal = minLimitStr.trim() === '' ? null : parseStrictNumber(minLimitStr);
+    const maxVal = maxLimitStr.trim() === '' ? null : parseStrictNumber(maxLimitStr);
+    if (minLimitStr.trim() !== '' && minVal === null) {
       triggerToast('Batas minimum harus berupa angka valid atau dikosongkan.', 'error');
       return;
     }
-    if (maxVal !== null && !Number.isFinite(maxVal)) {
+    if (maxLimitStr.trim() !== '' && maxVal === null) {
       triggerToast('Batas maksimum harus berupa angka valid atau dikosongkan.', 'error');
       return;
     }
@@ -160,9 +197,16 @@ export default function StandardsMasterView({
       minLimit: minVal,
       maxLimit: maxVal,
       basisRegulasi: basisRegulasi.trim(),
+      approvalDocNo: approvalDocNo.trim() || undefined,
+      decreeDate: decreeDate.trim() || undefined,
+      effectiveFrom,
+      effectiveTo: effectiveTo.trim() || undefined,
+      sourceDocument: sourceDocument.trim() || undefined,
+      sourceUrl: sourceUrl.trim() || undefined,
+      effectiveStatus,
+      applicable,
       kelasAir: media === 'air_permukaan' ? (kelasAir || 'II') : undefined,
       locationCode: locationCode.trim() ? locationCode.trim().toUpperCase() : undefined,
-      effectiveFrom,
       isActive,
       verificationStatus,
       notes: notes.trim() || undefined,
@@ -171,8 +215,8 @@ export default function StandardsMasterView({
     try {
       setIsSaving(true);
       if (editingId && !isSeedPreviewOnly) {
-        await standardsService.update(editingId, payload);
-        triggerToast('Baku mutu berhasil diperbarui.', 'success');
+        await standardsService.update(editingId, payload, revisionReason.trim() || undefined);
+        triggerToast('Baku mutu berhasil diperbarui dan dicatat dalam riwayat revisi.', 'success');
       } else {
         await standardsService.add(editingId ? { ...payload, id: editingId } : payload);
         triggerToast('Baku mutu berhasil ditambahkan.', 'success');
@@ -267,6 +311,21 @@ export default function StandardsMasterView({
 
       {activeTab === 'standards' && (
         <div className="glass-panel rounded-2xl p-5 space-y-4">
+          {unverifiedList.length > 0 && (
+            <div className="p-3.5 rounded-xl bg-neon-amber/10 border border-neon-amber/35 text-xs space-y-1">
+              <div className="flex items-center gap-2 font-bold text-neon-amber">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>PERLU VERIFIKASI MANUAL ({unverifiedList.length} Parameter Baku Mutu)</span>
+              </div>
+              <p className="text-text-mid">
+                Parameter berikut memiliki status <strong className="text-text-hi">Perlu verifikasi / MENUNGGU VERIFIKASI</strong> dan tidak dapat menghasilkan kesimpulan <strong className="text-text-hi">MEMENUHI</strong> sebelum nilai batas resmi diverifikasi dari dokumen SK Pertek/regulasi:{' '}
+                <span className="font-mono text-text-hi">
+                  {unverifiedList.map((u) => `${u.parameterLabel}${u.approvalDocNo ? ` (${u.approvalDocNo})` : ''}`).join(', ')}
+                </span>
+              </p>
+            </div>
+          )}
+
           {isSeedPreviewOnly && (
             <div className="p-3.5 rounded-xl bg-neon-amber/10 border border-neon-amber/35 text-neon-amber text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-2">
@@ -377,8 +436,30 @@ export default function StandardsMasterView({
                   <input type="text" required value={basisRegulasi} onChange={(e) => setBasisRegulasi(e.target.value)} className="w-full px-3 py-1.5 text-xs" />
                 </div>
                 <div>
+                  <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Nomor SK / Pertek</label>
+                  <input type="text" placeholder="cth: 600.4/865/B.III.2/DLH/2025" value={approvalDocNo} onChange={(e) => setApprovalDocNo(e.target.value)} className="w-full px-3 py-1.5 text-xs font-mono" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Tanggal Penetapan SK</label>
+                  <input type="date" value={decreeDate} onChange={(e) => setDecreeDate(e.target.value)} className="w-full px-3 py-1.5 text-xs font-mono" />
+                </div>
+                <div>
                   <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Berlaku Mulai *</label>
                   <input type="date" required value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className="w-full px-3 py-1.5 text-xs font-mono" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Berlaku Sampai (Opsional)</label>
+                  <input type="date" value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} className="w-full px-3 py-1.5 text-xs font-mono" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Status Berlaku *</label>
+                  <select value={effectiveStatus} onChange={(e) => setEffectiveStatus(e.target.value as StandardEffectiveStatus)} className="w-full px-3 py-1.5 text-xs font-mono">
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="MENUNGGU VERIFIKASI">MENUNGGU VERIFIKASI</option>
+                    <option value="BERLAKU">BERLAKU</option>
+                    <option value="DIUBAH">DIUBAH</option>
+                    <option value="DICABUT">DICABUT</option>
+                  </select>
                 </div>
                 {media === 'air_permukaan' && (
                   <div>
@@ -399,17 +480,39 @@ export default function StandardsMasterView({
                   <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Verifikasi Hukum *</label>
                   <select value={verificationStatus} onChange={(e) => setVerificationStatus(e.target.value as StandardVerificationStatus)} className="w-full px-3 py-1.5 text-xs">
                     <option value="Terverifikasi">Terverifikasi (Evaluasi Kepatuhan Aktif)</option>
-                    <option value="Perlu verifikasi">Perlu verifikasi (Informatif saja)</option>
+                    <option value="Perlu verifikasi">Perlu verifikasi (Belum dapat disimpulkan MEMENUHI)</option>
                   </select>
                 </div>
-                <div className="flex items-center gap-2 pt-4">
-                  <input id="master-std-active" type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="accent-neon-cyan rounded" />
-                  <label htmlFor="master-std-active" className="text-xs font-semibold text-text-hi cursor-pointer">Standar Aktif</label>
+                <div>
+                  <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Dokumen Sumber</label>
+                  <input type="text" placeholder="cth: SK Bupati / Lampiran VI" value={sourceDocument} onChange={(e) => setSourceDocument(e.target.value)} className="w-full px-3 py-1.5 text-xs" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">URL Sumber Resmi</label>
+                  <input type="url" placeholder="https://..." value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} className="w-full px-3 py-1.5 text-xs font-mono" />
+                </div>
+                <div className="flex items-center gap-4 pt-4">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-text-hi cursor-pointer">
+                    <input id="master-std-active" type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="accent-neon-cyan rounded" />
+                    <span>Aktif</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-semibold text-text-hi cursor-pointer">
+                    <input type="checkbox" checked={applicable} onChange={(e) => setApplicable(e.target.checked)} className="accent-neon-cyan rounded" />
+                    <span>Berlaku di Titik (Applicable)</span>
+                  </label>
                 </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Catatan Teknis</label>
-                <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-1.5 text-xs" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Catatan Teknis</label>
+                  <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-1.5 text-xs" />
+                </div>
+                {editingId && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-neon-amber uppercase mb-1 font-mono">Alasan Revisi / Perubahan</label>
+                    <input type="text" placeholder="Catat alasan revisi parameter untuk riwayat..." value={revisionReason} onChange={(e) => setRevisionReason(e.target.value)} className="w-full px-3 py-1.5 text-xs" />
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => { resetForm(); setShowForm(false); }} className="px-3 py-1.5 text-xs text-text-mid hover:text-text-hi cursor-pointer">Batal</button>
@@ -427,60 +530,101 @@ export default function StandardsMasterView({
                   <tr className="text-[10px] font-mono uppercase">
                     <th className="p-3">Media &amp; Parameter</th>
                     <th className="p-3 text-center">Ambang Batas</th>
-                    <th className="p-3">Basis Regulasi</th>
-                    <th className="p-3 text-center">Verifikasi</th>
+                    <th className="p-3">Basis Regulasi &amp; SK</th>
+                    <th className="p-3 text-center">Status &amp; Verifikasi</th>
                     {canManage && <th className="p-3 text-center">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredStandards.map((std) => (
-                    <tr key={std.id}>
-                      <td className="p-3">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-bg-2 text-text-hi border border-border-subtle font-semibold">{mediaLabel(std.media)}</span>
-                          {std.kelasAir && <span className="text-[10px] px-2 py-0.5 rounded bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30 font-mono">Kelas {std.kelasAir}</span>}
-                          {std.locationCode && <span className="text-[10px] px-2 py-0.5 rounded bg-neon-violet/10 text-neon-violet border border-neon-violet/30 font-mono">{std.locationCode}</span>}
-                        </div>
-                        <div className="font-bold text-text-hi mt-1">
-                          {std.parameterLabel} <span className="text-[10px] font-mono text-text-low">({std.parameterKey})</span>
-                        </div>
-                      </td>
-                      <td className="p-3 text-center font-mono tabular-nums font-bold text-neon-cyan">
-                        {std.minLimit != null && std.maxLimit != null
-                          ? `${std.minLimit} – ${std.maxLimit} ${std.unit}`
-                          : std.maxLimit != null
-                          ? `≤ ${std.maxLimit} ${std.unit}`
-                          : std.minLimit != null
-                          ? `≥ ${std.minLimit} ${std.unit}`
-                          : 'Pantau'}
-                      </td>
-                      <td className="p-3 text-[11px] text-text-mid max-w-xs">{std.basisRegulasi}</td>
-                      <td className="p-3 text-center">
-                        <StatusBadge
-                          status={std.verificationStatus === 'Terverifikasi' ? 'Safe' : 'Warning'}
-                          label={std.verificationStatus === 'Terverifikasi' ? 'Terverifikasi' : 'Perlu verifikasi'}
-                        />
-                      </td>
-                      {canManage && (
-                        <td className="p-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            {std.verificationStatus === 'Perlu verifikasi' && !isSeedPreviewOnly && (
-                              <button type="button" onClick={() => handleQuickVerify(std)} className="px-2 py-1 text-[10px] font-bold bg-neon-green/15 hover:bg-neon-green/25 text-neon-green border border-neon-green/35 rounded-lg cursor-pointer flex items-center gap-1">
-                                <ShieldCheck className="w-3 h-3" /> Verifikasi
-                              </button>
-                            )}
-                            <button type="button" onClick={() => startEdit(std)} className="p-1.5 text-neon-cyan hover:bg-neon-cyan/15 rounded-lg cursor-pointer" title="Edit">
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            {canDelete && !isSeedPreviewOnly && (
-                              <button type="button" onClick={() => handleDeleteStandard(std)} className="p-1.5 text-neon-red hover:bg-neon-red/15 rounded-lg cursor-pointer" title="Hapus">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                    <React.Fragment key={std.id}>
+                      <tr>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-bg-2 text-text-hi border border-border-subtle font-semibold">{mediaLabel(std.media)}</span>
+                            {std.kelasAir && <span className="text-[10px] px-2 py-0.5 rounded bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30 font-mono">Kelas {std.kelasAir}</span>}
+                            {std.locationCode && <span className="text-[10px] px-2 py-0.5 rounded bg-neon-violet/10 text-neon-violet border border-neon-violet/30 font-mono">{std.locationCode}</span>}
+                            {std.applicable === false && <span className="text-[10px] px-2 py-0.5 rounded bg-bg-2 text-text-low border border-border-subtle font-mono">Tidak Berlaku</span>}
+                          </div>
+                          <div className="font-bold text-text-hi mt-1">
+                            {std.parameterLabel} <span className="text-[10px] font-mono text-text-low">({std.parameterKey})</span>
                           </div>
                         </td>
+                        <td className="p-3 text-center font-mono tabular-nums font-bold text-neon-cyan">
+                          {formatStandardLimitDisplay(std)} {std.unit}
+                        </td>
+                        <td className="p-3 text-[11px] text-text-mid max-w-xs">
+                          <span className="block font-medium text-text-hi">{std.basisRegulasi}</span>
+                          {std.approvalDocNo && <span className="block text-[10px] font-mono text-neon-cyan mt-0.5">SK: {std.approvalDocNo}{std.decreeDate ? ` (${std.decreeDate})` : ''}</span>}
+                          <span className="block text-[10px] font-mono text-text-low">
+                            Berlaku: {std.effectiveFrom || '-'}{std.effectiveTo ? ` s.d. ${std.effectiveTo}` : ''}
+                          </span>
+                          {std.sourceUrl && (
+                            <a href={std.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] text-neon-cyan hover:underline mt-0.5">
+                              <ExternalLink className="w-2.5 h-2.5" /> Dokumen Sumber
+                            </a>
+                          )}
+                        </td>
+                        <td className="p-3 text-center space-y-1">
+                          <div>
+                            <StatusBadge
+                              status={std.verificationStatus === 'Terverifikasi' ? 'Safe' : 'Perlu Verifikasi'}
+                              label={std.verificationStatus === 'Terverifikasi' ? 'Terverifikasi' : 'Perlu verifikasi'}
+                            />
+                          </div>
+                          {std.effectiveStatus && (
+                            <div className="text-[10px] font-mono text-text-mid">{std.effectiveStatus}</div>
+                          )}
+                        </td>
+                        {canManage && (
+                          <td className="p-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {std.verificationStatus === 'Perlu verifikasi' && !isSeedPreviewOnly && (
+                                <button type="button" onClick={() => handleQuickVerify(std)} className="px-2 py-1 text-[10px] font-bold bg-neon-green/15 hover:bg-neon-green/25 text-neon-green border border-neon-green/35 rounded-lg cursor-pointer flex items-center gap-1">
+                                  <ShieldCheck className="w-3 h-3" /> Verifikasi
+                                </button>
+                              )}
+                              {std.revisionHistory && std.revisionHistory.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedHistoryId(expandedHistoryId === std.id ? null : std.id)}
+                                  className="p-1.5 text-neon-amber hover:bg-neon-amber/15 rounded-lg cursor-pointer"
+                                  title={`Riwayat Revisi (${std.revisionHistory.length})`}
+                                >
+                                  <History className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button type="button" onClick={() => startEdit(std)} className="p-1.5 text-neon-cyan hover:bg-neon-cyan/15 rounded-lg cursor-pointer" title="Edit">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              {canDelete && !isSeedPreviewOnly && (
+                                <button type="button" onClick={() => handleDeleteStandard(std)} className="p-1.5 text-neon-red hover:bg-neon-red/15 rounded-lg cursor-pointer" title="Hapus">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                      {expandedHistoryId === std.id && std.revisionHistory && (
+                        <tr>
+                          <td colSpan={canManage ? 5 : 4} className="p-3 bg-bg-0/80 border-t border-border-subtle">
+                            <div className="text-[11px] font-bold text-neon-amber mb-1.5">Riwayat Perubahan Baku Mutu ({std.id}):</div>
+                            <div className="space-y-1">
+                              {std.revisionHistory.map((rev, rIdx) => (
+                                <div key={rIdx} className="text-[10px] font-mono text-text-mid flex flex-wrap gap-2">
+                                  <span className="text-text-hi">{rev.revisedAt}</span>
+                                  <span>oleh {rev.revisedBy}</span>
+                                  <span>• Min: {rev.previousSnapshot?.minLimit ?? '-'} / Max: {rev.previousSnapshot?.maxLimit ?? '-'}</span>
+                                  <span>• Status: {rev.previousSnapshot?.effectiveStatus || '-'}</span>
+                                  <span className="text-neon-cyan">({rev.reason})</span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </tr>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

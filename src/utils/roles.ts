@@ -15,6 +15,14 @@ export const ROLES = [
 
 export type Role = (typeof ROLES)[number];
 
+export const MANAGER_ASSIGNABLE_ROLES: readonly Role[] = [
+  'Viewer',
+  'Auditor',
+  'Operator',
+  'Foreman',
+  'Environment Superintendent',
+] as const;
+
 export const DEFAULT_ROLE: Role = 'Viewer';
 
 export const ROLE_RANK: Record<Role, number> = {

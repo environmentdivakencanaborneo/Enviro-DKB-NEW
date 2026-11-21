@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { 
   User, 
   signInWithPopup, 
@@ -13,6 +13,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  reload,
   updateProfile
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -21,6 +23,7 @@ import { UserProfile } from '../types';
 import { canWrite } from './permissionService';
 import { auditService } from './auditService';
 import { normalizeRole } from '../utils/roles';
+import { clearAllUserCaches } from '../utils/googleSync';
 
 export interface RegisterUserData {
   fullName: string;
@@ -42,9 +45,12 @@ interface AuthContextType {
   isNewUser: boolean;
   authError: string | null;
   hasWriteAuthority: boolean;
+  emailVerified: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   registerUser: (data: RegisterUserData) => Promise<void>;
+  resendVerificationEmail: () => Promise<void>;
+  checkEmailVerification: () => Promise<boolean>;
   sendPasswordReset: (email: string) => Promise<void>;
   registerProfile: (name: string, company: string, role: string) => Promise<void>;
   updateUserProfile: (name: string, company: string) => Promise<void>;
@@ -93,8 +99,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timer);
   }, []);
 
+  const lastUidRef = useRef<string | null>(null);
+
   const fetchUserProfile = async (firebaseUser: User): Promise<UserProfile | null> => {
     try {
+      // Reload untuk memperoleh status emailVerified terbaru setelah verifikasi link
+      try {
+        await reload(firebaseUser);
+      } catch {
+        // non-fatal jika offline
+      }
+
+      if (!firebaseUser.emailVerified) {
+        setProfile(null);
+        setIsNewUser(false);
+        setAuthError(null);
+        return null;
+      }
+
       const userRef = doc(db, 'users', firebaseUser.uid);
       
       const userDoc = await withTimeout(
@@ -106,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (userDoc.exists()) {
         const data = userDoc.data() as any;
         
-        let effectiveUserRole = data.role;
+        let effectiveUserRole = 'Viewer';
         const email = firebaseUser.email || data.email;
         if (email) {
           try {
@@ -114,16 +136,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (roleDoc.exists() && roleDoc.data()?.level) {
               effectiveUserRole = roleDoc.data().level;
             }
-          } catch (e) {
-            // non-fatal, fallback to data.role
+          } catch {
+            // non-fatal, default tetap Viewer (sumber peran tunggal /roles)
           }
         }
 
-        const blockedStatuses = ['Disabled', 'Deleted', 'Rejected', 'Pending'];
-        const isBlocked = (data.status && blockedStatuses.includes(data.status)) || data.deleted === true || data.isActive === false;
-        const resolvedStatus = data.status || (data.isApproved === true ? 'Active' : 'Pending');
-        const isApproved = isBlocked ? false : (data.isApproved ?? (resolvedStatus === 'Active'));
-        const isActive = isBlocked ? false : (data.isActive ?? true);
+        const blockedStatuses = ['Disabled', 'Deleted', 'Rejected', 'Pending', 'Suspended'];
+        const isBlocked =
+          (data.status && blockedStatuses.includes(data.status)) ||
+          data.deleted === true ||
+          data.isActive === false;
+        const resolvedStatus = data.status || 'Pending';
+        const isApproved = isBlocked
+          ? false
+          : resolvedStatus === 'Active' && data.isApproved === true;
+        const isActive = isBlocked
+          ? false
+          : data.isActive !== false && data.deleted !== true;
 
         const createdAtStr = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString());
         const updatedAtStr = data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : (typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString());
@@ -140,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           status: resolvedStatus,
           isApproved,
           isActive,
+          emailVerified: Boolean(firebaseUser.emailVerified),
           createdAt: createdAtStr,
           updatedAt: updatedAtStr
         };
@@ -149,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthError(null);
         return updatedProfile;
       } else {
-        // Document users/{uid} does NOT exist -> automatically create it
+        // Document users/{uid} does NOT exist -> create strictly Pending Viewer doc
         const defaultFirestoreData = {
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
@@ -165,6 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           status: 'Pending' as const,
           role: 'Viewer',
           isApproved: false,
+          emailVerified: Boolean(firebaseUser.emailVerified),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           lastLogin: new Date().toISOString(),
@@ -183,6 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         await auditService.createLog({
           collection: 'users',
+          module: 'auth',
           recordId: firebaseUser.uid,
           action: 'insert',
           details: `REGISTER_USER auto-created on auth check: ${firebaseUser.email}`
@@ -218,6 +250,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const resendVerificationEmail = async () => {
+    if (!auth.currentUser) {
+      throw new Error('Tidak ada sesi pendaftaran yang aktif.');
+    }
+    await sendEmailVerification(auth.currentUser);
+  };
+
+  const checkEmailVerification = async (): Promise<boolean> => {
+    if (!auth.currentUser) return false;
+    await reload(auth.currentUser);
+    await auth.currentUser.getIdToken(true);
+    if (auth.currentUser.emailVerified) {
+      await fetchUserProfile(auth.currentUser);
+      return true;
+    }
+    return false;
+  };
+
   // Monitor Auth Changes
   useEffect(() => {
     let isMounted = true;
@@ -227,6 +277,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         if (firebaseUser) {
+          if (lastUidRef.current && lastUidRef.current !== firebaseUser.uid) {
+            clearAllUserCaches();
+          }
+          lastUidRef.current = firebaseUser.uid;
           if (isMounted) setUser(firebaseUser);
           await fetchUserProfile(firebaseUser);
 
@@ -240,6 +294,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.warn('Gagal memulihkan token Google:', e);
           }
         } else {
+          if (lastUidRef.current) {
+            clearAllUserCaches();
+          }
+          lastUidRef.current = null;
           if (isMounted) {
             setUser(null);
             setProfile(null);
@@ -292,13 +350,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (result.user) {
         setUser(result.user);
         const p = await fetchUserProfile(result.user);
-        if (p && (p.status === 'Active' || p.isApproved)) {
+        if (p && p.status === 'Active' && p.isApproved === true) {
           await updateDoc(doc(db, 'users', result.user.uid), {
             lastLogin: new Date().toISOString(),
             loginCount: (p.loginCount || 0) + 1
           }).catch(() => {});
           await auditService.createLog({
             collection: 'users',
+            module: 'auth',
             recordId: result.user.uid,
             action: 'update',
             details: `LOGIN: ${result.user.email}`
@@ -324,13 +383,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(firebaseUser);
       const p = await fetchUserProfile(firebaseUser);
 
-      if (p && (p.status === 'Active' || p.isApproved)) {
+      if (!firebaseUser.emailVerified) {
+        setAuthError('Email Anda belum diverifikasi. Periksa kotak masuk/spam atau klik Kirim Ulang Email Verifikasi.');
+        return;
+      }
+
+      if (p && p.status === 'Active' && p.isApproved === true) {
         await updateDoc(doc(db, 'users', firebaseUser.uid), {
           lastLogin: new Date().toISOString(),
           loginCount: (p.loginCount || 0) + 1
         }).catch(() => {});
         await auditService.createLog({
           collection: 'users',
+          module: 'auth',
           recordId: firebaseUser.uid,
           action: 'update',
           details: `LOGIN: ${firebaseUser.email}`
@@ -366,6 +431,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn("User profile update failed:", profileErr);
       }
 
+      try {
+        await sendEmailVerification(firebaseUser);
+      } catch (verifyErr) {
+        console.warn("Gagal mengirim email verifikasi otomatis:", verifyErr);
+      }
+
       const userDocData = {
         uid: firebaseUser.uid,
         fullName: data.fullName,
@@ -382,6 +453,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status: 'Pending' as const,
         role: 'Viewer',
         isApproved: false,
+        emailVerified: Boolean(firebaseUser.emailVerified),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         lastLogin: null,
@@ -394,12 +466,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       await setDoc(doc(db, 'users', firebaseUser.uid), userDocData);
 
-      await auditService.createLog({
-        collection: 'users',
-        recordId: firebaseUser.uid,
-        action: 'insert',
-        details: `REGISTER_USER: ${data.email} (${data.fullName} - ${data.department})`
-      }).catch(e => console.warn('Audit log creation failed:', e));
+      if (firebaseUser.emailVerified) {
+        await auditService.createLog({
+          collection: 'users',
+          module: 'auth',
+          recordId: firebaseUser.uid,
+          action: 'insert',
+          details: `REGISTER_USER: ${data.email} (${data.fullName} - ${data.department})`
+        }).catch(e => console.warn('Audit log creation failed:', e));
+      }
 
       const localProfileState: UserProfile = {
         ...userDocData,
@@ -507,21 +582,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       setLoading(true);
-      if (user) {
+      if (user && user.emailVerified) {
         await auditService.createLog({
           collection: 'users',
+          module: 'auth',
           recordId: user.uid,
           action: 'update',
           details: `LOGOUT: ${user.email}`
-        });
+        }).catch(() => {});
       }
 
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('coal_monitor') || key.includes('coal_pro'))) {
-          localStorage.removeItem(key);
-        }
-      }
+      clearAllUserCaches();
 
       await firebaseSignOut(auth);
       setUser(null);
@@ -546,9 +617,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isNewUser,
       authError,
       hasWriteAuthority,
+      emailVerified: Boolean(user?.emailVerified),
       loginWithGoogle,
       loginWithEmail,
       registerUser,
+      resendVerificationEmail,
+      checkEmailVerification,
       sendPasswordReset,
       registerProfile,
       updateUserProfile,

@@ -7,11 +7,11 @@ import {
   collection, 
   doc, 
   setDoc, 
-  updateDoc, 
   onSnapshot, 
   query, 
   orderBy, 
-  serverTimestamp 
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../utils/firebaseAuth';
 import { WqLocation } from '../types';
@@ -113,14 +113,15 @@ export const wqLocationService = {
     }
 
     try {
-      await setDoc(doc(db, 'wq_locations', id), newLocation);
-
-      await auditService.createLog({
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'wq_locations', id), newLocation);
+      auditService.addToBatch(batch, {
         collection: 'wq_locations',
         recordId: id,
         action: 'insert',
         details: `Menambah master titik sampling kualitas air ${newLocation.name} (${newLocation.code})`,
       });
+      await batch.commit();
 
       triggerToast(`Titik sampling ${newLocation.code} berhasil ditambahkan`, 'success');
       return newLocation;
@@ -141,14 +142,15 @@ export const wqLocationService = {
     };
 
     try {
-      await updateDoc(docRef, updatePayload);
-
-      await auditService.createLog({
+      const batch = writeBatch(db);
+      batch.update(docRef, updatePayload);
+      auditService.addToBatch(batch, {
         collection: 'wq_locations',
         recordId: id,
         action: 'update',
         details: `Memperbarui master titik sampling ${id}: ${JSON.stringify(updates)}`,
       });
+      await batch.commit();
 
       triggerToast(`Titik sampling ${id} berhasil diperbarui`, 'success');
     } catch (err: any) {

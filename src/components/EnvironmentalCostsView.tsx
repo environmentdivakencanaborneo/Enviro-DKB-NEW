@@ -17,6 +17,7 @@ import {
   Pencil
 } from 'lucide-react';
 import EmptyState from './EmptyState';
+import { triggerToast } from '../utils/errorHandler';
 
 interface EnvironmentalCostsViewProps {
   costs: EnvironmentalCost[];
@@ -129,7 +130,7 @@ export default function EnvironmentalCostsView({
     e.preventDefault();
     if (!allowed) return onUnauthorizedAction("Simpan Biaya Lingkungan");
     if (!cOfficer.trim()) {
-      alert("Masukkan nama petugas / PIC pengisi anggaran.");
+      triggerToast("Masukkan nama petugas / PIC pengisi anggaran.", 'warning');
       return;
     }
 
@@ -233,7 +234,10 @@ export default function EnvironmentalCostsView({
 
         <button 
           id="btn-add-environmental-cost"
-          onClick={() => setShowCostForm(!showCostForm)}
+          onClick={() => {
+            if (!showCostForm && !allowed) return onUnauthorizedAction("Entri Anggaran & Realisasi");
+            setShowCostForm(!showCostForm);
+          }}
           className="flex items-center justify-center gap-1.5 px-4.5 py-2.5 rounded-xl neon-btn-primary text-xs transition-all cursor-pointer shrink-0"
         >
           <Plus className="h-4 w-4 stroke-[2.5]" />

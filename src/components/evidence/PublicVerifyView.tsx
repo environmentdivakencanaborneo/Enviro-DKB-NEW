@@ -172,7 +172,10 @@ export default function PublicVerifyView({ token, onBackToApp }: PublicVerifyVie
                       className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${
                         data.overall === 'MEMENUHI'
                           ? 'bg-emerald-100 text-emerald-800'
-                          : data.overall === 'BELUM ADA DATA'
+                          : data.overall === 'BELUM ADA DATA' ||
+                            data.overall === 'DATA TIDAK LENGKAP' ||
+                            data.overall === 'BELUM DIEVALUASI' ||
+                            data.overall === 'TIDAK BERLAKU'
                           ? 'bg-amber-100 text-amber-800'
                           : 'bg-red-100 text-red-800'
                       }`}

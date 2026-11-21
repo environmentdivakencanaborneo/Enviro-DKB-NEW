@@ -26,19 +26,27 @@ import {
   TopsoilErosionData,
   BiodiversityData,
   IadlRiskData,
-  ProperRkabData
+  ProperRkabData,
+  EnvironmentalStandard,
+  InternalThresholdsConfig,
 } from '../types';
 import { exportAllDataToXLSX } from '../services/exportService';
 import TableSkeleton from './TableSkeleton';
 const EvidenceHub = lazy(() => import('./evidence/EvidenceHub'));
-import { WASTEWATER_BASIS_LABEL } from '../data/regulations';
+import { INITIAL_STANDARDS_SEED, WASTEWATER_BASIS_LABEL } from '../data/regulations';
 import { buildWasteLedger, round3 } from '../utils/wasteLedger';
 import { calculateGuaranteeMetrics } from '../utils/guaranteeMetrics';
-import { 
-  todayLocalISO, 
-  getWeekRangeLocal, 
-  getMonthRangeLocal, 
-  formatDateLocalIndonesian 
+import {
+  formatLocaleNumberStrict,
+  formatStandardLimitDisplay,
+  parseStrictNumber,
+  resolveEffectiveStandardsMap,
+} from '../utils/waterQualityEval';
+import {
+  todayLocalISO,
+  getWeekRangeLocal,
+  getMonthRangeLocal,
+  formatDateLocalIndonesian,
 } from '../utils/dateUtils';
 import { APP_NAME, COMPANY_NAME } from '../constants/app';
 import { 
@@ -88,6 +96,8 @@ interface ReportsViewProps {
   biodiversity?: BiodiversityData[];
   iadlRisks?: IadlRiskData[];
   properRkab?: ProperRkabData[];
+  standards?: EnvironmentalStandard[];
+  internalThresholds?: InternalThresholdsConfig;
   user: any;
 }
 
@@ -115,6 +125,8 @@ export default function ReportsView({
   biodiversity = [],
   iadlRisks = [],
   properRkab = [],
+  standards,
+  internalThresholds,
   user
 }: ReportsViewProps) {
   const [mainTab, setMainTab] = useState<'integrated' | 'evidence'>('integrated');
@@ -144,71 +156,94 @@ export default function ReportsView({
     }).format(num);
   };
 
-  // Calculated stats - Air Limbah (Tanpa nilai karangan / fallback palsu)
+  // Resolve active standards at end of period for label display
+  const activeStandardsList = standards !== undefined ? standards : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+  const activeWwMap = resolveEffectiveStandardsMap(activeStandardsList, 'air_limbah', { sampleDate: endDate });
+  const activeSwMap = resolveEffectiveStandardsMap(activeStandardsList, 'air_permukaan', {
+    sampleDate: endDate,
+    kelasAir: 'II',
+  });
+  const wwBasisDisplay =
+    Object.values(activeWwMap)
+      .map(s => s.basisRegulasi)
+      .filter(Boolean)
+      .filter((v, i, arr) => arr.indexOf(v) === i)
+      .join(' | ') || WASTEWATER_BASIS_LABEL;
+
+  const calcNumericStat = (vals: unknown[], minDec: number, maxDec: number) => {
+    const nums = vals.map(parseStrictNumber).filter((v): v is number => v !== null);
+    if (nums.length === 0) return { avg: null as string | null, min: null as string | null, max: null as string | null, avgNum: null as number | null };
+    const sum = nums.reduce((a, b) => a + b, 0);
+    const avgVal = sum / nums.length;
+    return {
+      avg: formatLocaleNumberStrict(avgVal, minDec, maxDec),
+      min: formatLocaleNumberStrict(Math.min(...nums), minDec, maxDec),
+      max: formatLocaleNumberStrict(Math.max(...nums), minDec, maxDec),
+      avgNum: avgVal,
+    };
+  };
+
+  // Calculated stats - Air Limbah (tanpa nilai karangan / fallback nol)
   const hasWaterData = activeWater.length > 0;
-  const avgPh = hasWaterData 
-    ? (activeWater.reduce((sum, x) => sum + x.ph, 0) / activeWater.length).toFixed(1)
-    : '—';
-  const maxPh = hasWaterData 
-    ? Math.max(...activeWater.map(x => x.ph)).toFixed(1)
-    : '—';
-  const minPh = hasWaterData 
-    ? Math.min(...activeWater.map(x => x.ph)).toFixed(1)
-    : '—';
+  const phStats = calcNumericStat(activeWater.map(x => x.ph), 1, 2);
+  const tssStats = calcNumericStat(activeWater.map(x => x.tss), 0, 1);
+  const feStats = calcNumericStat(activeWater.map(x => x.fe), 2, 2);
+  const mnStats = calcNumericStat(activeWater.map(x => x.mn), 2, 2);
+  const debitStats = calcNumericStat(activeWater.map(x => x.debit), 3, 3);
 
-  const avgTss = hasWaterData 
-    ? (activeWater.reduce((sum, x) => sum + x.tss, 0) / activeWater.length).toFixed(1)
-    : '—';
-  const avgFe = hasWaterData 
-    ? (activeWater.reduce((sum, x) => sum + x.fe, 0) / activeWater.length).toFixed(2)
-    : '—';
-  const avgMn = hasWaterData 
-    ? (activeWater.reduce((sum, x) => sum + (x.mn || 0), 0) / activeWater.length).toFixed(2)
-    : '—';
+  const avgPh = phStats.avg;
+  const maxPh = phStats.max;
+  const minPh = phStats.min;
+  const avgTss = tssStats.avg;
+  const avgFe = feStats.avg;
+  const avgMn = mnStats.avg;
+  const avgDebit = debitStats.avg;
+  const minDebit = debitStats.min;
+  const maxDebit = debitStats.max;
 
-  // Rata-rata, minimum, dan maksimum debit
-  const avgDebit = hasWaterData 
-    ? (activeWater.reduce((sum, x) => sum + (x.debit || 0), 0) / activeWater.length).toFixed(3)
-    : '—';
-  const minDebit = hasWaterData 
-    ? Math.min(...activeWater.map(x => x.debit || 0)).toFixed(3)
-    : '—';
-  const maxDebit = hasWaterData 
-    ? Math.max(...activeWater.map(x => x.debit || 0)).toFixed(3)
-    : '—';
+  const totalExceededWaterSamples = activeWater.filter(
+    x => x.status === 'Exceeded' || x.evaluationStatus === 'TIDAK MEMENUHI'
+  ).length;
+  const totalPassedWaterSamples = activeWater.filter(
+    x => x.status === 'Safe' || x.status === 'Warning' || x.evaluationStatus === 'MEMENUHI'
+  ).length;
+  const totalPendingWaterSamples = activeWater.length - totalExceededWaterSamples - totalPassedWaterSamples;
+  const evaluatedWaterCount = totalExceededWaterSamples + totalPassedWaterSamples;
+  const complianceScorePercent =
+    evaluatedWaterCount > 0 ? Math.round((totalPassedWaterSamples / evaluatedWaterCount) * 100) : null;
 
-  const totalExceededWaterSamples = activeWater.filter(x => x.status === 'Exceeded').length;
-  const complianceScorePercent = hasWaterData 
-    ? Math.round(((activeWater.length - totalExceededWaterSamples) / activeWater.length) * 100)
-    : null;
-
-  // Calculated stats - Air Permukaan (Tanpa nilai karangan)
+  // Calculated stats - Air Permukaan (tanpa fallback nol & tidak menganggap Incomplete/Unevaluated sebagai Aman)
   const hasSurfaceData = activeSurfaceWater.length > 0;
-  const totalExceededSurfaceWaterSamples = activeSurfaceWater.filter(x => x.status === 'Exceeded').length;
-  const surfaceWaterComplianceScorePercent = hasSurfaceData 
-    ? Math.round(((activeSurfaceWater.length - totalExceededSurfaceWaterSamples) / activeSurfaceWater.length) * 100)
-    : null;
-  const avgSurfacePh = hasSurfaceData
-    ? (activeSurfaceWater.reduce((sum, x) => sum + x.ph, 0) / activeSurfaceWater.length).toFixed(1)
-    : '—';
-  const avgSurfaceTss = hasSurfaceData
-    ? (activeSurfaceWater.reduce((sum, x) => sum + x.tss, 0) / activeSurfaceWater.length).toFixed(1)
-    : '—';
-  const avgSurfaceDO = hasSurfaceData
-    ? (activeSurfaceWater.reduce((sum, x) => sum + x.doVal, 0) / activeSurfaceWater.length).toFixed(1)
-    : '—';
+  const totalExceededSurfaceWaterSamples = activeSurfaceWater.filter(
+    x => x.status === 'Exceeded' || x.evaluationStatus === 'TIDAK MEMENUHI'
+  ).length;
+  const totalPassedSurfaceWaterSamples = activeSurfaceWater.filter(
+    x => x.status === 'Safe' || x.status === 'Warning' || x.evaluationStatus === 'MEMENUHI'
+  ).length;
+  const evaluatedSurfaceCount = totalExceededSurfaceWaterSamples + totalPassedSurfaceWaterSamples;
+  const surfaceWaterComplianceScorePercent =
+    evaluatedSurfaceCount > 0 ? Math.round((totalPassedSurfaceWaterSamples / evaluatedSurfaceCount) * 100) : null;
+
+  const swPhStats = calcNumericStat(activeSurfaceWater.map(x => x.ph), 1, 2);
+  const swTssStats = calcNumericStat(activeSurfaceWater.map(x => x.tss), 0, 1);
+  const swDoStats = calcNumericStat(activeSurfaceWater.map(x => x.doVal), 1, 2);
+  const avgSurfacePh = swPhStats.avg;
+  const avgSurfaceTss = swTssStats.avg;
+  const avgSurfaceDO = swDoStats.avg;
 
   // Calculated stats - Curah Hujan
-  const hasRainData = activeRain.length > 0;
-  const totalRainfallVolume = hasRainData 
-    ? activeRain.reduce((sum, x) => sum + x.rainfall, 0).toFixed(1)
+  const validRainNums = activeRain.map(x => parseStrictNumber(x.rainfall)).filter((v): v is number => v !== null);
+  const validIntensityNums = activeRain.map(x => parseStrictNumber(x.intensity)).filter((v): v is number => v !== null);
+  const hasRainData = validRainNums.length > 0;
+  const totalRainfallVolume = hasRainData
+    ? validRainNums.reduce((sum, v) => sum + v, 0).toFixed(1)
     : '0.0';
-  const maxRainfallRecord = hasRainData 
-    ? Math.max(...activeRain.map(x => x.rainfall)).toFixed(1)
+  const maxRainfallRecord = hasRainData
+    ? Math.max(...validRainNums).toFixed(1)
     : '—';
-  const rainDaysCount = activeRain.filter(x => x.rainfall > 0).length;
-  const avgIntensity = hasRainData 
-    ? (activeRain.reduce((sum, x) => sum + (x.intensity || 0), 0) / activeRain.length).toFixed(1)
+  const rainDaysCount = validRainNums.filter(v => v > 0).length;
+  const avgIntensity = validIntensityNums.length > 0
+    ? (validIntensityNums.reduce((sum, v) => sum + v, 0) / validIntensityNums.length).toFixed(1)
     : '—';
 
   // Calculated stats - Nursery (Hitung 'Healthy' DAN 'Sehat' dikurangi pengeluaran bibit)
@@ -369,7 +404,12 @@ export default function ReportsView({
       {mainTab === 'evidence' ? (
         <Suspense fallback={<TableSkeleton columns={6} rows={5} />}>
           <div className="evidence-hub-container">
-            <EvidenceHub wastewater={wastewater} user={user} />
+            <EvidenceHub
+              wastewater={wastewater}
+              user={user}
+              standards={standards}
+              internalThresholds={internalThresholds}
+            />
           </div>
         </Suspense>
       ) : !isPreview ? (
@@ -574,12 +614,12 @@ export default function ReportsView({
             <div className="space-y-8">
               {/* Section 1: Water Quality Compliance */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-200/80 pb-1.5">
+              <div className="flex items-center justify-between border-b border-slate-200/80 pb-1.5 gap-2">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
                   <span className="text-teal-600 font-mono">I.</span> Kepatuhan Kualitas Air Limbah (Sedimentation / KPL)
                 </h3>
-                <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 font-mono" title={WASTEWATER_BASIS_LABEL}>
-                  {WASTEWATER_BASIS_LABEL}
+                <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 font-mono" title={wwBasisDisplay}>
+                  {wwBasisDisplay}
                 </span>
               </div>
               
@@ -588,7 +628,7 @@ export default function ReportsView({
                   <span className="italic">Belum ada data pada periode ini.</span>
                 ) : (
                   <>
-                    Kompilasi pengujian laboratorium menunjukkan tingkat kelulusan Parameter Mutu Air Limpasan Tambang sebesar <strong className="text-teal-600">{complianceScorePercent !== null ? `${complianceScorePercent}%` : 'N/A'}</strong> dari total <strong className="text-slate-700">{activeWater.length} sampling pengujian</strong> selama periode berjalan.
+                    Kompilasi pengujian menunjukkan tingkat kepatuhan terverifikasi sebesar <strong className="text-teal-600">{complianceScorePercent !== null ? `${complianceScorePercent}%` : 'Belum Dievaluasi'}</strong> dari <strong className="text-slate-700">{activeWater.length} sampling</strong>{totalPendingWaterSamples > 0 ? ` (${totalPendingWaterSamples} sampel berstatus Data Tidak Lengkap / Belum Dievaluasi)` : ''}.
                   </>
                 )}
               </p>
@@ -598,17 +638,17 @@ export default function ReportsView({
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Rentang pH</span>
                   <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{minPh !== null && maxPh !== null ? `${minPh} - ${maxPh}` : '—'}</p>
-                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: 6.0 - 9.0</span>
+                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: {formatStandardLimitDisplay(activeWwMap.ph)}</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Rerata TSS</span>
-                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgTss !== null ? `${avgTss} mg/l` : '—'}</p>
-                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: max 300</span>
+                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgTss !== null ? `${avgTss} mg/L` : '—'}</p>
+                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: {formatStandardLimitDisplay(activeWwMap.tss)}</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Logam Fe & Mn</span>
-                  <p className="text-xs font-bold text-slate-700 font-mono mt-0.5">{avgFe !== null && avgMn !== null ? `Fe: ${avgFe} | Mn: ${avgMn}` : '—'}</p>
-                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: Fe&lt;7, Mn&lt;4</span>
+                  <p className="text-xs font-bold text-slate-700 font-mono mt-0.5">{avgFe !== null || avgMn !== null ? `Fe: ${avgFe ?? '—'} | Mn: ${avgMn ?? '—'}` : '—'}</p>
+                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: Fe {formatStandardLimitDisplay(activeWwMap.fe)} | Mn {formatStandardLimitDisplay(activeWwMap.mn)}</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Batas Melebihi</span>
@@ -620,7 +660,7 @@ export default function ReportsView({
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Debit (Rerata / Min / Maks)</span>
                   <p className="text-xs font-bold text-teal-600 font-mono mt-0.5">
-                    {hasWaterData ? `${avgDebit} / ${minDebit} / ${maxDebit}` : '—'}
+                    {avgDebit !== null ? `${avgDebit} / ${minDebit} / ${maxDebit}` : '—'}
                   </p>
                   <span className="text-[8px] text-slate-500 block leading-none mt-1">m³/s</span>
                 </div>
@@ -646,25 +686,45 @@ export default function ReportsView({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-600">
-                      {activeWater.slice(0, 6).map(x => (
-                        <tr key={x.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
-                          <td className="p-2.5 pl-4 font-mono">{x.date}</td>
-                          <td className="p-2.5 font-semibold text-slate-700">{x.location}</td>
-                          <td className="p-2.5 text-center font-mono">{x.ph}</td>
-                          <td className="p-2.5 text-center font-mono">{x.tss}</td>
-                          <td className="p-2.5 text-center font-mono">{x.debit?.toFixed(3) || '0.000'}</td>
-                          <td className="p-2.5 text-center font-mono">{x.fe}</td>
-                          <td className="p-2.5 text-center font-mono">{x.mn ?? '—'}</td>
-                          <td className="p-2.5 text-center font-bold">
-                            <span className={
-                              x.status === 'Safe' ? 'text-emerald-600' :
-                              x.status === 'Warning' ? 'text-amber-500' : 'text-red-600'
-                            }>
-                              {x.status === 'Safe' ? 'Aman' : x.status === 'Warning' ? 'Mendekati Batas' : 'Over Limit'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {activeWater.slice(0, 6).map(x => {
+                        const label =
+                          x.evaluationStatus ||
+                          (x.status === 'Safe'
+                            ? 'MEMENUHI'
+                            : x.status === 'Warning'
+                            ? 'MEMENUHI (Pantau)'
+                            : x.status === 'Exceeded'
+                            ? 'TIDAK MEMENUHI'
+                            : x.status === 'Incomplete'
+                            ? 'DATA TIDAK LENGKAP'
+                            : x.status === 'NotApplicable'
+                            ? 'TIDAK BERLAKU'
+                            : 'BELUM DIEVALUASI');
+                        const colorClass =
+                          label === 'MEMENUHI' || label === 'MEMENUHI (Pantau)'
+                            ? x.status === 'Warning'
+                              ? 'text-amber-600'
+                              : 'text-emerald-600'
+                            : label === 'TIDAK MEMENUHI'
+                            ? 'text-red-600'
+                            : label === 'TIDAK BERLAKU'
+                            ? 'text-slate-500'
+                            : 'text-amber-600';
+                        return (
+                          <tr key={x.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
+                            <td className="p-2.5 pl-4 font-mono">{x.date}</td>
+                            <td className="p-2.5 font-semibold text-slate-700">{x.location}</td>
+                            <td className="p-2.5 text-center font-mono">{formatLocaleNumberStrict(parseStrictNumber(x.ph), 1, 2)}</td>
+                            <td className="p-2.5 text-center font-mono">{formatLocaleNumberStrict(parseStrictNumber(x.tss), 0, 1)}</td>
+                            <td className="p-2.5 text-center font-mono">{formatLocaleNumberStrict(parseStrictNumber(x.debit), 3, 3)}</td>
+                            <td className="p-2.5 text-center font-mono">{formatLocaleNumberStrict(parseStrictNumber(x.fe), 2, 2)}</td>
+                            <td className="p-2.5 text-center font-mono">{formatLocaleNumberStrict(parseStrictNumber(x.mn), 2, 2)}</td>
+                            <td className="p-2.5 text-center font-bold">
+                              <span className={colorClass}>{label}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -674,7 +734,7 @@ export default function ReportsView({
               <div className="bg-white/60 border border-slate-200/80 rounded-2xl p-4.5 space-y-3 text-xs leading-relaxed">
                 <div className="flex items-center gap-2 text-teal-600 font-bold border-b border-slate-200 pb-2">
                   <Activity className="h-4 w-4" />
-                  <span className="uppercase tracking-wider font-mono text-[10px]">Analisis Teknis & Evaluasi KPL ({WASTEWATER_BASIS_LABEL})</span>
+                  <span className="uppercase tracking-wider font-mono text-[10px]">Analisis Teknis & Evaluasi KPL ({wwBasisDisplay})</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5 text-left">
@@ -687,18 +747,18 @@ export default function ReportsView({
                         <span>Belum ada data pada periode ini untuk dianalisis.</span>
                       ) : (
                         <>
-                          Berdasarkan parameter yang tercatat, kadar rata-rata pH adalah <span className="text-slate-800 font-mono font-bold">{avgPh ?? '—'}</span> (rentang {minPh ?? '—'}–{maxPh ?? '—'}) dengan kandungan total padatan tersuspensi (TSS) rerata sebesar <span className="text-slate-800 font-mono font-bold">{avgTss !== null ? `${avgTss} mg/l` : '—'}</span>. Logam larut Fe mencatatkan nilai rata-rata <span className="text-slate-800 font-mono font-bold">{avgFe !== null ? `${avgFe} mg/l` : '—'}</span> dan Mn tercatat <span className="text-slate-800 font-mono font-bold">{avgMn !== null ? `${avgMn} mg/l` : '—'}</span>. Tingkat kepatuhan berada pada angka <span className="text-teal-600 font-mono font-bold">{complianceScorePercent !== null ? `${complianceScorePercent}%` : 'N/A'}</span>.
+                          Berdasarkan parameter yang tercatat, kadar rata-rata pH adalah <span className="text-slate-800 font-mono font-bold">{avgPh ?? '—'}</span> (rentang {minPh ?? '—'}–{maxPh ?? '—'}) dengan kandungan total padatan tersuspensi (TSS) rerata sebesar <span className="text-slate-800 font-mono font-bold">{avgTss !== null ? `${avgTss} mg/L` : '—'}</span>. Logam larut Fe mencatatkan nilai rata-rata <span className="text-slate-800 font-mono font-bold">{avgFe !== null ? `${avgFe} mg/L` : '—'}</span> dan Mn tercatat <span className="text-slate-800 font-mono font-bold">{avgMn !== null ? `${avgMn} mg/L` : '—'}</span>. Tingkat kepatuhan terverifikasi berada pada angka <span className="text-teal-600 font-mono font-bold">{complianceScorePercent !== null ? `${complianceScorePercent}%` : 'Belum Dievaluasi'}</span>.
                         </>
                       )}
                     </p>
                   </div>
                   <div className="space-y-1.5 text-left">
                     <h5 className="font-bold text-slate-700 flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-teal-400"></span>
+                      <span className="h-1.5 w-1.5 rounded-full bg-teal-400"></span> 
                       Penjelasan Ilmiah & Sumber Risiko:
                     </h5>
                     <p className="text-slate-500 text-[11px]">
-                      {avgPh && Number(avgPh) < 6.5 ? (
+                      {phStats.avgNum !== null && phStats.avgNum < 6.5 ? (
                         <span className="text-amber-600/90">
                           <strong>Risiko Air Asam Tambang (AAT):</strong> pH rata-rata rendah di beberapa kolam diakibatkan oleh oksidasi mineral sulfida (seperti pirit/FeS₂) pada batuan samping batubara yang terpapar udara bebas dan air hujan. Hal ini melarutkan logam berat Fe & Mn secara berlebih.
                         </span>
@@ -714,7 +774,7 @@ export default function ReportsView({
                 <div className="pt-2 border-t border-slate-200/60 mt-1 flex items-start gap-2 text-[11px] text-slate-500 text-left">
                   <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-700">Rekomendasi Kontrol Teknik:</strong> Mengoptimalkan dosing koagulan Polyaluminium Chloride (PAC) dengan laju 15-20 ppm pada saluran masuk inlet kolam pengendap, serta penambahan kapur hidrat (hydrated lime) konstan jika pH drop di bawah 6.0 untuk menjaga kestabilan kualitas effluent air keluar (outlet) menuju sungai umum sesuai {WASTEWATER_BASIS_LABEL}.
+                    <strong className="text-slate-700">Rekomendasi Kontrol Teknik:</strong> Mengoptimalkan dosing koagulan Polyaluminium Chloride (PAC) dengan laju 15-20 ppm pada saluran masuk inlet kolam pengendap, serta penambahan kapur hidrat (hydrated lime) konstan jika pH turun di bawah ambang batas bawah Master Baku Mutu ({wwBasisDisplay}).
                   </div>
                 </div>
               </div>
@@ -734,7 +794,7 @@ export default function ReportsView({
                   <span className="italic">Belum ada data pada periode ini.</span>
                 ) : (
                   <>
-                    Pengujian air permukaan (sungai/badan air penerima) menunjukkan tingkat kepatuhan <strong className="text-sky-500">{surfaceWaterComplianceScorePercent !== null ? `${surfaceWaterComplianceScorePercent}%` : 'N/A'}</strong> dari total <strong className="text-slate-700">{activeSurfaceWater.length} sampling</strong>.
+                    Pengujian air permukaan (sungai/badan air penerima) menunjukkan tingkat kepatuhan terverifikasi <strong className="text-sky-500">{surfaceWaterComplianceScorePercent !== null ? `${surfaceWaterComplianceScorePercent}%` : 'Belum Dievaluasi'}</strong> dari total <strong className="text-slate-700">{activeSurfaceWater.length} sampling</strong>.
                   </>
                 )}
               </p>
@@ -743,17 +803,17 @@ export default function ReportsView({
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">pH Rerata</span>
                   <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfacePh ?? '—'}</p>
-                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: 6.0 - 9.0</span>
+                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: {formatStandardLimitDisplay(activeSwMap.ph)}</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Rerata TSS</span>
-                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfaceTss !== null ? `${avgSurfaceTss} mg/l` : '—'}</p>
-                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: max 50</span>
+                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfaceTss !== null ? `${avgSurfaceTss} mg/L` : '—'}</p>
+                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: {formatStandardLimitDisplay(activeSwMap.tss)}</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Rerata DO</span>
-                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfaceDO !== null ? `${avgSurfaceDO} mg/l` : '—'}</p>
-                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: min 4</span>
+                  <p className="text-sm font-bold text-slate-700 font-mono mt-0.5">{avgSurfaceDO !== null ? `${avgSurfaceDO} mg/L` : '—'}</p>
+                  <span className="text-[8px] text-slate-500 block leading-none mt-1">Std: {formatStandardLimitDisplay(activeSwMap.doVal)}</span>
                 </div>
                 <div className="bg-white/40 p-3 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-500 uppercase font-mono block">Batas Melebihi</span>
@@ -783,24 +843,44 @@ export default function ReportsView({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-600">
-                      {activeSurfaceWater.slice(0, 5).map(x => (
-                        <tr key={x.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
-                          <td className="p-2.5 pl-4 font-mono">{x.date}</td>
-                          <td className="p-2.5 font-semibold text-slate-700">{x.location}</td>
-                          <td className="p-2.5 text-center font-mono">{x.monitoringType || 'Bulanan'}</td>
-                          <td className="p-2.5 text-center font-mono">{x.ph}</td>
-                          <td className="p-2.5 text-center font-mono">{x.tss}</td>
-                          <td className="p-2.5 text-center font-mono">{x.doVal}</td>
-                          <td className="p-2.5 text-center font-bold">
-                            <span className={
-                              x.status === 'Safe' ? 'text-emerald-600' :
-                              x.status === 'Warning' ? 'text-amber-500' : 'text-red-600'
-                            }>
-                              {x.status === 'Safe' ? 'Aman' : x.status === 'Warning' ? 'Mendekati Batas' : 'Over Limit'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {activeSurfaceWater.slice(0, 5).map(x => {
+                        const label =
+                          x.evaluationStatus ||
+                          (x.status === 'Safe'
+                            ? 'MEMENUHI'
+                            : x.status === 'Warning'
+                            ? 'MEMENUHI (Pantau)'
+                            : x.status === 'Exceeded'
+                            ? 'TIDAK MEMENUHI'
+                            : x.status === 'Incomplete'
+                            ? 'DATA TIDAK LENGKAP'
+                            : x.status === 'NotApplicable'
+                            ? 'TIDAK BERLAKU'
+                            : 'BELUM DIEVALUASI');
+                        const colorClass =
+                          label === 'MEMENUHI' || label === 'MEMENUHI (Pantau)'
+                            ? x.status === 'Warning'
+                              ? 'text-amber-600'
+                              : 'text-emerald-600'
+                            : label === 'TIDAK MEMENUHI'
+                            ? 'text-red-600'
+                            : label === 'TIDAK BERLAKU'
+                            ? 'text-slate-500'
+                            : 'text-amber-600';
+                        return (
+                          <tr key={x.id} className="border-b border-slate-100 even:bg-slate-50/50 hover:bg-slate-50 transition-colors group">
+                            <td className="p-2.5 pl-4 font-mono">{x.date}</td>
+                            <td className="p-2.5 font-semibold text-slate-700">{x.location}</td>
+                            <td className="p-2.5 text-center font-mono">{x.monitoringType || 'Bulanan'}</td>
+                            <td className="p-2.5 text-center font-mono">{formatLocaleNumberStrict(parseStrictNumber(x.ph), 1, 2)}</td>
+                            <td className="p-2.5 text-center font-mono">{formatLocaleNumberStrict(parseStrictNumber(x.tss), 0, 1)}</td>
+                            <td className="p-2.5 text-center font-mono">{formatLocaleNumberStrict(parseStrictNumber(x.doVal), 1, 2)}</td>
+                            <td className="p-2.5 text-center font-bold">
+                              <span className={colorClass}>{label}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -966,34 +1046,42 @@ export default function ReportsView({
                           </td>
                         </tr>
                       ) : (
-                        fullB3Ledger.stocks.map((stock, sIdx) => (
-                          <tr key={sIdx} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="p-2.5 pl-4 font-bold text-slate-900 font-sans">
-                              {stock.wasteType}
-                            </td>
-                            <td className="p-2.5 text-amber-700 font-bold">
-                              {stock.code}
-                            </td>
-                            <td className="p-2.5 text-right">
-                              {stock.totalIn.toLocaleString('id-ID')} Kg
-                            </td>
-                            <td className="p-2.5 text-right text-slate-500">
-                              {stock.totalOut.toLocaleString('id-ID')} Kg
-                            </td>
-                            <td className="p-2.5 text-right font-black text-teal-700">
-                              {stock.currentStock.toLocaleString('id-ID')} Kg
-                            </td>
-                            <td className="p-2.5 text-center pr-4">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                stock.daysInTps >= 80 && stock.currentStock > 0
-                                  ? 'bg-red-50 text-red-600 border border-red-200'
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}>
-                                {stock.currentStock > 0 ? `${stock.daysInTps} Hari` : 'Nihil'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
+                        fullB3Ledger.stocks.map((stock, sIdx) => {
+                          const remainingDays = (stock.maxStorageDays || 90) - stock.daysInTps;
+                          const isCritical = stock.currentStock > 0 && remainingDays <= 15;
+                          return (
+                            <tr key={sIdx} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="p-2.5 pl-4 font-bold text-slate-900 font-sans">
+                                {stock.wasteType}
+                              </td>
+                              <td className="p-2.5 text-amber-700 font-bold">
+                                {stock.code}
+                              </td>
+                              <td className="p-2.5 text-right">
+                                {stock.totalIn.toLocaleString('id-ID')} Kg
+                              </td>
+                              <td className="p-2.5 text-right text-slate-500">
+                                {stock.totalOut.toLocaleString('id-ID')} Kg
+                              </td>
+                              <td className="p-2.5 text-right font-black text-teal-700">
+                                {stock.currentStock.toLocaleString('id-ID')} Kg
+                              </td>
+                              <td className="p-2.5 text-center pr-4">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  isCritical
+                                    ? 'bg-red-50 text-red-600 border border-red-200'
+                                    : stock.verificationStatus === 'PERLU VERIFIKASI'
+                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {stock.currentStock > 0
+                                    ? `${stock.daysInTps} / ${stock.maxStorageDays} Hari`
+                                    : 'Nihil'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -1013,7 +1101,7 @@ export default function ReportsView({
                       Analisis Stok Sisa & Laju Timbulan:
                     </h5>
                     <p className="text-slate-500 text-[11px]">
-                      Laju timbulan limbah masuk gudang bulan ini mencapai <span className="text-slate-800 font-mono font-bold">{totalB3InWeight} Kg</span> dengan pengeluaran diangkut transporter berizin sebesar <span className="text-slate-800 font-mono font-bold">{totalB3OutWeight} Kg</span>. Gudang TPS mengelola stok bersih aktif sebanyak <span className="text-amber-500 font-mono font-bold">{b3NetDifference} Kg</span>. Distribusi didominasi limbah beracun pelumas oli bekas (lubricant waste) dan filter terkontaminasi.
+                      Laju timbulan limbah masuk gudang periode ini mencapai <span className="text-slate-800 font-mono font-bold">{totalB3InWeight} Kg</span> dengan pengeluaran diangkut transporter berizin sebesar <span className="text-slate-800 font-mono font-bold">{totalB3OutWeight} Kg</span>. Gudang TPS mengelola stok bersih aktif sebanyak <span className="text-amber-500 font-mono font-bold">{totalB3StockInTps.toLocaleString('id-ID')} Kg</span>. Distribusi didominasi limbah pelumas oli bekas dan filter terkontaminasi.
                     </p>
                   </div>
                   <div className="space-y-1.5 text-left">
@@ -1022,10 +1110,10 @@ export default function ReportsView({
                       Kepatuhan Aturan Hukum (Turnover Law):
                     </h5>
                     <p className="text-slate-500 text-[11px]">
-                      Berdasarkan Peraturan Pemerintah No. 22 Tahun 2021 dan Peraturan Menteri LHK No. 6 Tahun 2021, penyimpanan limbah B3 di TPS berizin dibatasi maksimal selama 90 hingga 180 hari sebelum diserahkan ke pihak recycler atau pemusnah akhir berlisensi KLH/BPLH. {b3NetDifference > 2000 ? (
-                        <span className="text-red-600/90 font-semibold block mt-1">Peringatan: Stok sisa besar meningkatkan risiko bencana kebakaran material flammable. Jadwalkan pengangkutan transporter sesegera mungkin!</span>
+                      Berdasarkan PP No. 22 Tahun 2021 dan Permen LHK No. 6 Tahun 2021, batas waktu penyimpanan limbah B3 di TPS (90 / 180 / 365 hari) mengikuti kategori bahaya limbah dan rincian teknis Persetujuan Lingkungan PT DKB. {b3NetDifference > 2000 ? (
+                        <span className="text-red-600/90 font-semibold block mt-1">Peringatan: Akumulasi stok periode ini tinggi. Jadwalkan pengangkutan transporter berizin sesuai sisa masa simpan per jenis limbah.</span>
                       ) : (
-                        <span className="text-emerald-600/90 font-semibold block mt-1">Status gudang aman. Kecepatan sirkulasi limbah (turnover rate) terkendali di bawah garis ambang bahaya lingkungan tambang.</span>
+                        <span className="text-emerald-600/90 font-semibold block mt-1">Sirkulasi periode ini terkendali; tetap pantau sisa masa simpan per batch pada tabel mutasi di atas.</span>
                       )}
                     </p>
                   </div>

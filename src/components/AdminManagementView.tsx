@@ -30,7 +30,8 @@ import {
   Activity,
   FileText,
   Lock,
-  ChevronRight
+  ChevronRight,
+  Download
 } from 'lucide-react';
 import { 
   collection, 
@@ -41,15 +42,26 @@ import {
   setDoc, 
   getDocs,
   orderBy,
-  limit 
+  limit,
+  writeBatch,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../utils/firebaseAuth';
-import { UserProfile, PermissionMatrixItem, RolePermissions } from '../types';
+import { UserProfile } from '../types';
 import { useAuth } from '../services/authService';
-import { isAdmin as isAdminRole } from '../services/permissionService';
+import { isAdmin as isAdminRole, isStrictAdmin } from '../services/permissionService';
 import { auditService } from '../services/auditService';
-import { ROLES } from '../utils/roles';
+import { ROLES, MANAGER_ASSIGNABLE_ROLES } from '../utils/roles';
+import {
+  classifyReconciliationRows,
+  validateReconciliationCommitInput,
+  type ReconciliationRow,
+  type RoleDocRecord,
+} from '../utils/roleReconciliation';
+import { exportRoleReconciliationToXLSX } from '../services/exportService';
 import { getTimeMs, formatTimestamp } from '../utils/dateUtils';
+import { runSafeDataMigrations } from '../utils/migrations';
+import { triggerToast as pushGlobalToast } from '../utils/errorHandler';
 import StatusBadge from './StatusBadge';
 import EmptyState from './EmptyState';
 import TableSkeleton from './TableSkeleton';
@@ -99,7 +111,9 @@ const MODULE_PERMISSIONS = [
 export default function AdminManagementView({ initialTab = 'approval' }: AdminManagementViewProps) {
   const { user: currentUser, profile: currentProfile, sendPasswordReset } = useAuth();
   const canManageUsers = isAdminRole(currentProfile);
-  const [activeTab, setActiveTab] = useState<'approval' | 'users' | 'roles' | 'audit'>(
+  const isStrictAdminUser = isStrictAdmin(currentProfile);
+  const assignableRoles = isStrictAdminUser ? AVAILABLE_ROLES : MANAGER_ASSIGNABLE_ROLES;
+  const [activeTab, setActiveTab] = useState<'approval' | 'users' | 'roles' | 'reconcile' | 'audit'>(
     canManageUsers ? initialTab : 'audit'
   );
 
@@ -109,9 +123,16 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
   // State pools
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
+  const [rolesDocs, setRolesDocs] = useState<RoleDocRecord[]>([]);
+  const [loadingRolesDocs, setLoadingRolesDocs] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingAudit, setLoadingAudit] = useState(true);
+
+  // Rekonsiliasi Peran state (K-03) — tanpa auto-copy / tanpa auto-fix
+  const [reconcileFilter, setReconcileFilter] = useState<'ALL' | 'ISSUES_ONLY'>('ALL');
+  const [reconcileDrafts, setReconcileDrafts] = useState<Record<string, { level: string; reason: string }>>({});
+  const [savingReconcileKey, setSavingReconcileKey] = useState<string | null>(null);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -124,7 +145,13 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
   const [rejectReason, setRejectReason] = useState('');
   const [editRoleTarget, setEditRoleTarget] = useState<UserProfile | null>(null);
   const [selectedNewRole, setSelectedNewRole] = useState<string>('Viewer');
+  const [confirmAction, setConfirmAction] = useState<{
+    type: 'disable' | 'reset_password' | 'delete';
+    user: UserProfile;
+  } | null>(null);
+  const [isConfirmExecuting, setIsConfirmExecuting] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  const [isMigrating, setIsMigrating] = useState(false);
 
   // Permission Matrix State
   const [permissionMatrix, setPermissionMatrix] = useState<Record<string, Record<string, boolean>>>({});
@@ -161,6 +188,40 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
       console.error("Error subscribing to users list:", err);
       setLoadingUsers(false);
     });
+
+    return () => unsubscribe();
+  }, [canManageUsers]);
+
+  // Real-time listener for /roles (Admin & Environment Manager — sumber peran tunggal K-03)
+  useEffect(() => {
+    if (!canManageUsers) {
+      setRolesDocs([]);
+      setLoadingRolesDocs(false);
+      return;
+    }
+    setLoadingRolesDocs(true);
+    const unsubscribe = onSnapshot(
+      collection(db, 'roles'),
+      (snapshot) => {
+        const list: RoleDocRecord[] = [];
+        snapshot.forEach((docSnap) => {
+          const d = docSnap.data() as Record<string, any>;
+          list.push({
+            id: docSnap.id,
+            email: d?.email,
+            level: d?.level,
+            updatedAt: d?.updatedAt,
+            updatedBy: d?.updatedBy,
+          });
+        });
+        setRolesDocs(list);
+        setLoadingRolesDocs(false);
+      },
+      (err) => {
+        console.error('Error subscribing to /roles collection:', err);
+        setLoadingRolesDocs(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [canManageUsers]);
@@ -241,49 +302,264 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
     setTimeout(() => setActionSuccessMsg(null), 4000);
   };
 
+  const reconcileRows = React.useMemo(
+    () => classifyReconciliationRows(usersList, rolesDocs),
+    [usersList, rolesDocs]
+  );
+
+  const visibleReconcileRows = React.useMemo(
+    () => (reconcileFilter === 'ISSUES_ONLY' ? reconcileRows.filter((r) => r.isIssue) : reconcileRows),
+    [reconcileRows, reconcileFilter]
+  );
+
+  const reconcileStats = React.useMemo(() => {
+    let highRisk = 0;
+    let activeNoRole = 0;
+    let mismatch = 0;
+    let orphanRole = 0;
+    for (const r of reconcileRows) {
+      if (r.findingCode === 'C_HIGH_RISK') highRisk += 1;
+      else if (r.findingCode === 'A_ACTIVE_NO_ROLE') activeNoRole += 1;
+      else if (r.findingCode === 'B_ROLE_MISMATCH') mismatch += 1;
+      else if (r.findingCode === 'D_ORPHAN_ROLE') orphanRole += 1;
+    }
+    return {
+      highRisk,
+      activeNoRole,
+      mismatch,
+      orphanRole,
+      totalIssues: highRisk + activeNoRole + mismatch + orphanRole,
+    };
+  }, [reconcileRows]);
+
+  const handleReconcileDraftChange = (
+    rowKey: string,
+    patch: Partial<{ level: string; reason: string }>
+  ) => {
+    setReconcileDrafts((prev) => {
+      const current = prev[rowKey] || { level: '', reason: '' };
+      return {
+        ...prev,
+        [rowKey]: {
+          ...current,
+          ...patch,
+        },
+      };
+    });
+  };
+
+  const handleReconcileAssign = async (row: ReconciliationRow) => {
+    if (!isStrictAdminUser) {
+      pushGlobalToast('Hanya peran Admin yang dapat melakukan rekonsiliasi /roles.', 'error');
+      return;
+    }
+    if (!currentUser?.uid || !currentUser?.email) {
+      pushGlobalToast('Sesi Admin tidak valid (UID/Email tidak ditemukan).', 'error');
+      return;
+    }
+    if (!row.roleDocId || row.roleDocId === '-') {
+      pushGlobalToast('Email target tidak valid untuk penulisan dokumen /roles.', 'error');
+      return;
+    }
+
+    const draft = reconcileDrafts[row.rowKey] || { level: '', reason: '' };
+    const check = validateReconciliationCommitInput(draft.level, draft.reason);
+    if (!check.valid || 'error' in check) {
+      pushGlobalToast(('error' in check ? check.error : 'Input tidak valid.'), 'warning');
+      return;
+    }
+
+    setSavingReconcileKey(row.rowKey);
+    try {
+      const batch = writeBatch(db);
+      const roleRef = doc(db, 'roles', row.roleDocId);
+      batch.set(
+        roleRef,
+        {
+          email: row.roleDocId,
+          level: check.level,
+          updatedAt: serverTimestamp(),
+          updatedBy: currentUser.email,
+        },
+        { merge: true }
+      );
+
+      if (row.uid) {
+        const userRef = doc(db, 'users', row.uid);
+        batch.update(userRef, {
+          role: check.level,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      const logId = `LOG-${crypto.randomUUID()}`;
+      const oldUsersRole = row.usersRole ?? '(kosong)';
+      const oldRolesLevel = row.rolesLevel ?? '(tidak ada)';
+      const actorName = (
+        currentProfile?.fullName ||
+        currentProfile?.name ||
+        currentUser.displayName ||
+        currentUser.email
+      ).slice(0, 120);
+
+      batch.set(doc(db, 'audit_logs', logId), {
+        id: logId,
+        uid: currentUser.uid,
+        timestamp: serverTimestamp(),
+        user: currentUser.email,
+        actorName,
+        actorRole: 'Admin',
+        module: 'role_reconciliation',
+        collection: 'roles',
+        recordId: row.roleDocId.slice(0, 128),
+        action: 'role_change',
+        details: `RECONCILE_ROLE [${row.findingLabel}] ${row.email}: users.role=${oldUsersRole}, roles.level=${oldRolesLevel} -> ${check.level}`.slice(0, 995),
+        beforeData: {
+          usersRole: row.usersRole ?? null,
+          rolesLevel: row.rolesLevel ?? null,
+          findingCode: row.findingCode,
+        },
+        afterData: {
+          usersRole: row.uid ? check.level : null,
+          rolesLevel: check.level,
+        },
+        correctionReason: check.reason.slice(0, 400),
+        status: 'SUCCESS',
+      });
+
+      await batch.commit();
+
+      setReconcileDrafts((prev) => {
+        const next = { ...prev };
+        delete next[row.rowKey];
+        return next;
+      });
+      triggerToast(`Rekonsiliasi peran untuk ${row.email} berhasil ditetapkan sebagai ${check.level}.`);
+    } catch (err: any) {
+      console.error('Role reconciliation commit failed:', err);
+      pushGlobalToast(`Gagal menetapkan peran untuk ${row.email}: ${err?.message || 'Error'}`, 'error');
+    } finally {
+      setSavingReconcileKey(null);
+    }
+  };
+
+  const rolesByEmailMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rolesDocs) {
+      const key = (r.email || r.id || '').toLowerCase().trim();
+      if (key && r.level) map.set(key, String(r.level));
+    }
+    return map;
+  }, [rolesDocs]);
+
+  const getAuthoritativeRole = (u: UserProfile): string => {
+    const key = (u.email || '').toLowerCase().trim();
+    return (key && rolesByEmailMap.get(key)) || 'Viewer';
+  };
+
+  const isSelfUser = (u: UserProfile): boolean => {
+    if (!currentUser) return false;
+    return (
+      u.uid === currentUser.uid ||
+      Boolean(u.email && currentUser.email && u.email.toLowerCase() === currentUser.email.toLowerCase())
+    );
+  };
+
+  const canActOnTargetUser = (u: UserProfile): boolean => {
+    if (isSelfUser(u)) return false;
+    if (isStrictAdminUser) return true;
+    const authRole = getAuthoritativeRole(u);
+    return (MANAGER_ASSIGNABLE_ROLES as readonly string[]).includes(authRole);
+  };
+
+  const getActorName = () =>
+    (currentProfile?.fullName || currentProfile?.name || currentUser?.displayName || currentUser?.email || 'Admin').slice(0, 120);
+
+  const getActorRoleLabel = () =>
+    currentProfile?.role || (isStrictAdminUser ? 'Admin' : 'Environment Manager');
+
   // HANDLERS
   const handleApproveConfirm = async () => {
     if (!approveUserTarget || !approveUserTarget.uid) return;
+    if (!currentUser?.uid || !currentUser?.email) {
+      pushGlobalToast('Sesi pengguna tidak valid untuk persetujuan.', 'error');
+      return;
+    }
+    if (isSelfUser(approveUserTarget)) {
+      pushGlobalToast('Tidak dapat menyetujui akun milik sendiri.', 'error');
+      return;
+    }
+    if (!isStrictAdminUser && !(MANAGER_ASSIGNABLE_ROLES as readonly string[]).includes(selectedApproveRole)) {
+      pushGlobalToast('Environment Manager hanya dapat menetapkan peran hingga Environment Superintendent.', 'error');
+      return;
+    }
     try {
+      const batch = writeBatch(db);
       const userRef = doc(db, 'users', approveUserTarget.uid);
-      const updatePayload = {
+      const nowIso = new Date().toISOString();
+      const userUpdatePayload: Record<string, any> = {
         status: 'Active',
         isApproved: true,
         isActive: true,
-        role: selectedApproveRole,
-        approvedBy: currentUser?.email || 'Admin',
-        approvedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        approvedBy: currentUser.email,
+        approvedAt: nowIso,
+        updatedAt: nowIso,
       };
-
-      await updateDoc(userRef, updatePayload);
-
-      if (approveUserTarget.email) {
-        await setDoc(doc(db, 'roles', approveUserTarget.email), {
-          level: selectedApproveRole,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
+      if (isStrictAdminUser) {
+        userUpdatePayload.role = selectedApproveRole;
       }
 
-      await auditService.createLog({
+      batch.update(userRef, userUpdatePayload);
+
+      if (approveUserTarget.email) {
+        batch.set(
+          doc(db, 'roles', approveUserTarget.email),
+          {
+            email: approveUserTarget.email,
+            level: selectedApproveRole,
+            updatedAt: serverTimestamp(),
+            updatedBy: currentUser.email,
+          },
+          { merge: true }
+        );
+      }
+
+      const logId = `LOG-${crypto.randomUUID()}`;
+      batch.set(doc(db, 'audit_logs', logId), {
+        id: logId,
+        uid: currentUser.uid,
+        timestamp: serverTimestamp(),
+        user: currentUser.email,
+        actorName: getActorName(),
+        actorRole: getActorRoleLabel(),
+        module: 'approval',
         collection: 'users',
-        recordId: approveUserTarget.uid,
-        action: 'update',
-        details: `APPROVE_USER: ${approveUserTarget.email} assigned role ${selectedApproveRole} by ${currentUser?.email}`
+        recordId: approveUserTarget.uid.slice(0, 128),
+        action: 'approve',
+        details: `APPROVE_USER: ${approveUserTarget.email} assigned role ${selectedApproveRole} by ${currentUser.email}`.slice(0, 995),
+        beforeData: { status: approveUserTarget.status || 'Pending', role: approveUserTarget.role || 'Viewer' },
+        afterData: { status: 'Active', role: selectedApproveRole },
+        status: 'SUCCESS',
       });
+
+      await batch.commit();
 
       triggerToast(`Pengguna ${approveUserTarget.fullName || approveUserTarget.email} berhasil disetujui sebagai ${selectedApproveRole}.`);
       setApproveUserTarget(null);
     } catch (err: any) {
       console.error("Approve failed:", err);
-      alert("Gagal menyetujui pengguna: " + err.message);
+      pushGlobalToast("Gagal menyetujui pengguna: " + (err?.message || 'Unknown error'), 'error');
     }
   };
 
   const handleRejectConfirm = async () => {
     if (!rejectUserTarget || !rejectUserTarget.uid) return;
+    if (isSelfUser(rejectUserTarget)) {
+      pushGlobalToast('Tidak dapat menolak akun milik sendiri.', 'error');
+      return;
+    }
     if (!rejectReason.trim()) {
-      alert("Alasan penolakan wajib diisi.");
+      pushGlobalToast("Alasan penolakan wajib diisi.", 'warning');
       return;
     }
     try {
@@ -300,8 +576,9 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
       await auditService.createLog({
         collection: 'users',
+        module: 'approval',
         recordId: rejectUserTarget.uid,
-        action: 'update',
+        action: 'reject',
         details: `REJECT_USER: ${rejectUserTarget.email} by ${currentUser?.email}. Reason: ${rejectReason}`
       });
 
@@ -310,40 +587,61 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
       setRejectReason('');
     } catch (err: any) {
       console.error("Reject failed:", err);
-      alert("Gagal menolak pengguna: " + err.message);
+      pushGlobalToast("Gagal menolak pengguna: " + (err?.message || 'Unknown error'), 'error');
     }
   };
 
-  const handleDisableUser = async (u: UserProfile) => {
-    if (!u.uid) return;
-    if (!confirm(`Nonaktifkan akses pengguna ${u.fullName || u.email}?`)) return;
+  const executeDisableUser = async (u: UserProfile) => {
+    if (!u.uid || !currentUser?.uid || !currentUser?.email) return;
+    if (!canActOnTargetUser(u)) {
+      pushGlobalToast('Anda tidak memiliki kewenangan untuk menonaktifkan akun ini.', 'error');
+      return;
+    }
     try {
-      await updateDoc(doc(db, 'users', u.uid), {
+      const batch = writeBatch(db);
+      const nowIso = new Date().toISOString();
+      batch.update(doc(db, 'users', u.uid), {
         status: 'Disabled',
         isApproved: false,
         isActive: false,
-        updatedAt: new Date().toISOString()
+        updatedAt: nowIso
       });
       if (u.email) {
-        await setDoc(doc(db, 'roles', u.email), {
+        batch.set(doc(db, 'roles', u.email), {
+          email: u.email,
           level: 'Viewer',
-          updatedAt: new Date().toISOString()
+          updatedAt: serverTimestamp(),
+          updatedBy: currentUser.email,
         }, { merge: true });
       }
-      await auditService.createLog({
+      const logId = `LOG-${crypto.randomUUID()}`;
+      batch.set(doc(db, 'audit_logs', logId), {
+        id: logId,
+        uid: currentUser.uid,
+        timestamp: serverTimestamp(),
+        user: currentUser.email,
+        actorName: getActorName(),
+        actorRole: getActorRoleLabel(),
+        module: 'user_management',
         collection: 'users',
-        recordId: u.uid,
+        recordId: u.uid.slice(0, 128),
         action: 'update',
-        details: `DISABLE_USER: ${u.email} disabled by ${currentUser?.email}`
+        details: `DISABLE_USER: ${u.email} disabled by ${currentUser.email}`.slice(0, 995),
+        status: 'SUCCESS',
       });
+      await batch.commit();
       triggerToast(`Pengguna ${u.email} berhasil dinonaktifkan.`);
     } catch (err: any) {
-      alert("Gagal menonaktifkan pengguna: " + err.message);
+      pushGlobalToast("Gagal menonaktifkan pengguna: " + (err?.message || 'Unknown error'), 'error');
     }
   };
 
   const handleEnableUser = async (u: UserProfile) => {
     if (!u.uid) return;
+    if (!canActOnTargetUser(u)) {
+      pushGlobalToast('Anda tidak memiliki kewenangan untuk mengaktifkan akun ini.', 'error');
+      return;
+    }
     try {
       await updateDoc(doc(db, 'users', u.uid), {
         status: 'Active',
@@ -353,91 +651,205 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
       });
       await auditService.createLog({
         collection: 'users',
+        module: 'user_management',
         recordId: u.uid,
         action: 'update',
         details: `ENABLE_USER: ${u.email} enabled by ${currentUser?.email}`
       });
       triggerToast(`Pengguna ${u.email} berhasil diaktifkan kembali.`);
     } catch (err: any) {
-      alert("Gagal mengaktifkan pengguna: " + err.message);
+      pushGlobalToast('Gagal mengaktifkan pengguna: ' + err.message, 'error');
     }
   };
 
-  const handleResetPassword = async (u: UserProfile) => {
+  const handleSuspendUser = async (u: UserProfile) => {
+    if (!u.uid) return;
+    if (!canActOnTargetUser(u)) {
+      pushGlobalToast('Anda tidak memiliki kewenangan untuk menangguhkan akun ini.', 'error');
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'users', u.uid), {
+        status: 'Suspended',
+        isApproved: false,
+        isActive: false,
+        updatedAt: new Date().toISOString()
+      });
+      await auditService.createLog({
+        collection: 'users',
+        module: 'user_management',
+        recordId: u.uid,
+        action: 'update',
+        details: `SUSPEND_USER: ${u.email} ditangguhkan oleh ${currentUser?.email}`,
+        beforeData: { status: u.status, isApproved: u.isApproved },
+        afterData: { status: 'Suspended', isApproved: false },
+      });
+      triggerToast(`Akun ${u.email} berhasil ditangguhkan (Suspended).`);
+    } catch (err: any) {
+      pushGlobalToast('Gagal menangguhkan pengguna: ' + err.message, 'error');
+    }
+  };
+
+  const handleRunMigrations = async () => {
+    setIsMigrating(true);
+    try {
+      const report = await runSafeDataMigrations();
+      triggerToast(
+        `Migrasi aman selesai: ${report.standardsSeeded} standar ditambah, ${report.standardsUpdated} standar diperbarui, ${report.usersNormalized} profil user dinormalisasi, ${report.ghgBackfilled} aktivitas GRK ditandai.`,
+      );
+      pushGlobalToast('Migrasi aman database selesai dijalankan.', 'success');
+    } catch (err: any) {
+      pushGlobalToast('Gagal menjalankan migrasi aman: ' + (err?.message || 'Unknown error'), 'error');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
+  const executeResetPassword = async (u: UserProfile) => {
     if (!u.email) return;
-    if (!confirm(`Kirim tautan reset password ke ${u.email}?`)) return;
     try {
       await sendPasswordReset(u.email);
       await auditService.createLog({
         collection: 'users',
+        module: 'user_management',
         recordId: u.uid || u.email,
         action: 'update',
         details: `RESET_PASSWORD email sent to ${u.email} by ${currentUser?.email}`
       });
       triggerToast(`Email reset password berhasil dikirim ke ${u.email}.`);
     } catch (err: any) {
-      alert("Gagal mengirim reset password: " + err.message);
+      pushGlobalToast("Gagal mengirim reset password: " + (err?.message || 'Unknown error'), 'error');
     }
   };
 
-  const handleDeleteUser = async (u: UserProfile) => {
-    if (!u.uid) return;
-    if (!confirm(`Hapus pengguna ${u.fullName || u.email}? Pengguna akan dihapus secara soft-delete.`)) return;
+  const executeDeleteUser = async (u: UserProfile) => {
+    if (!u.uid || !currentUser?.uid || !currentUser?.email) return;
+    if (!canActOnTargetUser(u)) {
+      pushGlobalToast('Anda tidak memiliki kewenangan untuk menghapus akun ini.', 'error');
+      return;
+    }
     try {
-      await updateDoc(doc(db, 'users', u.uid), {
+      const batch = writeBatch(db);
+      const nowIso = new Date().toISOString();
+      batch.update(doc(db, 'users', u.uid), {
         deleted: true,
         status: 'Deleted',
         isApproved: false,
         isActive: false,
-        deletedAt: new Date().toISOString(),
-        deletedBy: currentUser?.email || 'Admin',
-        updatedAt: new Date().toISOString()
+        deletedAt: nowIso,
+        deletedBy: currentUser.email,
+        updatedAt: nowIso
       });
       if (u.email) {
-        await setDoc(doc(db, 'roles', u.email), {
+        batch.set(doc(db, 'roles', u.email), {
+          email: u.email,
           level: 'Viewer',
-          updatedAt: new Date().toISOString()
+          updatedAt: serverTimestamp(),
+          updatedBy: currentUser.email,
         }, { merge: true });
       }
-      await auditService.createLog({
+      const logId = `LOG-${crypto.randomUUID()}`;
+      batch.set(doc(db, 'audit_logs', logId), {
+        id: logId,
+        uid: currentUser.uid,
+        timestamp: serverTimestamp(),
+        user: currentUser.email,
+        actorName: getActorName(),
+        actorRole: getActorRoleLabel(),
+        module: 'user_management',
         collection: 'users',
-        recordId: u.uid,
+        recordId: u.uid.slice(0, 128),
         action: 'delete',
-        details: `DELETE_USER (soft delete): ${u.email} deleted by ${currentUser?.email}`
+        details: `DELETE_USER (soft delete): ${u.email} deleted by ${currentUser.email}`.slice(0, 995),
+        status: 'SUCCESS',
       });
+      await batch.commit();
       triggerToast(`Pengguna ${u.email} berhasil dihapus.`);
     } catch (err: any) {
-      alert("Gagal menghapus pengguna: " + err.message);
+      pushGlobalToast("Gagal menghapus pengguna: " + (err?.message || 'Unknown error'), 'error');
+    }
+  };
+
+  const handleConfirmActionExecute = async () => {
+    if (!confirmAction) return;
+    setIsConfirmExecuting(true);
+    try {
+      if (confirmAction.type === 'disable') {
+        await executeDisableUser(confirmAction.user);
+      } else if (confirmAction.type === 'reset_password') {
+        await executeResetPassword(confirmAction.user);
+      } else if (confirmAction.type === 'delete') {
+        await executeDeleteUser(confirmAction.user);
+      }
+      setConfirmAction(null);
+    } finally {
+      setIsConfirmExecuting(false);
     }
   };
 
   const handleEditRoleConfirm = async () => {
-    if (!editRoleTarget || !editRoleTarget.uid) return;
+    if (!editRoleTarget || !editRoleTarget.uid || !currentUser?.uid || !currentUser?.email) return;
+    if (isSelfUser(editRoleTarget)) {
+      pushGlobalToast('Tidak dapat mengubah peran akun milik sendiri.', 'error');
+      return;
+    }
+    const oldAuthRole = getAuthoritativeRole(editRoleTarget);
+    if (!isStrictAdminUser) {
+      if (
+        !(MANAGER_ASSIGNABLE_ROLES as readonly string[]).includes(oldAuthRole) ||
+        !(MANAGER_ASSIGNABLE_ROLES as readonly string[]).includes(selectedNewRole)
+      ) {
+        pushGlobalToast('Environment Manager hanya dapat mengelola peran hingga Environment Superintendent.', 'error');
+        return;
+      }
+    }
     try {
-      await updateDoc(doc(db, 'users', editRoleTarget.uid), {
-        role: selectedNewRole,
-        updatedAt: new Date().toISOString()
-      });
+      const batch = writeBatch(db);
+      const nowIso = new Date().toISOString();
+      if (isStrictAdminUser) {
+        batch.update(doc(db, 'users', editRoleTarget.uid), {
+          role: selectedNewRole,
+          updatedAt: nowIso,
+        });
+      }
       if (editRoleTarget.email) {
-        await setDoc(doc(db, 'roles', editRoleTarget.email), {
+        batch.set(doc(db, 'roles', editRoleTarget.email), {
+          email: editRoleTarget.email,
           level: selectedNewRole,
-          updatedAt: new Date().toISOString()
+          updatedAt: serverTimestamp(),
+          updatedBy: currentUser.email,
         }, { merge: true });
       }
-      await auditService.createLog({
-        collection: 'users',
-        recordId: editRoleTarget.uid,
-        action: 'update',
-        details: `CHANGE_ROLE: ${editRoleTarget.email} role changed to ${selectedNewRole} by ${currentUser?.email}`
+      const logId = `LOG-${crypto.randomUUID()}`;
+      batch.set(doc(db, 'audit_logs', logId), {
+        id: logId,
+        uid: currentUser.uid,
+        timestamp: serverTimestamp(),
+        user: currentUser.email,
+        actorName: getActorName(),
+        actorRole: getActorRoleLabel(),
+        module: 'role_management',
+        collection: 'roles',
+        recordId: (editRoleTarget.email || editRoleTarget.uid).slice(0, 128),
+        action: 'role_change',
+        details: `CHANGE_ROLE: ${editRoleTarget.email} role changed from ${oldAuthRole} to ${selectedNewRole} by ${currentUser.email}`.slice(0, 995),
+        beforeData: { role: oldAuthRole },
+        afterData: { role: selectedNewRole },
+        status: 'SUCCESS',
       });
+      await batch.commit();
       triggerToast(`Peran pengguna ${editRoleTarget.email} berhasil diubah ke ${selectedNewRole}.`);
       setEditRoleTarget(null);
     } catch (err: any) {
-      alert("Gagal memperbarui peranan: " + err.message);
+      pushGlobalToast("Gagal memperbarui peranan: " + (err?.message || 'Unknown error'), 'error');
     }
   };
 
   const togglePermission = async (role: string, modKey: string) => {
+    if (!isStrictAdminUser) {
+      pushGlobalToast('Hanya Strict Admin yang dapat mengubah matriks izin aplikasi.', 'error');
+      return;
+    }
     const nextMatrix = {
       ...permissionMatrix,
       [role]: {
@@ -454,6 +866,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
       }, { merge: true });
     } catch (err: any) {
       console.error("Gagal menyimpan matriks izin:", err);
+      pushGlobalToast("Gagal menyimpan matriks izin: " + (err?.message || 'Permission denied'), 'error');
     }
   };
 
@@ -555,6 +968,31 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                 Role Management & Permission Matrix
               </button>
             </>
+          )}
+
+          {isStrictAdminUser && (
+            <button
+              onClick={() => setActiveTab('reconcile')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'reconcile'
+                  ? 'bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/45 shadow-glow-cyan'
+                  : 'bg-bg-1 text-text-mid hover:text-text-hi hover:bg-bg-2 border border-border-subtle'
+              }`}
+            >
+              <ShieldAlert className="w-4 h-4" />
+              Rekonsiliasi Peran
+              {reconcileStats.totalIssues > 0 && (
+                <span
+                  className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-mono tabular-nums font-bold border ${
+                    reconcileStats.highRisk > 0
+                      ? 'bg-neon-red/20 text-neon-red border-neon-red/40'
+                      : 'bg-neon-amber/20 text-neon-amber border-neon-amber/40'
+                  }`}
+                >
+                  {reconcileStats.totalIssues}
+                </span>
+              )}
+            </button>
           )}
 
           <button
@@ -709,9 +1147,20 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                 <option value="ALL">Semua Status</option>
                 <option value="Active">Active</option>
                 <option value="Pending">Pending</option>
+                <option value="Suspended">Suspended</option>
                 <option value="Disabled">Disabled</option>
                 <option value="Rejected">Rejected</option>
               </select>
+
+              <button
+                type="button"
+                disabled={isMigrating}
+                onClick={handleRunMigrations}
+                className="px-3 py-2 bg-bg-1 hover:bg-bg-2 border border-border-neon text-neon-cyan text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+                title="Normalisasi aman data lama (standar PERTEK, flag isApproved, status GRK)"
+              >
+                {isMigrating ? 'Migrasi...' : 'Migrasi Aman Data'}
+              </button>
             </div>
           </div>
 
@@ -737,7 +1186,13 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((u) => (
+                  filteredUsers.map((u) => {
+                    const authRole = getAuthoritativeRole(u);
+                    const isSelf = isSelfUser(u);
+                    const canAct = canActOnTargetUser(u);
+                    const hasRoleMismatch = isStrictAdminUser && u.role && u.role !== authRole;
+
+                    return (
                     <tr key={u.uid}>
                       <td className="pl-4">
                         <div className="flex items-center gap-3">
@@ -749,17 +1204,27 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                             </div>
                           )}
                           <div>
-                            <p className="font-bold text-text-hi">{u.fullName || u.name}</p>
+                            <p className="font-bold text-text-hi">
+                              {u.fullName || u.name}
+                              {isSelf && <span className="ml-1.5 text-[10px] font-mono text-neon-cyan">(Anda)</span>}
+                            </p>
                             <p className="text-[10px] text-text-low">{u.position || 'Staff'}</p>
                           </div>
                         </div>
                       </td>
                       <td className="font-mono text-text-mid">{u.email}</td>
                       <td>
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30 inline-flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3 text-neon-cyan" />
-                          {u.role || 'Viewer'}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30 inline-flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-neon-cyan" />
+                            {authRole}
+                          </span>
+                          {hasRoleMismatch && (
+                            <span className="text-[10px] font-mono text-neon-amber">
+                              users.role: {u.role} (tidak sinkron)
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <p className="text-text-hi font-medium">{u.department || '-'}</p>
@@ -776,6 +1241,8 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                           <StatusBadge status="Safe" label="Active" />
                         ) : u.status === 'Pending' ? (
                           <StatusBadge status="Warning" label="Pending" />
+                        ) : u.status === 'Suspended' ? (
+                          <StatusBadge status="Exceeded" label="Suspended" />
                         ) : u.status === 'Disabled' ? (
                           <StatusBadge status="Dipantau" label="Disabled" />
                         ) : (
@@ -786,30 +1253,57 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                         <div className="flex items-center justify-center gap-1.5">
                           {/* Ubah Peran */}
                           <button
+                            type="button"
+                            disabled={!canAct}
                             onClick={() => {
+                              if (!canAct) return;
                               setEditRoleTarget(u);
-                              setSelectedNewRole(u.role || 'Viewer');
+                              const nextInitial = (assignableRoles as readonly string[]).includes(authRole)
+                                ? authRole
+                                : assignableRoles[0];
+                              setSelectedNewRole(nextInitial);
                             }}
-                            title="Ubah Peran (Role)"
-                            className="p-1.5 bg-neon-cyan/15 text-neon-cyan hover:bg-neon-cyan/25 border border-neon-cyan/30 rounded-lg transition-colors cursor-pointer"
+                            title={
+                              isSelf
+                                ? 'Tidak dapat mengubah peran akun sendiri'
+                                : !canAct
+                                  ? 'Hanya Strict Admin yang dapat mengubah peran Admin/Manager'
+                                  : 'Ubah Peran (Role)'
+                            }
+                            className="p-1.5 bg-neon-cyan/15 text-neon-cyan hover:bg-neon-cyan/25 border border-neon-cyan/30 rounded-lg transition-colors cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Toggle Enable / Disable */}
+                          {/* Toggle Suspend / Disable / Enable */}
                           {u.status === 'Active' ? (
-                            <button
-                              onClick={() => handleDisableUser(u)}
-                              title="Nonaktifkan Akun"
-                              className="p-1.5 bg-neon-amber/15 text-neon-amber hover:bg-neon-amber/25 border border-neon-amber/30 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <Ban className="w-3.5 h-3.5" />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                disabled={!canAct}
+                                onClick={() => handleSuspendUser(u)}
+                                title={canAct ? 'Tangguhkan Akun (Suspend)' : 'Tidak diizinkan untuk akun ini'}
+                                className="p-1.5 bg-neon-red/15 text-neon-red hover:bg-neon-red/25 border border-neon-red/30 rounded-lg transition-colors cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                              >
+                                <ShieldAlert className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={!canAct}
+                                onClick={() => setConfirmAction({ type: 'disable', user: u })}
+                                title={canAct ? 'Nonaktifkan Akun' : 'Tidak diizinkan untuk akun ini'}
+                                className="p-1.5 bg-neon-amber/15 text-neon-amber hover:bg-neon-amber/25 border border-neon-amber/30 rounded-lg transition-colors cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+                              >
+                                <Ban className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           ) : (
                             <button
+                              type="button"
+                              disabled={!canAct}
                               onClick={() => handleEnableUser(u)}
-                              title="Aktifkan Akun"
-                              className="p-1.5 bg-neon-green/15 text-neon-green hover:bg-neon-green/25 border border-neon-green/30 rounded-lg transition-colors cursor-pointer"
+                              title={canAct ? 'Aktifkan Akun' : 'Tidak diizinkan untuk akun ini'}
+                              className="p-1.5 bg-neon-green/15 text-neon-green hover:bg-neon-green/25 border border-neon-green/30 rounded-lg transition-colors cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
@@ -817,7 +1311,8 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
                           {/* Reset Password */}
                           <button
-                            onClick={() => handleResetPassword(u)}
+                            type="button"
+                            onClick={() => setConfirmAction({ type: 'reset_password', user: u })}
                             title="Kirim Email Reset Password"
                             className="p-1.5 bg-bg-2 text-text-mid hover:text-text-hi hover:bg-bg-1 border border-border-subtle rounded-lg transition-colors cursor-pointer"
                           >
@@ -826,16 +1321,19 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
 
                           {/* Delete User */}
                           <button
-                            onClick={() => handleDeleteUser(u)}
-                            title="Hapus Pengguna (Soft Delete)"
-                            className="p-1.5 bg-neon-red/15 text-neon-red hover:bg-neon-red/25 border border-neon-red/30 rounded-lg transition-colors cursor-pointer"
+                            type="button"
+                            disabled={!canAct}
+                            onClick={() => setConfirmAction({ type: 'delete', user: u })}
+                            title={canAct ? 'Hapus Pengguna (Soft Delete)' : 'Tidak diizinkan untuk akun ini'}
+                            className="p-1.5 bg-neon-red/15 text-neon-red hover:bg-neon-red/25 border border-neon-red/30 rounded-lg transition-colors cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ))
+                  );
+                  })
                 )}
               </tbody>
             </table>
@@ -882,13 +1380,18 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                         <td key={role} className="text-center">
                           <button
                             type="button"
+                            disabled={!isStrictAdminUser}
                             onClick={() => togglePermission(role, mod.key)}
-                            className={`w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                               isAllowed
                                 ? 'bg-neon-green/15 text-neon-green border border-neon-green/40 hover:bg-neon-green/25 shadow-glow-green'
                                 : 'bg-bg-0/60 text-text-low border border-border-subtle hover:bg-bg-2 hover:text-text-mid'
                             }`}
-                            title={`${role}: ${isAllowed ? 'Diizinkan' : 'Dilarang'}`}
+                            title={
+                              !isStrictAdminUser
+                                ? 'Hanya Strict Admin yang dapat mengubah matriks izin'
+                                : `${role}: ${isAllowed ? 'Diizinkan' : 'Dilarang'}`
+                            }
                           >
                             {isAllowed ? <Check className="w-4 h-4 font-bold" /> : <X className="w-3.5 h-3.5" />}
                           </button>
@@ -921,8 +1424,17 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
             </span>
           </div>
 
+          <div className="p-3.5 rounded-2xl bg-neon-amber/10 border border-neon-amber/35 text-[11px] text-text-mid leading-relaxed flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-neon-amber shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-text-hi">Catatan Keamanan Arsitektur (Audit &amp; Kontrol Backend):</strong>{' '}
+              Jejak audit terstruktur (modul, actorRole, before/after snapshot, correctionReason, serverTimestamp) divalidasi oleh Firestore Security Rules yang bersifat append-only (immutable).
+              Custom claims otomatis Firebase Auth, counters/neraca transaksi atomik lintas-dokumen, dan pencatatan audit server-side penuh memerlukan deployment Firebase Cloud Functions (Admin SDK).
+            </div>
+          </div>
+
           {loadingAudit ? (
-            <TableSkeleton columns={5} rows={6} />
+            <TableSkeleton columns={6} rows={6} />
           ) : auditLogs.length === 0 ? (
             <EmptyState
               icon={Activity}
@@ -936,9 +1448,9 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                   <tr>
                     <th className="pl-4">Timestamp</th>
                     <th>User Executed</th>
-                    <th>Koleksi</th>
+                    <th>Modul / Koleksi</th>
                     <th>Tipe Aksi</th>
-                    <th className="pr-4">Detail Catatan Audit</th>
+                    <th className="pr-4">Detail &amp; Alasan Koreksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -947,8 +1459,14 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                       <td className="pl-4 text-text-mid whitespace-nowrap tabular-nums">
                         {formatTimestamp(log.timestamp, 'id-ID')}
                       </td>
-                      <td className="text-neon-cyan font-semibold">{log.user || 'system'}</td>
-                      <td className="text-text-mid">{log.collection || 'users'}</td>
+                      <td>
+                        <div className="text-neon-cyan font-semibold">{log.user || 'system'}</div>
+                        {log.actorRole && <div className="text-[10px] text-text-low font-sans">{log.actorRole}</div>}
+                      </td>
+                      <td className="text-text-mid">
+                        <div className="text-text-hi font-semibold">{log.module || log.collection || '-'}</div>
+                        <div className="text-[10px] text-text-low">{log.collection || '-'} · {log.recordId || '-'}</div>
+                      </td>
                       <td>
                         <span className={
                           log.action === 'insert' ? 'badge-safe' :
@@ -958,9 +1476,192 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                           {log.action?.toUpperCase() || 'INFO'}
                         </span>
                       </td>
-                      <td className="pr-4 text-text-hi font-sans">{log.details}</td>
+                      <td className="pr-4 text-text-hi font-sans">
+                        <div>{log.details}</div>
+                        {log.correctionReason && (
+                          <div className="mt-1 text-[10px] text-neon-amber font-mono">
+                            Alasan koreksi: {log.correctionReason}
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB CONTENT: REKONSILIASI PERAN (STRICT ADMIN ONLY — K-03 PERSIAPAN) */}
+      {activeTab === 'reconcile' && isStrictAdminUser && (
+        <div className="glass-panel border border-border-neon rounded-3xl p-6 space-y-5 text-text-mid">
+          <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 border-b border-border-subtle pb-4">
+            <div>
+              <h2 className="text-base font-bold text-text-hi font-heading flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-neon-amber" />
+                Rekonsiliasi Peran (/users vs /roles)
+              </h2>
+              <p className="text-xs text-text-mid mt-0.5">
+                Audit dan penertiban manual dokumen /roles dan /users sebelum penguncian sumber peran tunggal. Pilih level peran tiap baris secara manual disertai alasan koreksi.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={reconcileFilter}
+                onChange={(e) => setReconcileFilter(e.target.value as 'ALL' | 'ISSUES_ONLY')}
+                className="px-3 py-2 text-xs cursor-pointer"
+                aria-label="Filter baris rekonsiliasi peran"
+              >
+                <option value="ALL">Semua Baris ({reconcileRows.length})</option>
+                <option value="ISSUES_ONLY">Hanya Temuan a–d ({reconcileStats.totalIssues})</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => exportRoleReconciliationToXLSX(visibleReconcileRows)}
+                className="neon-btn-primary px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Ekspor .xlsx ({visibleReconcileRows.length})
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div className="p-3 rounded-2xl bg-neon-red/10 border border-neon-red/35">
+              <p className="text-[10px] font-mono font-bold text-neon-red uppercase">(c) Risiko Tinggi</p>
+              <p className="text-lg font-bold text-text-hi font-mono tabular-nums mt-0.5">{reconcileStats.highRisk}</p>
+              <p className="text-[10px] text-text-mid">Admin/Manager tanpa /roles</p>
+            </div>
+            <div className="p-3 rounded-2xl bg-neon-amber/10 border border-neon-amber/35">
+              <p className="text-[10px] font-mono font-bold text-neon-amber uppercase">(a) Active Tanpa /roles</p>
+              <p className="text-lg font-bold text-text-hi font-mono tabular-nums mt-0.5">{reconcileStats.activeNoRole}</p>
+              <p className="text-[10px] text-text-mid">Pengguna aktif tanpa /roles</p>
+            </div>
+            <div className="p-3 rounded-2xl bg-neon-amber/10 border border-neon-amber/35">
+              <p className="text-[10px] font-mono font-bold text-neon-amber uppercase">(b) Role ≠ Level</p>
+              <p className="text-lg font-bold text-text-hi font-mono tabular-nums mt-0.5">{reconcileStats.mismatch}</p>
+              <p className="text-[10px] text-text-mid">users.role beda dgn roles.level</p>
+            </div>
+            <div className="p-3 rounded-2xl bg-neon-violet/10 border border-neon-violet/35">
+              <p className="text-[10px] font-mono font-bold text-neon-violet uppercase">(d) /roles Yatim</p>
+              <p className="text-lg font-bold text-text-hi font-mono tabular-nums mt-0.5">{reconcileStats.orphanRole}</p>
+              <p className="text-[10px] text-text-mid">/roles tanpa pengguna /users</p>
+            </div>
+          </div>
+
+          {loadingUsers || loadingRolesDocs ? (
+            <TableSkeleton columns={7} rows={5} />
+          ) : visibleReconcileRows.length === 0 ? (
+            <EmptyState
+              icon={CheckCircle2}
+              title="Tidak Ada Data Rekonsiliasi"
+              description="Tidak ditemukan baris yang sesuai dengan filter rekonsiliasi peran."
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-border-neon bg-bg-1/40">
+              <table className="neon-table">
+                <thead>
+                  <tr>
+                    <th className="pl-4">Nama</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>users.role</th>
+                    <th>roles.level</th>
+                    <th>Kategori Temuan</th>
+                    <th className="pr-4">Penetapan Manual &amp; Alasan (min. 10 karakter)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleReconcileRows.map((row) => {
+                    const draft = reconcileDrafts[row.rowKey] || { level: '', reason: '' };
+                    const isSaving = savingReconcileKey === row.rowKey;
+                    const canCommit =
+                      Boolean(draft.level) &&
+                      draft.reason.trim().length >= 10 &&
+                      Boolean(row.roleDocId) &&
+                      row.roleDocId !== '-' &&
+                      !isSaving;
+
+                    return (
+                      <tr key={row.rowKey}>
+                        <td className="pl-4 font-semibold text-text-hi">{row.fullName}</td>
+                        <td className="font-mono text-xs text-neon-cyan">{row.email}</td>
+                        <td>
+                          <span className="text-xs font-mono text-text-hi">{row.status}</span>
+                        </td>
+                        <td className="font-mono text-xs">
+                          {row.usersRole ?? <span className="text-text-low italic">(kosong)</span>}
+                        </td>
+                        <td className="font-mono text-xs">
+                          {row.rolesLevel ?? <span className="text-neon-red italic">(tidak ada)</span>}
+                        </td>
+                        <td>
+                          {row.findingCode === 'C_HIGH_RISK' ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-neon-red/20 text-neon-red border border-neon-red/40">
+                              {row.findingLabel}
+                            </span>
+                          ) : row.findingCode === 'A_ACTIVE_NO_ROLE' || row.findingCode === 'B_ROLE_MISMATCH' ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-neon-amber/20 text-neon-amber border border-neon-amber/40">
+                              {row.findingLabel}
+                            </span>
+                          ) : row.findingCode === 'D_ORPHAN_ROLE' ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-neon-violet/20 text-neon-violet border border-neon-violet/40">
+                              {row.findingLabel}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold bg-neon-green/15 text-neon-green border border-neon-green/35">
+                              {row.findingLabel}
+                            </span>
+                          )}
+                        </td>
+                        <td className="pr-4">
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-[340px]">
+                            <select
+                              value={draft.level}
+                              onChange={(e) =>
+                                handleReconcileDraftChange(row.rowKey, { level: e.target.value })
+                              }
+                              disabled={isSaving}
+                              className="px-2.5 py-1.5 text-xs cursor-pointer"
+                              aria-label={`Pilih level untuk ${row.email}`}
+                            >
+                              <option value="">-- Pilih Level --</option>
+                              {AVAILABLE_ROLES.map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
+                                </option>
+                              ))}
+                            </select>
+
+                            <input
+                              type="text"
+                              value={draft.reason}
+                              onChange={(e) =>
+                                handleReconcileDraftChange(row.rowKey, { reason: e.target.value })
+                              }
+                              disabled={isSaving}
+                              maxLength={400}
+                              placeholder="Alasan koreksi (min 10 char)"
+                              className="px-2.5 py-1.5 text-xs flex-1 min-w-[160px]"
+                              aria-label={`Alasan koreksi untuk ${row.email}`}
+                            />
+
+                            <button
+                              type="button"
+                              disabled={!canCommit}
+                              onClick={() => handleReconcileAssign(row)}
+                              className="neon-btn-primary px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              {isSaving ? 'Menyimpan...' : 'Tetapkan'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1013,10 +1714,15 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                 onChange={(e) => setSelectedApproveRole(e.target.value)}
                 className="w-full px-3 py-2.5 text-xs cursor-pointer font-sans"
               >
-                {AVAILABLE_ROLES.map(r => (
+                {assignableRoles.map(r => (
                   <option key={r} value={r}>{r}</option>
                 ))}
               </select>
+              {!isStrictAdminUser && (
+                <p className="mt-1.5 text-[10px] text-text-low">
+                  Environment Manager dapat menetapkan peran hingga Environment Superintendent. Peran Admin &amp; Manager ditetapkan oleh Strict Admin.
+                </p>
+              )}
             </div>
 
             <div className="flex gap-3 pt-2">
@@ -1126,10 +1832,15 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
                 onChange={(e) => setSelectedNewRole(e.target.value)}
                 className="w-full px-3 py-2.5 text-xs cursor-pointer font-sans"
               >
-                {AVAILABLE_ROLES.map(r => (
+                {assignableRoles.map(r => (
                   <option key={r} value={r}>{r}</option>
                 ))}
               </select>
+              {!isStrictAdminUser && (
+                <p className="mt-1.5 text-[10px] text-text-low">
+                  Environment Manager dapat mengubah peran hingga Environment Superintendent.
+                </p>
+              )}
             </div>
 
             <div className="flex gap-3 pt-2">
@@ -1147,6 +1858,65 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
               >
                 <Check className="w-4 h-4" />
                 Simpan Perubahan Role
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOG 4: KONFIRMASI AKSI PENGGUNA (DISABLE / RESET PASSWORD / SOFT DELETE) */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 bg-bg-0/75 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel border border-border-neon rounded-3xl p-6 w-full max-w-md space-y-5 shadow-2xl animate-fade-in text-left">
+            <div className="flex justify-between items-center border-b border-border-subtle pb-3">
+              <h3 className="text-base font-bold text-text-hi font-heading flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-neon-amber" />
+                {confirmAction.type === 'disable'
+                  ? 'Nonaktifkan Akses Pengguna'
+                  : confirmAction.type === 'reset_password'
+                    ? 'Kirim Tautan Reset Password'
+                    : 'Hapus Pengguna (Soft Delete)'}
+              </h3>
+              <button
+                type="button"
+                disabled={isConfirmExecuting}
+                onClick={() => setConfirmAction(null)}
+                className="p-1 hover:bg-bg-2 rounded-lg text-text-low hover:text-text-hi cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-text-mid leading-relaxed">
+              {confirmAction.type === 'disable' && (
+                <>Nonaktifkan akses pengguna <strong className="text-text-hi">{confirmAction.user.fullName || confirmAction.user.email}</strong>? Peran akan diturunkan ke Viewer dan akses masuk dicabut.</>
+              )}
+              {confirmAction.type === 'reset_password' && (
+                <>Kirim tautan reset password ke alamat email <strong className="text-neon-cyan font-mono">{confirmAction.user.email}</strong>?</>
+              )}
+              {confirmAction.type === 'delete' && (
+                <>Hapus pengguna <strong className="text-text-hi">{confirmAction.user.fullName || confirmAction.user.email}</strong> secara soft-delete? Peran di /roles akan diturunkan ke Viewer dan akses masuk dinonaktifkan.</>
+              )}
+            </p>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isConfirmExecuting}
+                onClick={() => setConfirmAction(null)}
+                className="w-1/3 py-2.5 border border-border-subtle hover:bg-bg-2 text-text-mid hover:text-text-hi text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isConfirmExecuting}
+                onClick={handleConfirmActionExecute}
+                className={`${
+                  confirmAction.type === 'delete' ? 'neon-btn-danger' : 'neon-btn-primary'
+                } flex-1 py-2.5 text-xs rounded-xl cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider disabled:opacity-50`}
+              >
+                {isConfirmExecuting ? 'Memproses...' : 'Konfirmasi'}
               </button>
             </div>
           </div>

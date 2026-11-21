@@ -3,17 +3,57 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export type ComplianceConclusion =
+  | 'MEMENUHI'
+  | 'TIDAK MEMENUHI'
+  | 'DATA TIDAK LENGKAP'
+  | 'BELUM DIEVALUASI'
+  | 'TIDAK BERLAKU';
+
+export type LegacyWaterStatus =
+  | 'Safe'
+  | 'Warning'
+  | 'Exceeded'
+  | 'Incomplete'
+  | 'Unevaluated'
+  | 'NotApplicable';
+
+export type MissingParamReasonCode =
+  | 'Tidak dijadwalkan'
+  | 'Menunggu hasil laboratorium'
+  | 'Alat rusak'
+  | 'Lainnya';
+
+export interface MissingParamReason {
+  reason: MissingParamReasonCode;
+  note?: string;
+}
+
+export interface EvaluationHistoryEntry {
+  evaluatedAt: string;
+  evaluatedBy: string;
+  previousStatus: string;
+  newStatus: string;
+  reason: string;
+  standardBasis?: string;
+}
+
 export interface WastewaterData {
   id: string;
   date: string;
   location: string;
   officer: string;
-  ph: number;       // standard: 6.0 - 9.0 (Kepmen LH No. 113 Tahun 2003 / SK Pertek)
-  tss: number;      // standard: max 300 mg/L (SK Pertek PT DKB No. 503/IPAL-LH/DPM-PTSP/2021)
-  debit: number;    // discharge flow rate, allow 3 decimal places
-  fe: number;       // Iron - standard: max 7 mg/L
-  mn: number;       // Mangan - standard: max 4 mg/L
-  status: 'Safe' | 'Warning' | 'Exceeded'; 
+  ph: number | null;       // Baku mutu dinamis dari Master Standar (tidak hardcoded)
+  tss: number | null;      // Baku mutu dinamis dari Master Standar (SK Pertek PT DKB)
+  debit: number | null;    // Debit keluaran, presisi hingga 3 desimal
+  fe: number | null;       // Besi (Fe)
+  mn: number | null;       // Mangan (Mn)
+  missingReasons?: Record<string, MissingParamReason>;
+  evaluationHistory?: EvaluationHistoryEntry[];
+  status: LegacyWaterStatus;
+  evaluationStatus?: ComplianceConclusion;
+  evaluationReason?: string;
+  unitMap?: Record<string, string>;
   monitoringType?: 'Harian' | 'Bulanan';
   sampleTime?: string;                 // 'HH:mm' waktu lokal
   weather?: 'Cerah' | 'Berawan' | 'Hujan Ringan' | 'Hujan Lebat';
@@ -21,7 +61,9 @@ export interface WastewaterData {
   locationCode?: string;               // contoh 'KPL-01'
   hasPhoto?: boolean;
   standardId?: string;
+  standardBasis?: string;
   standardSnapshot?: Record<string, any>;
+  correctionReason?: string;
   createdAt?: any;
   createdBy?: string;
   updatedAt?: any;
@@ -60,18 +102,29 @@ export interface SurfaceWaterData {
   date: string;
   location: string;
   officer: string;
-  ph: number;       // standard: 6.0 - 9.0
-  tss: number;      // standard: max 50 mg/L (PP No. 22 Tahun 2021 Lampiran VI Kelas II)
-  doVal: number;    // Dissolved Oxygen - standard: min 4 mg/L
-  bod: number;      // standard: max 3 mg/L
-  cod: number;      // standard: max 25 mg/L
-  fe: number;       // Besi terlarut - standard: max 0.3 mg/L (perlu verifikasi dokumen izin/baku mutu)
-  mn: number;       // Mangan terlarut - standard: max 0.1 mg/L (perlu verifikasi dokumen izin/baku mutu)
-  status: 'Safe' | 'Warning' | 'Exceeded';
+  ph: number | null;       // Baku mutu dinamis PP 22/2021
+  tss: number | null;
+  doVal: number | null;
+  bod: number | null;
+  cod: number | null;
+  fe: number | null;       // Besi terlarut (verifikasi terhadap SK/Lampiran VI)
+  mn: number | null;       // Mangan terlarut (verifikasi terhadap SK/Lampiran VI)
+  missingReasons?: Record<string, MissingParamReason>;
+  evaluationHistory?: EvaluationHistoryEntry[];
+  status: LegacyWaterStatus;
+  evaluationStatus?: ComplianceConclusion;
+  evaluationReason?: string;
+  unitMap?: Record<string, string>;
   monitoringType?: 'Harian' | 'Bulanan';
   kelasAir?: 'I' | 'II' | 'III' | 'IV';
   standardId?: string;
+  standardBasis?: string;
   standardSnapshot?: Record<string, any>;
+  correctionReason?: string;
+  createdAt?: any;
+  createdBy?: string;
+  updatedAt?: any;
+  updatedBy?: string;
 }
 
 export interface RainfallData {
@@ -200,7 +253,9 @@ export interface BatchWarning {
   batchId: string;
   weightRemaining: number;
   daysRemaining: number;
+  maxStorageDays: number;
   entryDate: string;
+  verificationStatus?: 'Terverifikasi' | 'PERLU VERIFIKASI';
 }
 
 export interface WasteStock {
@@ -210,7 +265,10 @@ export interface WasteStock {
   totalOut: number;
   currentStock: number;
   earliestDateIn: string | null;
-  daysInTps: number; // warning if near 90 days from earliest check
+  daysInTps: number;
+  maxStorageDays: number;
+  storageBasis?: string;
+  verificationStatus?: 'Terverifikasi' | 'PERLU VERIFIKASI';
   batchWarnings?: BatchWarning[];
   hasShortfall?: boolean;
   shortfallKg?: number;
@@ -228,6 +286,8 @@ export interface WasteInLedgerInfo {
   status: 'Tersedia' | 'Sebagian Keluar' | 'Habis';
   daysInTps: number;
   daysRemaining: number;
+  maxStorageDays: number;
+  verificationStatus?: 'Terverifikasi' | 'PERLU VERIFIKASI';
 }
 
 export interface WasteOutLedgerInfo {
@@ -303,9 +363,10 @@ export interface UserProfile {
   site?: string;
   nik?: string;
   photoURL?: string;
-  status?: 'Pending' | 'Active' | 'Rejected' | 'Disabled' | 'Deleted';
+  status?: 'Pending' | 'Active' | 'Rejected' | 'Suspended' | 'Disabled' | 'Deleted';
   role: string;
   isApproved?: boolean;
+  emailVerified?: boolean;
   createdAt?: string;
   updatedAt?: string;
   lastLogin?: string | null;
@@ -462,17 +523,49 @@ export interface IncidentData {
   createdBy?: string;
 }
 
+export type RegulatoryWatchStatus =
+  | 'DRAFT'
+  | 'MENUNGGU VERIFIKASI'
+  | 'BERLAKU'
+  | 'DIUBAH'
+  | 'DICABUT'
+  | 'Draft'
+  | 'Berlaku'
+  | 'Dicabut'
+  | 'Perlu Kajian';
+
+export interface RegulatoryMetadataHistoryItem {
+  updatedAt: string;
+  updatedBy: string;
+  reason?: string;
+  previousStatus?: string;
+}
+
 export interface RegulatoryWatchData {
   id: string;
   source: string;
+  issuer?: string;
   regulationNo: string;
   about: string;
-  issueDate: string;
+  issueDate: string;          // Dipertahankan untuk kompatibilitas mundur (merujuk enactedDate)
+  enactedDate?: string;       // Tanggal penetapan
+  promulgatedDate?: string;   // Tanggal pengundangan
+  effectiveDate?: string;     // Tanggal mulai berlaku
   implication: string;
-  status: 'Draft' | 'Berlaku' | 'Dicabut' | 'Perlu Kajian';
+  requiredActions?: string;
+  affectedModules?: string[];
+  amendedBy?: string;
+  revokedBy?: string;
+  relationNotes?: string;
+  status: RegulatoryWatchStatus;
+  verificationStatus?: 'Terverifikasi' | 'Perlu verifikasi';
   link?: string;
+  officialSourceUrl?: string;
+  metadataHistory?: RegulatoryMetadataHistoryItem[];
   createdAt?: string;
   createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 // ============================================================================
@@ -490,15 +583,25 @@ export interface EvidenceSignature {
   signatureDataUrl: string;
 }
 
+export type EvidenceParamEvalStatus =
+  | 'memenuhi'
+  | 'mendekati'
+  | 'tidak_memenuhi'
+  | 'dipantau'
+  | 'data_tidak_lengkap'
+  | 'belum_dievaluasi'
+  | 'tidak_berlaku';
+
 export interface EvidenceParamResult {
   key: string;
   label: string;
   unit: string;
-  value: number;
+  value: number | null;
   display: string;
   limitDisplay: string;
-  status: 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau';
+  status: EvidenceParamEvalStatus;
   note?: string;
+  basisRegulasi?: string;
 }
 
 export interface DailyEvidenceSnapshot {
@@ -513,8 +616,10 @@ export interface DailyEvidenceSnapshot {
   wastewaterSource?: string;
   monitoringType: string;
   params: EvidenceParamResult[];
-  overall: 'MEMENUHI' | 'TIDAK MEMENUHI';
+  overall: ComplianceConclusion;
   failedParams: string[];
+  incompleteParams?: string[];
+  unverifiedParams?: string[];
   conclusionText: string;
   followUpAction?: string;
   hasPhoto: boolean;
@@ -528,7 +633,7 @@ export interface MonthlyParamStat {
   min: number | null;
   avg: number | null;
   max: number | null;
-  status: 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau';
+  status: EvidenceParamEvalStatus;
   exceedDays: number;
 }
 
@@ -543,7 +648,13 @@ export interface MonthlyDayItem {
   debit: number | null;
   fe: number | null;
   mn: number | null;
-  status: 'memenuhi' | 'tidak_memenuhi' | 'tanpa_data';
+  status:
+    | 'memenuhi'
+    | 'tidak_memenuhi'
+    | 'data_tidak_lengkap'
+    | 'belum_dievaluasi'
+    | 'tidak_berlaku'
+    | 'tanpa_data';
   duplicateCount: number;
   dailyDocumentNo?: string | null;
 }
@@ -559,9 +670,11 @@ export interface MonthlyEvidenceSnapshot {
   samplingDays: number;
   passDays: number;
   failDays: number;
+  incompleteDays?: number;
+  unevaluatedDays?: number;
   compliancePct: number | null;
   completenessPct: number;
-  overall: 'MEMENUHI' | 'TIDAK MEMENUHI' | 'BELUM ADA DATA';
+  overall: ComplianceConclusion | 'BELUM ADA DATA';
   stats: Record<'ph'|'tss'|'debit'|'fe'|'mn', MonthlyParamStat>;
   days: MonthlyDayItem[];
   missingDays: string[];
@@ -607,13 +720,14 @@ export interface EvidenceReport {
 }
 
 export interface EvidenceVerification {
+  reportId?: string;
   documentNo: string;
   type: 'daily' | 'monthly';
   period: string;
   locationCode: string;
   issuedAt: string;
   status: EvidenceStatus;
-  overall: 'MEMENUHI' | 'TIDAK MEMENUHI' | 'BELUM ADA DATA';
+  overall: ComplianceConclusion | 'BELUM ADA DATA';
   hashPrefix: string;
 }
 
@@ -766,6 +880,20 @@ export type StandardMedia =
   | 'kebisingan'
   | 'lainnya';
 export type StandardVerificationStatus = 'Terverifikasi' | 'Perlu verifikasi';
+export type StandardEffectiveStatus =
+  | 'DRAFT'
+  | 'MENUNGGU VERIFIKASI'
+  | 'BERLAKU'
+  | 'DIUBAH'
+  | 'DICABUT';
+
+export interface StandardRevisionEntry {
+  revision: number;
+  revisedAt: string;
+  revisedBy: string;
+  reason?: string;
+  previousSnapshot: Partial<EnvironmentalStandard>;
+}
 
 export interface EnvironmentalStandard {
   id: string;
@@ -776,12 +904,20 @@ export interface EnvironmentalStandard {
   minLimit?: number | null;
   maxLimit?: number | null;
   basisRegulasi: string;
+  approvalDocNo?: string;
+  decreeDate?: string;
   effectiveFrom?: string;
+  effectiveTo?: string | null;
+  sourceDocument?: string;
+  sourceUrl?: string;
   locationCode?: string;
   kelasAir?: 'I' | 'II' | 'III' | 'IV';
   isActive: boolean;
+  applicable?: boolean;
   verificationStatus: StandardVerificationStatus;
+  effectiveStatus?: StandardEffectiveStatus;
   notes?: string;
+  revisionHistory?: StandardRevisionEntry[];
   createdAt?: any;
   createdBy?: string;
   updatedAt?: any;
@@ -909,17 +1045,31 @@ export interface DomesticWastewaterData {
   date: string;
   facilityName: string; // Camp / Mess / Kantor / Workshop IPAL
   locationCode?: string;
-  ph: number;
-  bod: number;
-  cod: number;
-  tss: number;
-  oilGrease: number; // Minyak & Lemak
-  ammonia: number;   // Amonia (NH3-N)
-  totalColiform: number;
-  debitM3Day: number;
-  complianceStatus: 'Memenuhi' | 'Warning' | 'Tidak Memenuhi' | 'Belum Ada Baku Mutu';
+  ph: number | null;
+  bod: number | null;
+  cod: number | null;
+  tss: number | null;
+  oilGrease: number | null; // Minyak & Lemak
+  ammonia: number | null;   // Amonia (NH3-N)
+  totalColiform: number | null;
+  debitM3Day: number | null;
+  missingReasons?: Record<string, MissingParamReason>;
+  evaluationHistory?: EvaluationHistoryEntry[];
+  complianceStatus:
+    | 'Memenuhi'
+    | 'Warning'
+    | 'Tidak Memenuhi'
+    | 'Belum Ada Baku Mutu'
+    | 'Data Tidak Lengkap'
+    | 'Belum Dievaluasi'
+    | 'Tidak Berlaku';
+  evaluationStatus?: ComplianceConclusion;
+  evaluationReason?: string;
+  unitMap?: Record<string, string>;
   standardId?: string;
   standardBasis?: string;
+  standardSnapshot?: Record<string, any> | null;
+  correctionReason?: string;
   officer: string;
   notes?: string;
   createdAt?: any;
@@ -945,6 +1095,8 @@ export interface GhgEmissionFactorData {
   gasScope: 'Scope 1 (Emisi Langsung)' | 'Scope 2 (Energi Tidak Langsung)' | 'Scope 3 / Lahan';
   referenceSource: string; // Wajib diisi pengguna (IPCC / KLH/BPLH / ESDM)
   effectiveYear: number;
+  gwpReference?: string;
+  verificationStatus?: 'Terverifikasi' | 'PERLU VERIFIKASI';
   notes?: string;
   createdAt?: any;
   createdBy?: string;
@@ -965,7 +1117,16 @@ export interface GhgActivityData {
   factorNameSnapshot?: string;
   factorValueSnapshot?: number | null;
   referenceSourceSnapshot?: string;
-  emissionsTco2e: number; // Dihitung hanya dari faktor master pengguna
+  gasScopeSnapshot?: string;
+  categorySnapshot?: string;
+  unitSnapshot?: string;
+  effectiveYearSnapshot?: number | null;
+  gwpSnapshot?: string;
+  verificationStatusSnapshot?: 'Terverifikasi' | 'PERLU VERIFIKASI';
+  calculationStatus?: 'TERHITUNG' | 'BELUM TERHITUNG' | 'PERLU VERIFIKASI';
+  calculationNote?: string;
+  emissionsTco2e: number | null; // Null jika faktor belum dipilih/terverifikasi (bukan nol)
+  correctionReason?: string;
   officer: string;
   notes?: string;
   createdAt?: any;
@@ -973,3 +1134,43 @@ export interface GhgActivityData {
   updatedAt?: any;
   updatedBy?: string;
 }
+
+export type AuditActionType =
+  | 'insert'
+  | 'update'
+  | 'delete'
+  | 'sync'
+  | 'backup'
+  | 'restore'
+  | 'export'
+  | 'login'
+  | 'logout'
+  | 'approve'
+  | 'reject'
+  | 'role_change'
+  | 'correct';
+
+export interface AuditLogEntry {
+  id: string;
+  uid: string;
+  timestamp: any;
+  user: string;
+  actorName?: string;
+  actorRole?: string;
+  module: string;
+  collection: string;
+  recordId: string;
+  action: AuditActionType;
+  details: string;
+  beforeData?: Record<string, any> | null;
+  afterData?: Record<string, any> | null;
+  correctionReason?: string | null;
+  status: 'SUCCESS' | 'FAILED';
+}
+
+export interface AuditWriteResult {
+  success: boolean;
+  logId?: string;
+  error?: string;
+}
+

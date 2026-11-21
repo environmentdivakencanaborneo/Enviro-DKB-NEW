@@ -52,6 +52,8 @@ export function getGuaranteeYear(g: ReclamationGuarantee): number | null {
 
 interface ReclamationViewProps {
   canEdit?: boolean;
+  canEditGuarantee?: boolean;
+  canViewGuarantees?: boolean;
   canDelete?: boolean;
   onUnauthorizedAction?: (msg: string) => void;
   nursery: NurseryData[];
@@ -75,6 +77,8 @@ interface ReclamationViewProps {
 
 export default function ReclamationView({
   canEdit = false,
+  canEditGuarantee,
+  canViewGuarantees = true,
   canDelete = false,
   onUnauthorizedAction = () => {},
 
@@ -96,6 +100,8 @@ export default function ReclamationView({
   onDeleteGuarantee,
   onOpenGuaranteesModule
 }: ReclamationViewProps) {
+  const allowViewGuarantees = canViewGuarantees;
+  const allowEditGuarantee = canEditGuarantee ?? canEdit;
   const [activeTab, setActiveTab] = useState<'nursery' | 'plans' | 'guarantees'>('nursery');
   const [deleteConfirm, setDeleteConfirm] = useState<{
     id: string;
@@ -367,6 +373,7 @@ export default function ReclamationView({
   // Submit Guarantee
   const handleGuaranteeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!allowEditGuarantee) return onUnauthorizedAction("Simpan Jaminan Reklamasi (Khusus Environment Superintendent ke atas)");
 
     const trimmedNo = gNo.trim();
     if (!trimmedNo) {
@@ -602,8 +609,8 @@ export default function ReclamationView({
 
   return (
     <div id="reclamation-view-wrapper" className="space-y-6 text-text-mid">
-      {/* Ringkasan Jaminan Reklamasi & Tautan ke Modul Terdedikasi */}
-      {(() => {
+      {/* Ringkasan Jaminan Reklamasi & Tautan ke Modul Terdedikasi (khusus Superintendent+/Auditor) */}
+      {allowViewGuarantees && (() => {
         const gMetrics = calculateGuaranteeMetrics(guarantees);
         return (
           <div className="glass-panel border-neon-green/30 bg-neon-green/5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -657,22 +664,24 @@ export default function ReclamationView({
           <Sprout className="h-4 w-4" />
           Rencana & Progres Reklamasi
         </button>
-        <button
-          id="reclamation-tab-guarantees"
-          onClick={() => {
-            if (onOpenGuaranteesModule) {
-              onOpenGuaranteesModule();
-            } else {
-              setActiveTab('guarantees');
-            }
-          }}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'guarantees' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
-          }`}
-        >
-          <FileCheck2 className="h-4 w-4" />
-          Jaminan Reklamasi &amp; Pascatambang
-        </button>
+        {allowViewGuarantees && (
+          <button
+            id="reclamation-tab-guarantees"
+            onClick={() => {
+              if (onOpenGuaranteesModule) {
+                onOpenGuaranteesModule();
+              } else {
+                setActiveTab('guarantees');
+              }
+            }}
+            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'guarantees' ? 'border-neon-cyan text-neon-cyan font-bold' : 'border-transparent text-text-mid hover:text-text-hi'
+            }`}
+          >
+            <FileCheck2 className="h-4 w-4" />
+            Jaminan Reklamasi &amp; Pascatambang
+          </button>
+        )}
       </div>
 
       {activeTab === 'nursery' && (
@@ -1854,7 +1863,7 @@ export default function ReclamationView({
         </div>
       )}
 
-      {activeTab === 'guarantees' && (
+      {allowViewGuarantees && activeTab === 'guarantees' && (
         <div id="reclamation-guarantees-panel" className="space-y-6">
           {/* Danger alert for soon expired items */}
           <div className="bg-neon-red/10 border border-neon-red/30 p-4.5 rounded-2xl flex items-start gap-4 mb-3 text-left">
@@ -1874,6 +1883,7 @@ export default function ReclamationView({
             <button
               id="guarantees-add-btn"
               onClick={() => {
+                if (!allowEditGuarantee) return onUnauthorizedAction("Registrasi Jaminan Reklamasi (Khusus Environment Superintendent ke atas)");
                 if (!showGuaranteeForm) {
                   resetGuaranteeForm();
                   setShowGuaranteeForm(true);
@@ -2279,7 +2289,7 @@ export default function ReclamationView({
                                     title="Edit jaminan"
                                     aria-label="Edit jaminan"
                                     onClick={() => {
-                                      if (!canEdit) return onUnauthorizedAction("Ubah Jaminan Reklamasi");
+                                      if (!allowEditGuarantee) return onUnauthorizedAction("Ubah Jaminan Reklamasi");
                                       startEditGuarantee(item);
                                     }}
                                     className="p-1.5 bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 border border-neon-cyan/20 rounded-lg cursor-pointer transition-colors"

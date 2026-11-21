@@ -4,36 +4,40 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { 
-  EvidenceReport, 
-  MonthlyEvidenceSnapshot, 
-  WastewaterData 
+import {
+  EvidenceReport,
+  MonthlyEvidenceSnapshot,
+  WastewaterData,
+  EnvironmentalStandard,
+  InternalThresholdsConfig,
 } from '../../types';
 import EvidenceShell from './EvidenceShell';
-import { 
-  buildMonthlyRecap, 
-  formatLocaleNumber, 
-  DEBIT_STATUS_LABEL 
+import {
+  buildMonthlyRecap,
+  formatLocaleNumber,
+  DEBIT_STATUS_LABEL,
 } from '../../utils/evidenceCalc';
 import { generateQrDataUrl } from '../../utils/qr';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ReferenceLine 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ReferenceLine,
 } from 'recharts';
-import { 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle, 
+import {
+  CheckCircle2,
+  XCircle,
   HelpCircle,
   TrendingUp,
-  FileSpreadsheet
 } from 'lucide-react';
-import { WASTEWATER_STANDARDS, WASTEWATER_BASIS_LABEL } from '../../data/regulations';
+import { INITIAL_STANDARDS_SEED, WASTEWATER_STANDARDS } from '../../data/regulations';
+import {
+  formatStandardLimitDisplay,
+  parseStrictNumber,
+  resolveEffectiveStandardsMap,
+} from '../../utils/waterQualityEval';
 
 interface MonthlyEvidenceDocumentProps {
   report?: EvidenceReport | null;
@@ -44,6 +48,8 @@ interface MonthlyEvidenceDocumentProps {
   year: number;
   month: number;
   dailyReportsMap?: Record<string, string>; // date (YYYY-MM-DD) -> documentNo
+  standards?: EnvironmentalStandard[];
+  internalThresholds?: InternalThresholdsConfig;
 }
 
 export default function MonthlyEvidenceDocument({
@@ -55,13 +61,47 @@ export default function MonthlyEvidenceDocument({
   year,
   month,
   dailyReportsMap = {},
+  standards,
+  internalThresholds,
 }: MonthlyEvidenceDocumentProps) {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
 
   const isPublished = Boolean(report && report.status !== 'Draft');
+  const endOfMonthDate = `${year}-${String(month).padStart(2, '0')}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+  const stdList = standards !== undefined ? standards : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+  const activeStdMap = resolveEffectiveStandardsMap(stdList, 'air_limbah', {
+    locationCode,
+    sampleDate: endOfMonthDate,
+  });
+
+  const getVerifiedLimits = (key: string) => {
+    const s = activeStdMap[key];
+    const isVerified = Boolean(
+      s &&
+        s.isActive &&
+        s.applicable !== false &&
+        s.verificationStatus === 'Terverifikasi' &&
+        s.effectiveStatus !== 'MENUNGGU VERIFIKASI'
+    );
+    return {
+      std: s,
+      isVerified,
+      min: isVerified && typeof s?.minLimit === 'number' && Number.isFinite(s.minLimit) ? s.minLimit : null,
+      max: isVerified && typeof s?.maxLimit === 'number' && Number.isFinite(s.maxLimit) ? s.maxLimit : null,
+      display: formatStandardLimitDisplay(s),
+    };
+  };
+
+  const phLim = getVerifiedLimits('ph');
+  const tssLim = getVerifiedLimits('tss');
+  const feLim = getVerifiedLimits('fe');
+  const mnLim = getVerifiedLimits('mn');
 
   // Compute live recap or use snapshot if published
-  const recap = buildMonthlyRecap(records, locationCode, year, month);
+  const recap = buildMonthlyRecap(records, locationCode, year, month, {
+    standards: stdList,
+    thresholds: internalThresholds,
+  });
 
   const snapshot: MonthlyEvidenceSnapshot = isPublished && report?.snapshot
     ? (report.snapshot as MonthlyEvidenceSnapshot)
@@ -76,6 +116,8 @@ export default function MonthlyEvidenceDocument({
         samplingDays: recap.samplingDays,
         passDays: recap.passDays,
         failDays: recap.failDays,
+        incompleteDays: recap.incompleteDays,
+        unevaluatedDays: recap.unevaluatedDays,
         compliancePct: recap.compliancePct,
         completenessPct: recap.completenessPct,
         overall: recap.overall,
@@ -86,11 +128,11 @@ export default function MonthlyEvidenceDocument({
           sampleTime: d.record?.sampleTime,
           officer: d.record?.officer,
           weather: d.record?.weather,
-          ph: d.record ? Number(d.record.ph) : null,
-          tss: d.record ? Number(d.record.tss) : null,
-          debit: d.record ? Number(d.record.debit) : null,
-          fe: d.record ? Number(d.record.fe) : null,
-          mn: d.record ? Number(d.record.mn) : null,
+          ph: parseStrictNumber(d.record?.ph),
+          tss: parseStrictNumber(d.record?.tss),
+          debit: parseStrictNumber(d.record?.debit),
+          fe: parseStrictNumber(d.record?.fe),
+          mn: parseStrictNumber(d.record?.mn),
           status: d.status,
           duplicateCount: d.duplicateCount,
           dailyDocumentNo: dailyReportsMap[d.date] || null,
@@ -98,7 +140,7 @@ export default function MonthlyEvidenceDocument({
         missingDays: recap.missingDays,
         failedParamKeys: recap.failedParamKeys,
         conclusionText: recap.conclusionText,
-        standardsBasis: WASTEWATER_BASIS_LABEL,
+        standardsBasis: recap.standardsBasis,
       };
 
   // Generate QR Code URL
@@ -132,10 +174,11 @@ export default function MonthlyEvidenceDocument({
     mn: d.mn,
   }));
 
-  const maxDataVal = (key: 'ph' | 'tss' | 'debit' | 'fe' | 'mn', fallbackLimit: number) => {
-    const valid = snapshot.days.map((d) => d[key]).filter((v): v is number => v != null && !isNaN(v));
-    const dataMax = valid.length > 0 ? Math.max(...valid) : fallbackLimit;
-    return Math.max(fallbackLimit * 1.15, dataMax * 1.1);
+  const maxDataVal = (key: 'ph' | 'tss' | 'debit' | 'fe' | 'mn', limitVal: number | null, defaultCeiling: number) => {
+    const valid = snapshot.days.map((d) => d[key]).filter((v): v is number => v != null && Number.isFinite(v));
+    const base = limitVal ?? defaultCeiling;
+    const dataMax = valid.length > 0 ? Math.max(...valid) : base;
+    return Math.max(base * 1.15, dataMax * 1.1);
   };
 
   const isPassed = snapshot.overall === 'MEMENUHI';
@@ -230,20 +273,25 @@ export default function MonthlyEvidenceDocument({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {WASTEWATER_STANDARDS.map((std) => {
-                  const stat = snapshot.stats[std.key as 'ph' | 'tss' | 'debit' | 'fe' | 'mn'];
-                  const isDebit = std.key === 'debit';
-                  const isFailedParam = stat && stat.exceedDays > 0;
-                  const minDec = std.decimals?.min ?? 0;
-                  const maxDec = std.decimals?.max ?? 3;
+                {WASTEWATER_STANDARDS.map((stdMeta) => {
+                  const stat = snapshot.stats[stdMeta.key as 'ph' | 'tss' | 'debit' | 'fe' | 'mn'];
+                  const dynStd = activeStdMap[stdMeta.key];
+                  const isDebit = stdMeta.key === 'debit';
+                  const isFailedParam = stat && (stat.status === 'tidak_memenuhi' || stat.exceedDays > 0);
+                  const isIncompleteParam = stat?.status === 'data_tidak_lengkap';
+                  const isUnverifiedParam = stat?.status === 'belum_dievaluasi';
+                  const isNotApplicableParam = stat?.status === 'tidak_berlaku';
+                  const minDec = stdMeta.decimals?.min ?? 0;
+                  const maxDec = stdMeta.decimals?.max ?? 3;
+                  const limitDisp = formatStandardLimitDisplay(dynStd);
 
                   return (
-                    <tr key={std.key} className={isFailedParam ? 'bg-red-50/50' : ''}>
+                    <tr key={stdMeta.key} className={isFailedParam ? 'bg-red-50/50' : ''}>
                       <td className="py-1.5 px-3 font-semibold text-slate-900 border-r border-slate-200">
-                        {std.label}
+                        {dynStd?.parameterLabel || stdMeta.label}
                       </td>
                       <td className="py-1.5 px-3 text-center border-r border-slate-200 font-mono text-slate-600">
-                        {std.unit || '-'}
+                        {dynStd?.unit || stdMeta.unit || '-'}
                       </td>
                       <td className="py-1.5 px-2 text-right border-r border-slate-100 font-mono text-slate-700 w-16">
                         {stat?.min != null ? formatLocaleNumber(stat.min, minDec, maxDec) : '—'}
@@ -255,16 +303,28 @@ export default function MonthlyEvidenceDocument({
                         {stat?.max != null ? formatLocaleNumber(stat.max, minDec, maxDec) : '—'}
                       </td>
                       <td className="py-1.5 px-3 text-center border-r border-slate-200 text-slate-700">
-                        {std.display || '-'}
+                        {limitDisp}
                       </td>
                       <td className="py-1.5 px-3 text-center">
-                        {isDebit ? (
-                          <span className="inline-block px-2 py-0.5 text-[9px] font-semibold rounded bg-slate-100 text-slate-700">
-                            {DEBIT_STATUS_LABEL}
-                          </span>
-                        ) : isFailedParam ? (
+                        {isFailedParam ? (
                           <span className="inline-block px-2 py-0.5 text-[9px] font-black rounded bg-red-100 text-red-800 border border-red-300">
                             TIDAK MEMENUHI ({stat.exceedDays} hari)
+                          </span>
+                        ) : isIncompleteParam ? (
+                          <span className="inline-block px-2 py-0.5 text-[9px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">
+                            DATA TIDAK LENGKAP
+                          </span>
+                        ) : isUnverifiedParam ? (
+                          <span className="inline-block px-2 py-0.5 text-[9px] font-bold rounded bg-amber-100 text-amber-900 border border-amber-300">
+                            BELUM DIEVALUASI
+                          </span>
+                        ) : isNotApplicableParam ? (
+                          <span className="inline-block px-2 py-0.5 text-[9px] font-semibold rounded bg-slate-100 text-slate-600 border border-slate-300">
+                            TIDAK BERLAKU
+                          </span>
+                        ) : isDebit || stat?.status === 'dipantau' ? (
+                          <span className="inline-block px-2 py-0.5 text-[9px] font-semibold rounded bg-slate-100 text-slate-700">
+                            {DEBIT_STATUS_LABEL}
                           </span>
                         ) : (
                           <span className="inline-block px-2 py-0.5 text-[9px] font-bold rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
@@ -301,14 +361,14 @@ export default function MonthlyEvidenceDocument({
               <div className="bg-white p-2.5 rounded border border-slate-200 shadow-2xs">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10px] font-bold text-slate-800">Tren Derajat Keasaman (pH)</span>
-                  <span className="text-[8.5px] text-emerald-700 font-semibold">Standar: 6.0 - 9.0</span>
+                  <span className="text-[8.5px] text-emerald-700 font-semibold">Standar: {phLim.display}</span>
                 </div>
                 <LineChart width={330} height={145} data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" stroke="#e2e8f0" />
                   <XAxis dataKey="day" tick={{ fontSize: 8 }} domain={[1, snapshot.daysInMonth]} interval={2} />
                   <YAxis domain={[0, 14]} tick={{ fontSize: 8 }} ticks={[0, 3, 6, 9, 12, 14]} />
-                  <ReferenceLine y={6.0} stroke="#dc2626" strokeDasharray="3 3" />
-                  <ReferenceLine y={9.0} stroke="#dc2626" strokeDasharray="3 3" />
+                  {phLim.min !== null && <ReferenceLine y={phLim.min} stroke="#dc2626" strokeDasharray="3 3" />}
+                  {phLim.max !== null && <ReferenceLine y={phLim.max} stroke="#dc2626" strokeDasharray="3 3" />}
                   <Line type="monotone" dataKey="ph" stroke="#16a34a" strokeWidth={2} dot={{ r: 2 }} isAnimationActive={false} connectNulls={false} />
                 </LineChart>
               </div>
@@ -317,13 +377,15 @@ export default function MonthlyEvidenceDocument({
               <div className="bg-white p-2.5 rounded border border-slate-200 shadow-2xs">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10px] font-bold text-slate-800">Total Suspended Solids (TSS)</span>
-                  <span className="text-[8.5px] text-blue-700 font-semibold">Maks: 300 mg/L</span>
+                  <span className={`text-[8.5px] font-semibold ${tssLim.isVerified ? 'text-blue-700' : 'text-amber-700'}`}>
+                    {tssLim.max !== null ? `Maks: ${tssLim.max} mg/L` : tssLim.display}
+                  </span>
                 </div>
                 <LineChart width={330} height={145} data={chartData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" stroke="#e2e8f0" />
                   <XAxis dataKey="day" tick={{ fontSize: 8 }} domain={[1, snapshot.daysInMonth]} interval={2} />
-                  <YAxis domain={[0, maxDataVal('tss', 300)]} tick={{ fontSize: 8 }} />
-                  <ReferenceLine y={300} stroke="#dc2626" strokeDasharray="3 3" />
+                  <YAxis domain={[0, maxDataVal('tss', tssLim.max, 100)]} tick={{ fontSize: 8 }} />
+                  {tssLim.max !== null && <ReferenceLine y={tssLim.max} stroke="#dc2626" strokeDasharray="3 3" />}
                   <Line type="monotone" dataKey="tss" stroke="#2563eb" strokeWidth={2} dot={{ r: 2 }} isAnimationActive={false} connectNulls={false} />
                 </LineChart>
               </div>
@@ -332,13 +394,13 @@ export default function MonthlyEvidenceDocument({
               <div className="bg-white p-2.5 rounded border border-slate-200 shadow-2xs">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10px] font-bold text-slate-800">Besi Total (Fe)</span>
-                  <span className="text-[8.5px] text-orange-700 font-semibold">Maks: 7.0 mg/L</span>
+                  <span className="text-[8.5px] text-orange-700 font-semibold">{feLim.max !== null ? `Maks: ${feLim.max} mg/L` : feLim.display}</span>
                 </div>
                 <LineChart width={330} height={145} data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" stroke="#e2e8f0" />
                   <XAxis dataKey="day" tick={{ fontSize: 8 }} domain={[1, snapshot.daysInMonth]} interval={2} />
-                  <YAxis domain={[0, maxDataVal('fe', 7.0)]} tick={{ fontSize: 8 }} />
-                  <ReferenceLine y={7.0} stroke="#dc2626" strokeDasharray="3 3" />
+                  <YAxis domain={[0, maxDataVal('fe', feLim.max, 7.0)]} tick={{ fontSize: 8 }} />
+                  {feLim.max !== null && <ReferenceLine y={feLim.max} stroke="#dc2626" strokeDasharray="3 3" />}
                   <Line type="monotone" dataKey="fe" stroke="#ea580c" strokeWidth={2} dot={{ r: 2 }} isAnimationActive={false} connectNulls={false} />
                 </LineChart>
               </div>
@@ -347,13 +409,13 @@ export default function MonthlyEvidenceDocument({
               <div className="bg-white p-2.5 rounded border border-slate-200 shadow-2xs">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10px] font-bold text-slate-800">Mangan Total (Mn)</span>
-                  <span className="text-[8.5px] text-purple-700 font-semibold">Maks: 4.0 mg/L</span>
+                  <span className="text-[8.5px] text-purple-700 font-semibold">{mnLim.max !== null ? `Maks: ${mnLim.max} mg/L` : mnLim.display}</span>
                 </div>
                 <LineChart width={330} height={145} data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" stroke="#e2e8f0" />
                   <XAxis dataKey="day" tick={{ fontSize: 8 }} domain={[1, snapshot.daysInMonth]} interval={2} />
-                  <YAxis domain={[0, maxDataVal('mn', 4.0)]} tick={{ fontSize: 8 }} />
-                  <ReferenceLine y={4.0} stroke="#dc2626" strokeDasharray="3 3" />
+                  <YAxis domain={[0, maxDataVal('mn', mnLim.max, 4.0)]} tick={{ fontSize: 8 }} />
+                  {mnLim.max !== null && <ReferenceLine y={mnLim.max} stroke="#dc2626" strokeDasharray="3 3" />}
                   <Line type="monotone" dataKey="mn" stroke="#9333ea" strokeWidth={2} dot={{ r: 2 }} isAnimationActive={false} connectNulls={false} />
                 </LineChart>
               </div>
@@ -496,17 +558,26 @@ export default function MonthlyEvidenceDocument({
                 {snapshot.days.map((item) => {
                   const isNoData = item.status === 'tanpa_data';
                   const isFail = item.status === 'tidak_memenuhi';
+                  const isIncomplete = item.status === 'data_tidak_lengkap';
+                  const isUnevaluated = item.status === 'belum_dievaluasi';
+                  const isNotApplicable = item.status === 'tidak_berlaku';
 
-                  const isPhExceed = item.ph != null && (item.ph < 6.0 || item.ph > 9.0);
-                  const isTssExceed = item.tss != null && item.tss > 300;
-                  const isFeExceed = item.fe != null && item.fe > 7.0;
-                  const isMnExceed = item.mn != null && item.mn > 4.0;
+                  const isPhExceed = item.ph != null && ((phLim.min !== null && item.ph < phLim.min) || (phLim.max !== null && item.ph > phLim.max));
+                  const isTssExceed = item.tss != null && tssLim.max !== null && item.tss > tssLim.max;
+                  const isFeExceed = item.fe != null && feLim.max !== null && item.fe > feLim.max;
+                  const isMnExceed = item.mn != null && mnLim.max !== null && item.mn > mnLim.max;
 
                   return (
                     <tr
                       key={item.date}
                       className={`break-inside-avoid print:break-inside-avoid ${
-                        isNoData ? 'bg-slate-100/70 text-slate-400 italic' : isFail ? 'bg-red-50/80' : 'hover:bg-slate-50'
+                        isNoData
+                          ? 'bg-slate-100/70 text-slate-400 italic'
+                          : isFail
+                          ? 'bg-red-50/80'
+                          : isIncomplete || isUnevaluated
+                          ? 'bg-amber-50/50'
+                          : 'hover:bg-slate-50'
                       }`}
                     >
                       <td className="py-1 px-1.5 text-center font-mono font-bold border-r border-slate-200">
@@ -542,6 +613,12 @@ export default function MonthlyEvidenceDocument({
                           <span className="text-slate-400 font-medium">Tidak ada data</span>
                         ) : isFail ? (
                           <span className="text-[8px] font-black text-red-700 bg-red-100 px-1 py-0.5 rounded">TIDAK MEMENUHI</span>
+                        ) : isIncomplete ? (
+                          <span className="text-[8px] font-bold text-amber-800 bg-amber-100 px-1 py-0.5 rounded">DATA TIDAK LENGKAP</span>
+                        ) : isUnevaluated ? (
+                          <span className="text-[8px] font-bold text-amber-900 bg-amber-100 px-1 py-0.5 rounded">BELUM DIEVALUASI</span>
+                        ) : isNotApplicable ? (
+                          <span className="text-[8px] font-semibold text-slate-600 bg-slate-100 px-1 py-0.5 rounded">TIDAK BERLAKU</span>
                         ) : (
                           <span className="text-[8px] font-bold text-emerald-800 bg-emerald-100 px-1 py-0.5 rounded">MEMENUHI</span>
                         )}

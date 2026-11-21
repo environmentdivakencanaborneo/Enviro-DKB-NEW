@@ -228,20 +228,13 @@ export default function Sidebar({
                         </div>
 
                         {!collapsed && (
-                          <>
-                            <span
-                              className={`text-[12.5px] leading-snug tracking-wide font-sans flex-1 truncate ${
-                                isActive ? 'font-semibold text-text-hi' : 'font-medium text-text-mid group-hover:text-text-hi'
-                              }`}
-                            >
-                              {item.name}
-                            </span>
-                            {item.isNew && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/35 uppercase shrink-0 font-mono">
-                                BARU
-                              </span>
-                            )}
-                          </>
+                          <span
+                            className={`text-[12.5px] leading-snug tracking-wide font-sans flex-1 truncate ${
+                              isActive ? 'font-semibold text-text-hi' : 'font-medium text-text-mid group-hover:text-text-hi'
+                            }`}
+                          >
+                            {item.name}
+                          </span>
                         )}
                       </motion.button>
                     );

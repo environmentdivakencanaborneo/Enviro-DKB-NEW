@@ -2,7 +2,7 @@
 
 Sistem Manajemen Lingkungan & Kepatuhan Pertambangan Batubara Terintegrasi untuk **PT Diva Kencana Borneo (PT DKB)**, Kalimantan Timur.
 
-Dibangun dengan **React 19, TypeScript 5.8, Vite 6, Tailwind CSS v4 (tema *Neon Mining Ops*)**, serta **Firebase Authentication & Cloud Firestore** dengan aturan keamanan ABAC (*Attribute-Based Access Control*) Revisi 05, *offline cache*, ekspor Excel (`exceljs`), verifikasi QR publik, dan pencadangan Google Drive.
+Dibangun dengan **React 19, TypeScript 5.8, Vite 6, Tailwind CSS v4 (tema *Neon Mining Ops*)**, serta **Firebase Authentication & Cloud Firestore** dengan aturan keamanan ABAC (*Attribute-Based Access Control*) Revisi 06, *offline cache* terisolasi UID dengan TTL, evaluasi kepatuhan 5-status tanpa koersi nol, enkripsi backup AES-256-GCM, ekspor Excel (`exceljs`), verifikasi QR publik, dan pencadangan Google Drive.
 
 ---
 
@@ -129,14 +129,31 @@ npm install
 # 2. Jalankan server dev (port 3000)
 npm run dev
 
-# 3. Pemeriksaan tipe TypeScript
+# 3. Pemeriksaan tipe TypeScript & lint
 npm run lint
 # atau:
 npx tsc --noEmit
 
-# 4. Build produksi
+# 4. Pengujian otomatis (unit, FIFO limbah B3, GRK, enkripsi backup, validasi, invarian rules)
+npx tsx --test tests/*.test.ts
+
+# 5. Build produksi
 npm run build
 ```
+
+### Arsitektur Evaluasi, Enkripsi Cadangan & Ketergantungan Backend (Remediasi Audit v3.1.0)
+1. **Model Evaluasi Kepatuhan 5-Status (`src/utils/waterQualityEval.ts`)**:
+   - Kesimpulan kepatuhan dipisahkan menjadi `MEMENUHI`, `TIDAK MEMENUHI`, `DATA TIDAK LENGKAP`, `BELUM DIEVALUASI`, dan `TIDAK BERLAKU`.
+   - Nilai `null`, `undefined`, string kosong, `NaN`, maupun `Infinity` **tidak pernah** dikonversi menjadi `0`.
+   - Baku mutu berstatus `Perlu verifikasi` atau `MENUNGGU VERIFIKASI` (seperti `STD-WW-PERTEK-2025-TSS`, `STD-SW-FE`, dan `STD-SW-MN`) memblokir penerbitan kesimpulan `MEMENUHI`.
+2. **Pencadangan Terenkripsi AES-256-GCM & Pemulihan (`src/services/backupService.ts`)**:
+   - Ekspor lokal maupun Google Drive menggunakan Web Crypto (`AES-256-GCM`, `PBKDF2-SHA256` 210.000 iterasi, verifikasi checksum `SHA-256`) tanpa menyimpan kata sandi di dalam berkas maupun `localStorage`.
+   - Mode `merge` dan `replace` beroperasi bertahap per koleksi (maks. 400 operasi/batch) dan menampilkan laporan jujur (*non-atomic across collections*), serta selalu mengecualikan koleksi sistem `RESTORE_EXCLUDED_COLLECTIONS` (`users`, `roles`, `audit_logs`, `counters`, `signatures`, `notifications`, `alerts`).
+3. **Ketergantungan Infrastruktur Backend (P0.4 — Cloud Functions)**:
+   - Seluruh operasi CRUD di klien telah menulis log `beforeData`/`afterData`/`correctionReason` ke `/audit_logs` (*immutable append-only* pada `firestore.rules`) dan mengembalikan status keberhasilan eksplisit (`AuditWriteResult`).
+   - Namun, jaminan audit trail yang sepenuhnya kebal dari klien yang dimodifikasi serta sinkronisasi peran melalui *Firebase Auth Custom Claims* **tetap membutuhkan Firebase Cloud Functions / backend tepercaya** (Firestore triggers pada Cloud Functions belum disediakan pada paket aplikasi SPA ini).
+4. **Migrasi Data Aman (`src/utils/migrations.ts`)**:
+   - Administrator dapat menjalankan `runSafeDataMigrations()` melalui panel **Manajemen Pengguna / Administrasi** untuk menambahkan seed standar `STD-WW-PERTEK-2025-TSS`, menutup masa berlaku terbuka `STD-WW-TSS`, menormalisasi profil pengguna aktif (`isApproved: true`), dan menandai riwayat aktivitas GRK lama secara aditif tanpa menghapus data historis.
 
 ### Cara Deploy `firestore.rules`
 
@@ -151,7 +168,7 @@ firebase deploy --only firestore:rules
 ```
 
 **Opsi B — Melalui AI Studio (lingkungan proyek terhubung):**
-- Pastikan file `/firebase-applet-config.json` sudah terkonfigurasi dan `firestore.rules` mutakhir.
+- Pastikan file `/firebase-applet-config.json` sudah terkonfigurasi dan `/firestore.rules` (Revisi 06) mutakhir.
 - Jalankan aksi deploy rules Firebase (`DeployRules` / tombol deploy Firebase di AI Studio) setiap kali terjadi perubahan pada `/firestore.rules`.
 
 ---

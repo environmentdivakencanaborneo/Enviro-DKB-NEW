@@ -11,11 +11,14 @@ import ModuleErrorBoundary from './ModuleErrorBoundary';
 import StatusBadge from './StatusBadge';
 import EmptyState from './EmptyState';
 import TableSkeleton from './TableSkeleton';
+import { triggerToast } from '../utils/errorHandler';
 
 interface ComplianceMatrixViewProps {
   data: ComplianceMatrixData[];
   isLoading: boolean;
+  canCreate?: boolean;
   canEdit?: boolean;
+  canEditFull?: boolean;
   canDelete?: boolean;
   onUnauthorizedAction: (action: string) => void;
 }
@@ -23,10 +26,14 @@ interface ComplianceMatrixViewProps {
 export default function ComplianceMatrixView({ 
   data, 
   isLoading, 
+  canCreate = false,
   canEdit = false, 
+  canEditFull,
   canDelete,
   onUnauthorizedAction 
 }: ComplianceMatrixViewProps) {
+  const allowedCreate = canCreate;
+  const allowedFullEdit = canEditFull ?? canCreate;
   const allowedDelete = canDelete ?? false;
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState('All');
@@ -74,18 +81,29 @@ export default function ComplianceMatrixView({
     : 0;
 
   const handleSave = async () => {
-    if (!canEdit) return onUnauthorizedAction("Simpan Matriks Ketaatan");
-    
+    if (editingId) {
+      if (!canEdit && !allowedFullEdit) return onUnauthorizedAction("Simpan Matriks Ketaatan");
+    } else {
+      if (!allowedCreate) return onUnauthorizedAction("Tambah Evaluasi RKL-RPL (Khusus Environment Superintendent ke atas)");
+    }
+
     try {
       if (editingId) {
-        await complianceMatrixService.update(editingId, formData);
+        const updatePayload = allowedFullEdit
+          ? formData
+          : {
+              evidenceUrl: formData.evidenceUrl ?? '',
+              notes: formData.notes ?? '',
+            };
+        await complianceMatrixService.update(editingId, updatePayload);
       } else {
         await complianceMatrixService.add(formData as any);
       }
+      triggerToast('Evaluasi matriks ketaatan berhasil disimpan.', 'success');
       setFormOpen(false);
       setEditingId(null);
     } catch (error: any) {
-      alert("Gagal menyimpan data: " + error.message);
+      triggerToast("Gagal menyimpan data: " + (error?.message || 'Error'), 'error');
     }
   };
 
@@ -93,9 +111,10 @@ export default function ComplianceMatrixView({
     if (!allowedDelete) return onUnauthorizedAction("Hapus Item Matriks Ketaatan");
     try {
       await complianceMatrixService.delete(id);
+      triggerToast('Item matriks ketaatan berhasil dihapus.', 'success');
       setDeleteConfirm(null);
     } catch (e: any) {
-      alert("Gagal menghapus: " + e.message);
+      triggerToast("Gagal menghapus: " + (e?.message || 'Error'), 'error');
     }
   };
 
@@ -127,7 +146,7 @@ export default function ComplianceMatrixView({
             </button>
             <button 
               onClick={() => {
-                if (!canEdit) return onUnauthorizedAction("Tambah Evaluasi RKL-RPL");
+                if (!allowedCreate) return onUnauthorizedAction("Tambah Evaluasi RKL-RPL (Khusus Environment Superintendent ke atas)");
                 setEditingId(null);
                 setFormData({
                   period: periods.length > 0 ? periods[0] : 'H1-' + new Date().getFullYear(),
@@ -336,15 +355,20 @@ export default function ComplianceMatrixView({
                   </button>
                 </div>
                 <div className="p-6 overflow-y-auto text-left space-y-5">
+                  {editingId && !allowedFullEdit && (
+                    <div className="p-3 rounded-xl bg-neon-cyan/10 border border-neon-cyan/25 text-xs text-neon-cyan">
+                      Mode Operator/Foreman: Anda dapat memperbarui tautan bukti ketaatan dan catatan tambahan. Perubahan rincian dampak, target, atau status memerlukan Environment Superintendent ke atas.
+                    </div>
+                  )}
                   
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-[10px] font-bold text-text-low mb-1.5 tracking-wider">PERIODE EVALUASI</label>
-                      <input type="text" value={formData.period} onChange={e => setFormData({...formData, period: e.target.value})} className="w-full p-2.5 text-sm font-mono" placeholder="H1-2026" />
+                      <input type="text" disabled={Boolean(editingId) && !allowedFullEdit} value={formData.period} onChange={e => setFormData({...formData, period: e.target.value})} className="w-full p-2.5 text-sm font-mono disabled:opacity-60 disabled:cursor-not-allowed" placeholder="H1-2026" />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-text-low mb-1.5 tracking-wider">ASPEK LINGKUNGAN</label>
-                      <select value={formData.aspect} onChange={e => setFormData({...formData, aspect: e.target.value as any})} className="w-full p-2.5 text-sm cursor-pointer font-medium">
+                      <select disabled={Boolean(editingId) && !allowedFullEdit} value={formData.aspect} onChange={e => setFormData({...formData, aspect: e.target.value as any})} className="w-full p-2.5 text-sm cursor-pointer font-medium disabled:opacity-60 disabled:cursor-not-allowed">
                         <option value="Kualitas Air">Kualitas Air</option>
                         <option value="Kualitas Udara/Emisi">Kualitas Udara/Emisi</option>
                         <option value="Pengelolaan Limbah B3">Pengelolaan Limbah B3</option>
@@ -355,7 +379,7 @@ export default function ComplianceMatrixView({
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-text-low mb-1.5 tracking-wider">STATUS EVALUASI</label>
-                      <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2.5 text-sm cursor-pointer font-medium">
+                      <select disabled={Boolean(editingId) && !allowedFullEdit} value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2.5 text-sm cursor-pointer font-medium disabled:opacity-60 disabled:cursor-not-allowed">
                         <option value="Taat">Taat</option>
                         <option value="Belum Taat">Belum Taat</option>
                         <option value="Tidak Taat">Tidak Taat</option>
@@ -366,12 +390,12 @@ export default function ComplianceMatrixView({
 
                   <div>
                     <label className="block text-[10px] font-bold text-text-low mb-1.5 tracking-wider">RINCIAN DAMPAK (SUMBER DARI MATRIKS)</label>
-                    <textarea value={formData.impactDetails} onChange={e => setFormData({...formData, impactDetails: e.target.value})} rows={3} className="w-full p-2.5 text-sm resize-none" placeholder="Penurunan Kualitas Air Permukaan akibat erosi tanah terbuka..." />
+                    <textarea disabled={Boolean(editingId) && !allowedFullEdit} value={formData.impactDetails} onChange={e => setFormData({...formData, impactDetails: e.target.value})} rows={3} className="w-full p-2.5 text-sm resize-none disabled:opacity-60 disabled:cursor-not-allowed" placeholder="Penurunan Kualitas Air Permukaan akibat erosi tanah terbuka..." />
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-bold text-text-low mb-1.5 tracking-wider">TARGET PEMENUHAN (PARAMETER & BAKU MUTU)</label>
-                    <textarea value={formData.target} onChange={e => setFormData({...formData, target: e.target.value})} rows={3} className="w-full p-2.5 text-sm resize-none" placeholder="TSS < 300 mg/L, pH 6-9 sesuai PerGub Kaltim..." />
+                    <textarea disabled={Boolean(editingId) && !allowedFullEdit} value={formData.target} onChange={e => setFormData({...formData, target: e.target.value})} rows={3} className="w-full p-2.5 text-sm resize-none disabled:opacity-60 disabled:cursor-not-allowed" placeholder="TSS < 300 mg/L, pH 6-9 sesuai PerGub Kaltim..." />
                   </div>
 
                   <div>

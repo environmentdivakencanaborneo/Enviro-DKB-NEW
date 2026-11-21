@@ -10,12 +10,18 @@ import type {
   RegulatoryWatchData,
   StandardMedia,
 } from '../types';
+import {
+  DEFAULT_INTERNAL_THRESHOLDS_VALUE,
+  evaluateSampleCompliance,
+  resolveEffectiveStandardsMap,
+  type EvaluateSampleOptions,
+} from '../utils/waterQualityEval';
 
 export interface RegulationParam {
   name: string;
   unit: string;
   limit: string;
-  numericLimit: number;
+  numericLimit?: number | null;
   comparison: 'max' | 'min' | 'range';
   minLimit?: number;
 }
@@ -31,128 +37,144 @@ export interface EnvironmentalRegulation {
 
 export const INDONESIAN_REGULATIONS: EnvironmentalRegulation[] = [
   {
-    id: "PP-22-2021",
-    title: "PP No. 22 Tahun 2021 (Lampiran VI, VII, IX)",
-    category: "Air Permukaan, Udara Ambien & Limbah B3",
-    description: "Penyelenggaraan Perlindungan dan Pengelolaan Lingkungan Hidup. Lampiran VI mengatur Baku Mutu Air Nasional (Kelas I–IV); Lampiran VII mengatur Baku Mutu Udara Ambien; Lampiran IX mengatur Daftar Limbah B3. Parameter Besi Terlarut (0,3 mg/L) & Mangan Terlarut (0,1 mg/L) pada Kelas II bersifat informatif / perlu verifikasi teknis izin badan air penerima sebelum dipakai sebagai pelanggaran.",
+    id: 'PP-22-2021',
+    title: 'PP No. 22 Tahun 2021 (Lampiran VI, VII, IX)',
+    category: 'Air Permukaan, Udara Ambien & Limbah B3',
+    description:
+      'Penyelenggaraan Perlindungan dan Pengelolaan Lingkungan Hidup. Lampiran VI mengatur Baku Mutu Air Nasional (Kelas I–IV); Lampiran VII mengatur Baku Mutu Udara Ambien; Lampiran IX mengatur Daftar Limbah B3. Parameter Besi Terlarut & Mangan Terlarut pada Kelas II bersifat informatif / perlu verifikasi teknis izin badan air penerima sebelum dipakai sebagai pelanggaran.',
     parameters: [
-      { name: "pH", unit: "", limit: "6.0 - 9.0", numericLimit: 9.0, comparison: "range", minLimit: 6.0 },
-      { name: "TSS", unit: "mg/L", limit: "Maks 50", numericLimit: 50, comparison: "max" },
-      { name: "DO", unit: "mg/L", limit: "Min 4", numericLimit: 4, comparison: "min" },
-      { name: "BOD", unit: "mg/L", limit: "Maks 3", numericLimit: 3, comparison: "max" },
-      { name: "COD", unit: "mg/L", limit: "Maks 25", numericLimit: 25, comparison: "max" },
-      { name: "Besi Terlarut (Perlu verifikasi)", unit: "mg/L", limit: "0.3 (Perlu verifikasi)", numericLimit: 0.3, comparison: "max" },
-      { name: "Mangan Terlarut (Perlu verifikasi)", unit: "mg/L", limit: "0.1 (Perlu verifikasi)", numericLimit: 0.1, comparison: "max" }
-    ]
+      { name: 'pH', unit: '', limit: '6.0 - 9.0', numericLimit: 9.0, comparison: 'range', minLimit: 6.0 },
+      { name: 'TSS', unit: 'mg/L', limit: 'Maks 50', numericLimit: 50, comparison: 'max' },
+      { name: 'DO', unit: 'mg/L', limit: 'Min 4', numericLimit: 4, comparison: 'min' },
+      { name: 'BOD', unit: 'mg/L', limit: 'Maks 3', numericLimit: 3, comparison: 'max' },
+      { name: 'COD', unit: 'mg/L', limit: 'Maks 25', numericLimit: 25, comparison: 'max' },
+      { name: 'Besi Terlarut (Perlu verifikasi)', unit: 'mg/L', limit: 'Perlu verifikasi', comparison: 'max' },
+      { name: 'Mangan Terlarut (Perlu verifikasi)', unit: 'mg/L', limit: 'Perlu verifikasi', comparison: 'max' },
+    ],
   },
   {
-    id: "KepmenLH-113-2003",
-    title: "Baku Mutu Air Limbah Tambang Batubara (SK Pertek PT DKB)",
-    category: "Air Limbah Tambang Batubara",
-    description: "pH, Fe, dan Mn mengacu Kepmen LH No. 113 Tahun 2003 tentang Baku Mutu Air Limbah bagi Usaha dan/atau Kegiatan Pertambangan Batubara. TSS mengacu SK Pertek Air Limbah PT DKB No. 503/IPAL-LH/DPM-PTSP/2021, yang menetapkan ambang TSS sesuai Perda Provinsi Kalimantan Timur No. 2 Tahun 2011.",
+    id: 'KepmenLH-113-2003',
+    title: 'Baku Mutu Air Limbah Tambang Batubara (Kepmen LH 113/2003 & SK Pertek PT DKB)',
+    category: 'Air Limbah Tambang Batubara',
+    description:
+      'pH, Fe, dan Mn mengacu Kepmen LH No. 113 Tahun 2003. Untuk periode sebelum 26 Maret 2025, TSS mengacu SK Pertek PT DKB No. 503/IPAL-LH/DPM-PTSP/2021 (Perda Kaltim No. 2/2011). Mulai 26 Maret 2025 diterbitkan SK Pertek BMAL PT DKB No. 600.4/865/B.III.2/DLH/2025 — nilai ambang TSS pada SK Pertek 2025 ditandai PERLU VERIFIKASI hingga lampiran resmi SK diunggah & diverifikasi.',
     parameters: [
-      { name: "pH", unit: "", limit: "6.0 - 9.0", numericLimit: 9.0, comparison: "range", minLimit: 6.0 },
-      { name: "TSS", unit: "mg/L", limit: "Maks 300", numericLimit: 300, comparison: "max" },
-      { name: "Besi (Fe)", unit: "mg/L", limit: "Maks 7.0", numericLimit: 7.0, comparison: "max" },
-      { name: "Mangan (Mn)", unit: "mg/L", limit: "Maks 4.0", numericLimit: 4.0, comparison: "max" },
-      { name: "Debit", unit: "m³/s", limit: "Pantau (Monitoring)", numericLimit: 999999, comparison: "max" }
-    ]
+      { name: 'pH', unit: '-', limit: '6.0 - 9.0', numericLimit: 9.0, comparison: 'range', minLimit: 6.0 },
+      { name: 'TSS (< 26 Mar 2025)', unit: 'mg/L', limit: 'Maks 300 (Historis 2021)', numericLimit: 300, comparison: 'max' },
+      { name: 'TSS (>= 26 Mar 2025)', unit: 'mg/L', limit: 'Perlu Verifikasi (SK 600.4/865/B.III.2/DLH/2025)', comparison: 'max' },
+      { name: 'Besi (Fe)', unit: 'mg/L', limit: 'Maks 7.0', numericLimit: 7.0, comparison: 'max' },
+      { name: 'Mangan (Mn)', unit: 'mg/L', limit: 'Maks 4.0', numericLimit: 4.0, comparison: 'max' },
+      { name: 'Debit', unit: 'm³/s', limit: 'Pantau (Monitoring)', comparison: 'max' },
+    ],
   },
   {
-    id: "PermenLHK-6-2021",
-    title: "Permen LHK No. 6 Tahun 2021 & Lampiran IX PP 22/2021",
-    category: "Limbah B3",
-    description: "Tata Cara dan Persyaratan Pengelolaan Limbah Bahan Berbahaya dan Beracun, termasuk standarisasi penyimpanan TPS dan kode limbah berdasarkan Lampiran IX PP No. 22 Tahun 2021 jo. Permen LHK No. 6 Tahun 2021.",
+    id: 'PermenLHK-6-2021',
+    title: 'Permen LHK No. 6 Tahun 2021 & Lampiran IX PP 22/2021',
+    category: 'Limbah B3',
+    description:
+      'Tata Cara dan Persyaratan Pengelolaan Limbah Bahan Berbahaya dan Beracun, termasuk standarisasi penyimpanan TPS (90/180/365 hari sesuai kategori/karakteristik & rincian teknis penyimpanan) serta kode limbah berdasarkan Lampiran IX PP No. 22 Tahun 2021.',
     parameters: [
-      { name: "Masa Simpan Maksimal", unit: "Hari", limit: "Maks 90/180/365 Hari", numericLimit: 90, comparison: "max" }
-    ]
+      { name: 'Masa Simpan Maksimal', unit: 'Hari', limit: '90 / 180 / 365 Hari (sesuai jenis & Persetujuan Lingkungan)', numericLimit: 90, comparison: 'max' },
+    ],
   },
   {
-    id: "UU-18-2008",
-    title: "UU No. 18 Tahun 2008; PP No. 81 Tahun 2012; Permen LHK No. 19 Tahun 2021",
-    category: "Pengelolaan Sampah & Limbah Non-B3",
-    description: "Dasar pengelolaan sampah domestik/sejenis sampah rumah tangga dan pengelolaan limbah non-B3 terdaftar/khusus. Target pemilahan/pengolahan dalam aplikasi merupakan KPI internal perusahaan (mengacu arah Jakstranas; perlu penetapan manajemen).",
-    parameters: []
+    id: 'UU-18-2008',
+    title: 'UU No. 18 Tahun 2008; PP No. 81 Tahun 2012; Permen LHK No. 19 Tahun 2021',
+    category: 'Pengelolaan Sampah & Limbah Non-B3',
+    description:
+      'Dasar pengelolaan sampah domestik/sejenis sampah rumah tangga dan pengelolaan limbah non-B3 terdaftar/khusus. Target pemilahan/pengolahan dalam aplikasi merupakan KPI internal perusahaan (mengacu arah Jakstranas; perlu penetapan manajemen).',
+    parameters: [],
   },
   {
-    id: "PermenLH-7-2025",
-    title: "Permen LH/BPLH No. 7 Tahun 2025",
-    category: "PROPER",
-    description: "Program Penilaian Peringkat Kinerja Perusahaan dalam Pengelolaan Lingkungan Hidup (mencabut Permen LHK No. 1 Tahun 2021). Mencakup peringkat ketaatan Emas, Hijau, Biru, Merah, dan Hitam.",
-    parameters: []
+    id: 'PermenLH-7-2025',
+    title: 'Permen LH/BPLH No. 7 Tahun 2025 (Menunggu Verifikasi Naskah Resmi)',
+    category: 'PROPER',
+    description:
+      'Pengaturan Program Penilaian Peringkat Kinerja Perusahaan dalam Pengelolaan Lingkungan Hidup (mencabut Permen LHK No. 1 Tahun 2021). Metadata tanggal pengundangan dan lampiran kriteria wajib diverifikasi pada JDIH KLH/BPLH sebelum dijadikan acuan skoring otomatis.',
+    parameters: [],
   },
   {
-    id: "PermenESDM-17-2025",
-    title: "Permen ESDM No. 17 Tahun 2025 jo. Permen ESDM No. 6 Tahun 2026",
-    category: "RKAB Pertambangan",
-    description: "Tata Cara Penyusunan, Penyampaian, dan Persetujuan Rencana Kerja dan Anggaran Biaya (RKAB) Pertambangan Minerba secara tahunan melalui sistem Minerba One (menggantikan rezim RKAB multi-tahun Permen ESDM No. 10/2023).",
-    parameters: []
+    id: 'PermenESDM-17-2025',
+    title: 'Permen ESDM No. 17 Tahun 2025 jo. Permen ESDM No. 6 Tahun 2026',
+    category: 'RKAB Pertambangan',
+    description:
+      'Ketentuan penyusunan, penyampaian, dan persetujuan RKAB Pertambangan Minerba tahunan melalui Minerba One (menggantikan rezim RKAB multi-tahun Permen ESDM No. 10/2023). Detail tanggal penetapan/pengundangan menunggu verifikasi JDIH ESDM.',
+    parameters: [],
   },
   {
-    id: "KepmenESDM-344-2025",
-    title: "Kepmen ESDM No. 344.K/MB.01/MEM.B/2025",
-    category: "Reklamasi & Pascatambang",
-    description: "Pedoman Teknis Pelaksanaan Reklamasi dan Pascatambang pada Kegiatan Usaha Pertambangan Mineral dan Batubara (berlaku 23 Oktober 2025), termasuk ketentuan penempatan Jaminan Reklamasi dan Jaminan Pascatambang dalam bentuk Deposito Berjangka pada Bank Pemerintah.",
+    id: 'KepmenESDM-344-2025',
+    title: 'Kepmen ESDM No. 344.K/MB.01/MEM.B/2025',
+    category: 'Reklamasi & Pascatambang',
+    description:
+      'Pedoman Teknis Pelaksanaan Reklamasi dan Pascatambang pada Kegiatan Usaha Pertambangan Mineral dan Batubara (ditetapkan 23 Oktober 2025), termasuk ketentuan penempatan Jaminan Reklamasi dan Jaminan Pascatambang dalam bentuk Deposito Berjangka pada Bank Pemerintah.',
     parameters: [
-      { name: "Bentuk Jaminan Baru", unit: "Instrumen", limit: "Deposito Berjangka (Bank Pemerintah)", numericLimit: 100, comparison: "max" }
-    ]
+      { name: 'Bentuk Jaminan Baru', unit: 'Instrumen', limit: 'Deposito Berjangka (Bank Pemerintah)', numericLimit: 100, comparison: 'max' },
+    ],
   },
   {
-    id: "KepmenESDM-1827-2018",
-    title: "Kepmen ESDM No. 1827 K/30/MEM/2018 & Permen ESDM No. 26 Tahun 2018",
-    category: "Kaidah Pertambangan Baik (Good Mining Practice)",
-    description: "Pelaksanaan Kaidah Pertambangan yang Baik dan Pengawasan Pertambangan Mineral dan Batubara. Catatan sinkronisasi: Periksa irisan ketentuan reklamasi & pascatambang dengan Kepmen ESDM No. 344.K/MB.01/MEM.B/2025.",
-    parameters: []
+    id: 'KepmenESDM-1827-2018',
+    title: 'Kepmen ESDM No. 1827 K/30/MEM/2018 & Permen ESDM No. 26 Tahun 2018',
+    category: 'Kaidah Pertambangan Baik (Good Mining Practice)',
+    description:
+      'Pelaksanaan Kaidah Pertambangan yang Baik dan Pengawasan Pertambangan Mineral dan Batubara. Catatan sinkronisasi: Periksa irisan ketentuan reklamasi & pascatambang dengan Kepmen ESDM No. 344.K/MB.01/MEM.B/2025.',
+    parameters: [],
   },
   {
-    id: "PP-28-2025",
-    title: "PP No. 28 Tahun 2025 & Permen LH/BPLH No. 22 Tahun 2025",
-    category: "Perizinan Berusaha & Persetujuan Lingkungan",
-    description: "Penyelenggaraan Perizinan Berusaha Berbasis Risiko (berlaku 5 Juni 2025, menggantikan PP No. 5 Tahun 2021) dan sinkronisasi Persetujuan Lingkungan/Pertek di bawah KLH/BPLH.",
-    parameters: []
+    id: 'PP-28-2025',
+    title: 'PP No. 28 Tahun 2025 & Permen LH/BPLH No. 22 Tahun 2025',
+    category: 'Perizinan Berusaha & Persetujuan Lingkungan',
+    description:
+      'Penyelenggaraan Perizinan Berusaha Berbasis Risiko (PP 28/2025, menggantikan PP 5/2021) dan ketentuan terkait Persetujuan Lingkungan/Pertek di bawah KLH/BPLH (entri Permen LH/BPLH 22/2025 bertanda Menunggu Verifikasi JDIH).',
+    parameters: [],
   },
   {
-    id: "UU-2-2025",
-    title: "UU No. 4 Tahun 2009 jo. UU No. 2 Tahun 2025 (Perubahan Keempat)",
-    category: "Pertambangan Minerba",
-    description: "Kerangka hukum terkini pertambangan mineral dan batubara Indonesia sebagaimana diubah terakhir dengan UU No. 2 Tahun 2025 tentang Perubahan Keempat atas UU No. 4 Tahun 2009.",
-    parameters: []
+    id: 'UU-2-2025',
+    title: 'UU No. 4 Tahun 2009 jo. UU No. 2 Tahun 2025 (Perubahan Keempat)',
+    category: 'Pertambangan Minerba',
+    description:
+      'Kerangka hukum pertambangan mineral dan batubara Indonesia sebagaimana diubah terakhir dengan UU No. 2 Tahun 2025 tentang Perubahan Keempat atas UU No. 4 Tahun 2009.',
+    parameters: [],
   },
   {
-    id: "UU-3-2020",
-    title: "UU No. 3 Tahun 2020 (Rujukan Historis)",
-    category: "Pertambangan Minerba (Historis)",
-    description: "Perubahan atas UU No. 4 Tahun 2009 (rujukan historis sebelum UU No. 2 Tahun 2025). Kewajiban reklamasi & perlindungan lingkungan pertambangan tetap relevan sepanjang tidak diubah ketentuan terbaru.",
-    parameters: []
-  }
+    id: 'UU-3-2020',
+    title: 'UU No. 3 Tahun 2020 (Rujukan Historis)',
+    category: 'Pertambangan Minerba (Historis)',
+    description:
+      'Perubahan atas UU No. 4 Tahun 2009 (rujukan historis sebelum UU No. 2 Tahun 2025). Kewajiban reklamasi & perlindungan lingkungan pertambangan tetap relevan sepanjang tidak diubah ketentuan terbaru.',
+    parameters: [],
+  },
 ];
 
+/**
+ * Daftar key/metadata parameter default tanpa angka batas statis sebagai referensi tampilan awal.
+ * Seluruh evaluasi kepatuhan WAJIB menggunakan koleksi Master Baku Mutu (`standards`) melalui `waterQualityEval.ts`.
+ */
 export const WASTEWATER_STANDARDS = [
-  { key: 'ph',    label: 'pH',          unit: '-',    min: 6,    max: 9,    display: '6,0 – 9,0',       decimals: { min: 1, max: 2 } },
-  { key: 'tss',   label: 'TSS',         unit: 'mg/L', min: null, max: 300,  display: '300',            decimals: { min: 0, max: 1 } },
-  { key: 'debit', label: 'Debit',       unit: 'm³/s', min: null, max: null, display: 'Bebas / Pantau', decimals: { min: 1, max: 3 } },
-  { key: 'fe',    label: 'Besi (Fe)',   unit: 'mg/L', min: null, max: 7,    display: '7,0',            decimals: { min: 1, max: 3 } },
-  { key: 'mn',    label: 'Mangan (Mn)', unit: 'mg/L', min: null, max: 4,    display: '4,0',            decimals: { min: 1, max: 3 } },
+  { key: 'ph', label: 'pH', unit: '-', min: 6, max: 9, display: 'Sesuai Master', decimals: { min: 1, max: 2 } },
+  { key: 'tss', label: 'TSS', unit: 'mg/L', min: null, max: null, display: 'Sesuai Master', decimals: { min: 0, max: 1 } },
+  { key: 'debit', label: 'Debit', unit: 'm³/s', min: null, max: null, display: 'Bebas / Pantau', decimals: { min: 1, max: 3 } },
+  { key: 'fe', label: 'Besi (Fe)', unit: 'mg/L', min: null, max: 7, display: 'Sesuai Master', decimals: { min: 1, max: 3 } },
+  { key: 'mn', label: 'Mangan (Mn)', unit: 'mg/L', min: null, max: 4, display: 'Sesuai Master', decimals: { min: 1, max: 3 } },
 ] as const;
 
-export const WASTEWATER_BASIS_LABEL = 'Kepmen LH No. 113 Tahun 2003 dan SK Pertek Air Limbah PT DKB No. 503/IPAL-LH/DPM-PTSP/2021';
+export const WASTEWATER_BASIS_LABEL =
+  'Kepmen LH No. 113 Tahun 2003 & SK Pertek BMAL PT DKB (mengikuti periode berlaku pada Master Baku Mutu)';
 export const SURFACE_WATER_BASIS_LABEL = 'PP No. 22 Tahun 2021 Lampiran VI (Air Permukaan Kelas II)';
 export const WARNING_RATIO = 0.85;
 
-export const DEFAULT_INTERNAL_THRESHOLDS: InternalThresholdsConfig = {
-  id: 'env_thresholds',
-  warningRatio: 0.85,
-  phMargin: 0.3,
-  solidWasteTargetPct: 30,
-};
+export const DEFAULT_INTERNAL_THRESHOLDS: InternalThresholdsConfig = DEFAULT_INTERNAL_THRESHOLDS_VALUE;
 
 export const DEFAULT_PROPER_CRITERIA: ProperCriteriaMaster = {
   id: 'proper_criteria',
-  regulationBasis: 'Permen LH/BPLH No. 7 Tahun 2025 tentang Program Penilaian Peringkat Kinerja Pengelolaan Lingkungan Hidup',
+  regulationBasis:
+    'Permen LH/BPLH No. 7 Tahun 2025 tentang Program Penilaian Peringkat Kinerja Pengelolaan Lingkungan Hidup',
   criteria: [],
 };
 
-export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy'>[] = [
+export const INITIAL_STANDARDS_SEED: Omit<
+  EnvironmentalStandard,
+  'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy'
+>[] = [
   {
     id: 'STD-WW-PH',
     media: 'air_limbah',
@@ -162,9 +184,15 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     minLimit: 6.0,
     maxLimit: 9.0,
     basisRegulasi: 'Kepmen LH No. 113 Tahun 2003',
+    approvalDocNo: 'Kepmen LH No. 113 Tahun 2003',
+    decreeDate: '2003-07-10',
     effectiveFrom: '2021-01-01',
+    effectiveTo: null,
+    sourceDocument: 'Kepmen LH No. 113 Tahun 2003 Lampiran',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Terverifikasi',
+    effectiveStatus: 'BERLAKU',
     notes: 'Rentang pH air limbah pertambangan batubara.',
   },
   {
@@ -176,10 +204,37 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     minLimit: null,
     maxLimit: 300,
     basisRegulasi: 'SK Pertek Air Limbah PT DKB No. 503/IPAL-LH/DPM-PTSP/2021 & Perda Kaltim No. 2/2011',
+    approvalDocNo: 'No. 503/IPAL-LH/DPM-PTSP/2021',
+    decreeDate: '2021-01-01',
     effectiveFrom: '2021-01-01',
+    effectiveTo: '2025-03-25',
+    sourceDocument: 'SK Pertek Air Limbah PT DKB 2021',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Terverifikasi',
-    notes: 'Batas maksimum TSS sesuai SK Pertek PT DKB.',
+    effectiveStatus: 'BERLAKU',
+    notes: 'Standar historis sebelum penerbitan SK Pertek BMAL No. 600.4/865/B.III.2/DLH/2025 tanggal 26 Maret 2025.',
+  },
+  {
+    id: 'STD-WW-PERTEK-2025-TSS',
+    media: 'air_limbah',
+    parameterKey: 'tss',
+    parameterLabel: 'TSS',
+    unit: 'mg/L',
+    minLimit: null,
+    maxLimit: null,
+    basisRegulasi: 'SK Pertek BMAL PT DKB No. 600.4/865/B.III.2/DLH/2025',
+    approvalDocNo: 'No. 600.4/865/B.III.2/DLH/2025',
+    decreeDate: '2025-03-26',
+    effectiveFrom: '2025-03-26',
+    effectiveTo: null,
+    sourceDocument: 'SK Pertek BMAL No. 600.4/865/B.III.2/DLH/2025 (Lampiran resmi belum diunggah)',
+    isActive: true,
+    applicable: true,
+    verificationStatus: 'Perlu verifikasi',
+    effectiveStatus: 'MENUNGGU VERIFIKASI',
+    notes:
+      'PERLU VERIFIKASI MANUAL: Lampiran resmi SK Pertek BMAL PT DKB No. 600.4/865/B.III.2/DLH/2025 tanggal 26 Maret 2025 belum tersedia di sistem. Masukkan nilai batas TSS, titik penaatan, dan ubah status menjadi Terverifikasi setelah verifikasi dokumen DLH resmi.',
   },
   {
     id: 'STD-WW-DEBIT',
@@ -190,9 +245,15 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     minLimit: null,
     maxLimit: null,
     basisRegulasi: 'Kepmen LH No. 113 Tahun 2003 (Pantau/Monitoring)',
+    approvalDocNo: 'Kepmen LH No. 113 Tahun 2003',
+    decreeDate: '2003-07-10',
     effectiveFrom: '2021-01-01',
+    effectiveTo: null,
+    sourceDocument: 'Kepmen LH No. 113 Tahun 2003',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Terverifikasi',
+    effectiveStatus: 'BERLAKU',
     notes: 'Parameter dipantau (tanpa batas ambang numerik baku mutu kecuali diatur khusus dalam Pertek).',
   },
   {
@@ -204,9 +265,15 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     minLimit: null,
     maxLimit: 7.0,
     basisRegulasi: 'Kepmen LH No. 113 Tahun 2003',
+    approvalDocNo: 'Kepmen LH No. 113 Tahun 2003',
+    decreeDate: '2003-07-10',
     effectiveFrom: '2021-01-01',
+    effectiveTo: null,
+    sourceDocument: 'Kepmen LH No. 113 Tahun 2003 Lampiran',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Terverifikasi',
+    effectiveStatus: 'BERLAKU',
   },
   {
     id: 'STD-WW-MN',
@@ -217,9 +284,15 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     minLimit: null,
     maxLimit: 4.0,
     basisRegulasi: 'Kepmen LH No. 113 Tahun 2003',
+    approvalDocNo: 'Kepmen LH No. 113 Tahun 2003',
+    decreeDate: '2003-07-10',
     effectiveFrom: '2021-01-01',
+    effectiveTo: null,
+    sourceDocument: 'Kepmen LH No. 113 Tahun 2003 Lampiran',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Terverifikasi',
+    effectiveStatus: 'BERLAKU',
   },
   {
     id: 'STD-SW-PH',
@@ -230,10 +303,16 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     minLimit: 6.0,
     maxLimit: 9.0,
     basisRegulasi: 'PP No. 22 Tahun 2021 Lampiran VI Kelas II',
+    approvalDocNo: 'PP No. 22 Tahun 2021',
+    decreeDate: '2021-02-02',
     kelasAir: 'II',
     effectiveFrom: '2021-02-02',
+    effectiveTo: null,
+    sourceDocument: 'PP No. 22 Tahun 2021 Lampiran VI',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Terverifikasi',
+    effectiveStatus: 'BERLAKU',
   },
   {
     id: 'STD-SW-TSS',
@@ -244,10 +323,16 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     minLimit: null,
     maxLimit: 50,
     basisRegulasi: 'PP No. 22 Tahun 2021 Lampiran VI Kelas II',
+    approvalDocNo: 'PP No. 22 Tahun 2021',
+    decreeDate: '2021-02-02',
     kelasAir: 'II',
     effectiveFrom: '2021-02-02',
+    effectiveTo: null,
+    sourceDocument: 'PP No. 22 Tahun 2021 Lampiran VI',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Terverifikasi',
+    effectiveStatus: 'BERLAKU',
   },
   {
     id: 'STD-SW-DO',
@@ -258,10 +343,16 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     minLimit: 4.0,
     maxLimit: null,
     basisRegulasi: 'PP No. 22 Tahun 2021 Lampiran VI Kelas II',
+    approvalDocNo: 'PP No. 22 Tahun 2021',
+    decreeDate: '2021-02-02',
     kelasAir: 'II',
     effectiveFrom: '2021-02-02',
+    effectiveTo: null,
+    sourceDocument: 'PP No. 22 Tahun 2021 Lampiran VI',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Terverifikasi',
+    effectiveStatus: 'BERLAKU',
   },
   {
     id: 'STD-SW-BOD',
@@ -272,10 +363,16 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     minLimit: null,
     maxLimit: 3.0,
     basisRegulasi: 'PP No. 22 Tahun 2021 Lampiran VI Kelas II',
+    approvalDocNo: 'PP No. 22 Tahun 2021',
+    decreeDate: '2021-02-02',
     kelasAir: 'II',
     effectiveFrom: '2021-02-02',
+    effectiveTo: null,
+    sourceDocument: 'PP No. 22 Tahun 2021 Lampiran VI',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Terverifikasi',
+    effectiveStatus: 'BERLAKU',
   },
   {
     id: 'STD-SW-COD',
@@ -286,10 +383,16 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     minLimit: null,
     maxLimit: 25.0,
     basisRegulasi: 'PP No. 22 Tahun 2021 Lampiran VI Kelas II',
+    approvalDocNo: 'PP No. 22 Tahun 2021',
+    decreeDate: '2021-02-02',
     kelasAir: 'II',
     effectiveFrom: '2021-02-02',
+    effectiveTo: null,
+    sourceDocument: 'PP No. 22 Tahun 2021 Lampiran VI',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Terverifikasi',
+    effectiveStatus: 'BERLAKU',
   },
   {
     id: 'STD-SW-FE',
@@ -298,13 +401,20 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     parameterLabel: 'Besi Terlarut (Fe)',
     unit: 'mg/L',
     minLimit: null,
-    maxLimit: 0.3,
+    maxLimit: null,
     basisRegulasi: 'PP No. 22 Tahun 2021 Lampiran VI (Perlu verifikasi penerapan Kelas II)',
+    approvalDocNo: 'PP No. 22 Tahun 2021 (Perlu Verifikasi Kelas Badan Air)',
+    decreeDate: '2021-02-02',
     kelasAir: 'II',
     effectiveFrom: '2021-02-02',
+    effectiveTo: null,
+    sourceDocument: 'PP No. 22 Tahun 2021 Lampiran VI (catatan Kelas I/II perlu verifikasi dokumen lingkungan)',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Perlu verifikasi',
-    notes: 'Tanda informatif sebelum diverifikasi Superintendent terhadap dokumen Persetujuan Lingkungan/Lampiran VI PP 22/2021.',
+    effectiveStatus: 'MENUNGGU VERIFIKASI',
+    notes:
+      'Dalam Lampiran VI PP 22/2021 angka 0,3 mg/L lazim berlaku pada Kelas I. Verifikasi Superintendent terhadap Persetujuan Lingkungan/SK Pertek sebelum mengisi batas dan memverifikasi parameter ini.',
   },
   {
     id: 'STD-SW-MN',
@@ -313,136 +423,273 @@ export const INITIAL_STANDARDS_SEED: Omit<EnvironmentalStandard, 'createdAt' | '
     parameterLabel: 'Mangan Terlarut (Mn)',
     unit: 'mg/L',
     minLimit: null,
-    maxLimit: 0.1,
+    maxLimit: null,
     basisRegulasi: 'PP No. 22 Tahun 2021 Lampiran VI (Perlu verifikasi penerapan Kelas II)',
+    approvalDocNo: 'PP No. 22 Tahun 2021 (Perlu Verifikasi Kelas Badan Air)',
+    decreeDate: '2021-02-02',
     kelasAir: 'II',
     effectiveFrom: '2021-02-02',
+    effectiveTo: null,
+    sourceDocument: 'PP No. 22 Tahun 2021 Lampiran VI (catatan Kelas I/II perlu verifikasi dokumen lingkungan)',
     isActive: true,
+    applicable: true,
     verificationStatus: 'Perlu verifikasi',
-    notes: 'Tanda informatif sebelum diverifikasi Superintendent terhadap dokumen Persetujuan Lingkungan/Lampiran VI PP 22/2021.',
+    effectiveStatus: 'MENUNGGU VERIFIKASI',
+    notes:
+      'Dalam Lampiran VI PP 22/2021 angka 0,1 mg/L lazim berlaku pada Kelas I. Verifikasi Superintendent terhadap Persetujuan Lingkungan/SK Pertek sebelum mengisi batas dan memverifikasi parameter ini.',
   },
 ];
 
 export const REGULATORY_WATCH_SEED_15: Array<Omit<RegulatoryWatchData, 'id' | 'createdAt' | 'createdBy'>> = [
   {
     source: 'Kementerian ESDM',
+    issuer: 'Kementerian Energi dan Sumber Daya Mineral',
     regulationNo: 'Kepmen ESDM No. 344.K/MB.01/MEM.B/2025',
     about: 'Pedoman Teknis Pelaksanaan Reklamasi dan Pascatambang pada Kegiatan Usaha Pertambangan Mineral dan Batubara',
     issueDate: '2025-10-23',
-    implication: 'Mempengaruhi modul Reklamasi & Jaminan: jaminan reklamasi dan jaminan pascatambang ditempatkan dalam bentuk Deposito Berjangka pada Bank Pemerintah.',
-    status: 'Perlu Kajian',
+    enactedDate: '2025-10-23',
+    promulgatedDate: '',
+    effectiveDate: '2025-10-23',
+    implication:
+      'Mempengaruhi modul Reklamasi & Jaminan: jaminan reklamasi dan jaminan pascatambang ditempatkan dalam bentuk Deposito Berjangka pada Bank Pemerintah.',
+    requiredActions: 'Evaluasi kesesuaian portofolio jaminan eksisting terhadap ketentuan Deposito Bank Pemerintah & telaah irisan dengan Kepmen ESDM 1827/2018.',
+    affectedModules: ['reclamation', 'guarantees', 'compliance_matrix'],
+    relationNotes: 'Periksa keterkaitan dengan Lampiran VI Kepmen ESDM 1827 K/30/MEM/2018.',
+    status: 'MENUNGGU VERIFIKASI',
+    verificationStatus: 'Perlu verifikasi',
+    officialSourceUrl: 'https://jdih.esdm.go.id/',
   },
   {
     source: 'KLH/BPLH',
+    issuer: 'Kementerian Lingkungan Hidup / Badan Pengendalian Lingkungan Hidup',
     regulationNo: 'Permen LH/BPLH No. 7 Tahun 2025',
-    about: 'Program Penilaian Peringkat Kinerja Pengelolaan Lingkungan Hidup (PROPER) — mencabut Permen LHK No. 1/2021',
-    issueDate: '2025-07-01',
-    implication: 'Mempengaruhi modul PROPER & RKAB (peringkat Emas, Hijau, Biru, Merah, Hitam serta penyesuaian kriteria penilaian oleh Superintendent).',
-    status: 'Perlu Kajian',
+    about: 'Program Penilaian Peringkat Kinerja Perusahaan dalam Pengelolaan Lingkungan Hidup (PROPER)',
+    issueDate: '',
+    enactedDate: '',
+    promulgatedDate: '',
+    effectiveDate: '',
+    implication:
+      'Mempengaruhi modul PROPER & RKAB serta pemetaan peringkat Emas, Hijau, Biru, Merah, dan Hitam.',
+    requiredActions: 'Verifikasi tanggal penetapan/pengundangan, naskah resmi pada JDIH KLH/BPLH, dan perbarui master kriteria PROPER oleh Superintendent.',
+    affectedModules: ['proper_rkab', 'compliance_matrix'],
+    revokedBy: 'Mencabut Permen LHK No. 1 Tahun 2021 (perlu verifikasi pasal pencabutan di JDIH)',
+    relationNotes: 'Mencabut Permen LHK No. 1/2021. Tanggal pengundangan/berlaku tidak diasumsikan sebelum verifikasi JDIH.',
+    status: 'MENUNGGU VERIFIKASI',
+    verificationStatus: 'Perlu verifikasi',
+    officialSourceUrl: 'https://jdih.menlhk.go.id/',
   },
   {
     source: 'Kementerian ESDM',
+    issuer: 'Kementerian Energi dan Sumber Daya Mineral',
     regulationNo: 'Permen ESDM No. 17 Tahun 2025',
-    about: 'Tata Cara Penyusunan, Penyampaian, dan Persetujuan RKAB Kegiatan Usaha Pertambangan Minerba melalui Minerba One',
-    issueDate: '2025-09-01',
-    implication: 'Mempengaruhi modul PROPER & RKAB serta Rencana Reklamasi/Pemantauan tahunan: periode RKAB kembali tahunan (1 tahun).',
-    status: 'Perlu Kajian',
+    about: 'Tata Cara Penyusunan, Penyampaian, dan Persetujuan RKAB Kegiatan Usaha Pertambangan Minerba',
+    issueDate: '',
+    enactedDate: '',
+    promulgatedDate: '',
+    effectiveDate: '',
+    implication: 'Mempengaruhi modul PROPER & RKAB serta sinkronisasi periode RKAB tahunan melalui Minerba One.',
+    requiredActions: 'Konfirmasi tanggal penetapan & pengundangan pada JDIH ESDM serta penyesuaian oleh Permen ESDM No. 6 Tahun 2026.',
+    affectedModules: ['proper_rkab', 'reporting_calendar'],
+    amendedBy: 'Permen ESDM No. 6 Tahun 2026',
+    relationNotes: 'Menggantikan pengaturan RKAB pada Permen ESDM No. 10/2023 dan diubah dengan Permen ESDM No. 6 Tahun 2026.',
+    status: 'MENUNGGU VERIFIKASI',
+    verificationStatus: 'Perlu verifikasi',
+    officialSourceUrl: 'https://jdih.esdm.go.id/',
   },
   {
     source: 'Kementerian ESDM',
+    issuer: 'Kementerian Energi dan Sumber Daya Mineral',
     regulationNo: 'Permen ESDM No. 6 Tahun 2026',
-    about: 'Perubahan atas Permen ESDM No. 17 Tahun 2025 tentang Penyusunan, Penyampaian, dan Persetujuan RKAB Minerba',
-    issueDate: '2026-03-01',
-    implication: 'Mempengaruhi modul PROPER & RKAB: penyesuaian ketentuan evaluasi dan pelaporan RKAB tahunan.',
-    status: 'Perlu Kajian',
+    about: 'Perubahan atas Permen ESDM tentang Tata Cara Penyusunan, Penyampaian, dan Persetujuan RKAB Minerba',
+    issueDate: '',
+    enactedDate: '',
+    promulgatedDate: '',
+    effectiveDate: '',
+    implication: 'Mempengaruhi modul PROPER & RKAB serta jadwal pelaporan lingkungan RKAB tahunan.',
+    requiredActions: 'Unggah naskah resmi dan verifikasi tanggal pengundangan, judul lengkap, serta pasal perubahan dari JDIH ESDM.',
+    affectedModules: ['proper_rkab', 'reporting_calendar'],
+    relationNotes: 'Mengubah ketentuan pada Permen ESDM No. 17 Tahun 2025. Tanggal belum diisi untuk menghindari asumsi.',
+    status: 'MENUNGGU VERIFIKASI',
+    verificationStatus: 'Perlu verifikasi',
+    officialSourceUrl: 'https://jdih.esdm.go.id/',
   },
   {
     source: 'Pemerintah Pusat',
+    issuer: 'Presiden & DPR RI',
     regulationNo: 'UU No. 2 Tahun 2025',
     about: 'Perubahan Keempat atas UU No. 4 Tahun 2009 tentang Pertambangan Mineral dan Batubara',
-    issueDate: '2025-02-01',
-    implication: 'Mempengaruhi modul Izin & Dokumen, Reklamasi, dan Matriks Kepatuhan sebagai payung hukum utama sektor minerba.',
-    status: 'Perlu Kajian',
+    issueDate: '',
+    enactedDate: '',
+    promulgatedDate: '',
+    effectiveDate: '',
+    implication: 'Payung hukum sektor minerba terbaru yang memengaruhi perizinan, reklamasi, dan kepatuhan lingkungan.',
+    requiredActions: 'Verifikasi tanggal pengundangan Lembaran Negara pada JDIH Setneg/ESDM.',
+    affectedModules: ['documents', 'reclamation', 'compliance_matrix'],
+    relationNotes: 'Perubahan Keempat atas UU No. 4 Tahun 2009.',
+    status: 'MENUNGGU VERIFIKASI',
+    verificationStatus: 'Perlu verifikasi',
+    officialSourceUrl: 'https://jdih.setneg.go.id/',
   },
   {
     source: 'Pemerintah Pusat',
+    issuer: 'Pemerintah Republik Indonesia',
     regulationNo: 'PP No. 28 Tahun 2025',
     about: 'Penyelenggaraan Perizinan Berusaha Berbasis Risiko (menggantikan PP No. 5 Tahun 2021)',
     issueDate: '2025-06-05',
-    implication: 'Mempengaruhi modul Dokumen & Izin Lingkungan (Persetujuan Lingkungan, Pertek Air Limbah/Emisi, Izin TPS B3).',
-    status: 'Perlu Kajian',
+    enactedDate: '2025-06-05',
+    promulgatedDate: '2025-06-05',
+    effectiveDate: '2025-06-05',
+    implication: 'Mempengaruhi modul Persetujuan Lingkungan & Perizinan OSS serta registrasi Pertek/SLO.',
+    requiredActions: 'Audit kesesuaian KBLI, NIB, Persetujuan Lingkungan, dan Pertek pada sistem OSS-RBA terbaru.',
+    affectedModules: ['documents', 'pertek_slo'],
+    relationNotes: 'Menggantikan PP No. 5 Tahun 2021.',
+    status: 'MENUNGGU VERIFIKASI',
+    verificationStatus: 'Perlu verifikasi',
+    officialSourceUrl: 'https://jdih.setneg.go.id/',
   },
   {
     source: 'KLH/BPLH',
+    issuer: 'Kementerian Lingkungan Hidup / Badan Pengendalian Lingkungan Hidup',
     regulationNo: 'Permen LH/BPLH No. 22 Tahun 2025',
-    about: 'Pedoman Teknis Persetujuan Lingkungan dan Penapisan Usaha/Kegiatan di bawah KLH/BPLH',
-    issueDate: '2025-08-01',
-    implication: 'Mempengaruhi modul Dokumen & Izin Lingkungan serta IADL Risiko Lingkungan terkait persyaratan AMDAL/UKL-UPL & Pertek.',
-    status: 'Perlu Kajian',
+    about: 'Pengaturan teknis Persetujuan Lingkungan / standar lingkungan hidup di bawah KLH/BPLH (judul & nomor wajib verifikasi)',
+    issueDate: '',
+    enactedDate: '',
+    promulgatedDate: '',
+    effectiveDate: '',
+    implication: 'Berpotensi mempengaruhi modul Dokumen & Izin Lingkungan serta Pertek/SLO.',
+    requiredActions: 'Wajib verifikasi nomor, judul lengkap resmi, tanggal pengundangan, dan substansi melalui JDIH KLH/BPLH sebelum ditetapkan BERLAKU.',
+    affectedModules: ['documents', 'pertek_slo', 'iadl_risk'],
+    relationNotes: 'Entri bertanda MENUNGGU VERIFIKASI karena judul resmi dan tanggal pengundangan perlu dikonfirmasi pada JDIH KLH/BPLH.',
+    status: 'MENUNGGU VERIFIKASI',
+    verificationStatus: 'Perlu verifikasi',
+    officialSourceUrl: 'https://jdih.menlhk.go.id/',
   },
   {
     source: 'Pemerintah Pusat',
+    issuer: 'Presiden & DPR RI',
     regulationNo: 'UU No. 32 Tahun 2024',
     about: 'Perubahan atas UU No. 5 Tahun 1990 tentang Konservasi Sumber Daya Alam Hayati dan Ekosistemnya',
     issueDate: '2024-08-07',
+    enactedDate: '2024-08-07',
+    promulgatedDate: '2024-08-07',
+    effectiveDate: '2024-08-07',
     implication: 'Mempengaruhi modul Keanekaragaman Hayati & Pembibitan terkait perlindungan flora/fauna dan koridor satwa di area IUP.',
-    status: 'Perlu Kajian',
+    requiredActions: 'Perbarui daftar pemantauan spesies prioritas sesuai ketentuan konservasi terbaru.',
+    affectedModules: ['biodiversity', 'nursery'],
+    status: 'BERLAKU',
+    verificationStatus: 'Terverifikasi',
+    officialSourceUrl: 'https://jdih.setneg.go.id/',
   },
   {
     source: 'KLH/BPLH',
+    issuer: 'Kementerian Lingkungan Hidup dan Kehutanan',
     regulationNo: 'Permen LHK No. P.106/MENLHK/SETJEN/KUM.1/12/2018',
     about: 'Perubahan Kedua atas Permen LHK No. P.20/2018 tentang Jenis Tumbuhan dan Satwa yang Dilindungi',
     issueDate: '2018-12-28',
-    implication: 'Mempengaruhi modul Keanekaragaman Hayati untuk klasifikasi spesies dilindungi (memperbaiki rujukan yang keliru ke PP 106/2018).',
-    status: 'Perlu Kajian',
+    enactedDate: '2018-12-28',
+    promulgatedDate: '2018-12-28',
+    effectiveDate: '2018-12-28',
+    implication: 'Mempengaruhi modul Keanekaragaman Hayati untuk klasifikasi spesies dilindungi.',
+    requiredActions: 'Gunakan daftar lampiran P.106/2018 sebagai dasar klasifikasi status perlindungan spesies.',
+    affectedModules: ['biodiversity'],
+    status: 'BERLAKU',
+    verificationStatus: 'Terverifikasi',
+    officialSourceUrl: 'https://jdih.menlhk.go.id/',
   },
   {
     source: 'Pemerintah Pusat',
+    issuer: 'Pemerintah Republik Indonesia',
     regulationNo: 'PP No. 22 Tahun 2021',
     about: 'Penyelenggaraan Perlindungan dan Pengelolaan Lingkungan Hidup (Lampiran VI, VII, IX)',
     issueDate: '2021-02-02',
+    enactedDate: '2021-02-02',
+    promulgatedDate: '2021-02-02',
+    effectiveDate: '2021-02-02',
     implication: 'Mempengaruhi modul Pemantauan Kualitas Air (Air Permukaan), Udara & Emisi, serta Pengelolaan Limbah B3 (daftar kode limbah).',
-    status: 'Perlu Kajian',
+    requiredActions: 'Pastikan parameter uji air permukaan, udara ambien, dan kode limbah B3 sinkron dengan Lampiran VI, VII, IX.',
+    affectedModules: ['monitoring', 'air_emission', 'waste'],
+    status: 'BERLAKU',
+    verificationStatus: 'Terverifikasi',
+    officialSourceUrl: 'https://jdih.setneg.go.id/',
   },
   {
     source: 'KLH/BPLH',
+    issuer: 'Kementerian Lingkungan Hidup dan Kehutanan',
     regulationNo: 'Permen LHK No. 6 Tahun 2021',
     about: 'Tata Cara dan Persyaratan Pengelolaan Limbah Bahan Berbahaya dan Beracun',
     issueDate: '2021-04-01',
+    enactedDate: '2021-04-01',
+    promulgatedDate: '2021-04-01',
+    effectiveDate: '2021-04-01',
     implication: 'Mempengaruhi modul Limbah B3 (TPS, masa simpan 90/180/365 hari, dan pelaporan manifest elektronik).',
-    status: 'Perlu Kajian',
+    requiredActions: 'Verifikasi masa simpan setiap jenis limbah terhadap rincian teknis TPS LB3 PT DKB.',
+    affectedModules: ['waste', 'pertek_slo'],
+    status: 'BERLAKU',
+    verificationStatus: 'Terverifikasi',
+    officialSourceUrl: 'https://jdih.menlhk.go.id/',
   },
   {
     source: 'KLH/BPLH',
+    issuer: 'Kementerian Lingkungan Hidup dan Kehutanan',
     regulationNo: 'Permen LHK No. 19 Tahun 2021',
     about: 'Tata Cara Pengelolaan Limbah Nonbahan Berbahaya dan Beracun (Limbah Non-B3)',
     issueDate: '2021-10-22',
+    enactedDate: '2021-10-22',
+    promulgatedDate: '2021-10-22',
+    effectiveDate: '2021-10-22',
     implication: 'Mempengaruhi modul Sampah Non-B3 & Limbah Non-B3 bersama UU No. 18/2008 dan PP No. 81/2012.',
-    status: 'Perlu Kajian',
+    requiredActions: 'Lakukan pencatatan timbulan, pemilahan, dan pengangkutan limbah non-B3 secara berkala.',
+    affectedModules: ['solid_waste'],
+    status: 'BERLAKU',
+    verificationStatus: 'Terverifikasi',
+    officialSourceUrl: 'https://jdih.menlhk.go.id/',
   },
   {
     source: 'KLH/BPLH',
+    issuer: 'Kementerian Lingkungan Hidup',
     regulationNo: 'Kepmen LH No. 113 Tahun 2003',
     about: 'Baku Mutu Air Limbah bagi Usaha dan/atau Kegiatan Pertambangan Batubara',
     issueDate: '2003-07-10',
-    implication: 'Mempengaruhi modul Kualitas Air Limbah KPL dan Evidence Harian/Bulanan (parameter pH, Fe, Mn, serta TSS Pertek).',
-    status: 'Perlu Kajian',
+    enactedDate: '2003-07-10',
+    promulgatedDate: '2003-07-10',
+    effectiveDate: '2003-07-10',
+    implication: 'Mempengaruhi modul Kualitas Air Limbah KPL dan Evidence Harian/Bulanan (parameter pH, Fe, Mn, serta sinkronisasi TSS Pertek PT DKB).',
+    requiredActions: 'Sandingkan batas nasional dengan SK Pertek BMAL PT DKB terbaru No. 600.4/865/B.III.2/DLH/2025.',
+    affectedModules: ['monitoring', 'evidence_hub', 'standards'],
+    status: 'BERLAKU',
+    verificationStatus: 'Terverifikasi',
+    officialSourceUrl: 'https://jdih.menlhk.go.id/',
   },
   {
     source: 'Kementerian ESDM',
+    issuer: 'Kementerian Energi dan Sumber Daya Mineral',
     regulationNo: 'Kepmen ESDM No. 1827 K/30/MEM/2018',
     about: 'Pedoman Pelaksanaan Kaidah Teknik Pertambangan yang Baik',
     issueDate: '2018-05-07',
+    enactedDate: '2018-05-07',
+    promulgatedDate: '2018-05-07',
+    effectiveDate: '2018-05-07',
     implication: 'Mempengaruhi modul Topsoil & Erosi, Air Asam Tambang, dan Reklamasi (periksa irisan teknis reklamasi terhadap Kepmen ESDM 344.K/2025).',
-    status: 'Perlu Kajian',
+    requiredActions: 'Lakukan kajian irisan teknis antara Lampiran VI 1827/2018 dan Kepmen ESDM 344.K/2025.',
+    affectedModules: ['topsoil', 'amd_treatment', 'reclamation'],
+    status: 'BERLAKU',
+    verificationStatus: 'Terverifikasi',
+    officialSourceUrl: 'https://jdih.esdm.go.id/',
   },
   {
     source: 'Pemprov Kaltim',
+    issuer: 'Pemerintah Provinsi Kalimantan Timur',
     regulationNo: 'Perda Provinsi Kalimantan Timur No. 2 Tahun 2011',
     about: 'Pengelolaan Kualitas Air dan Pengendalian Pencemaran Air di Provinsi Kalimantan Timur',
     issueDate: '2011-04-01',
-    implication: 'Mempengaruhi modul Kualitas Air Limbah (dasar lokal ambang TSS pada SK Pertek Air Limbah PT DKB).',
-    status: 'Perlu Kajian',
+    enactedDate: '2011-04-01',
+    promulgatedDate: '2011-04-01',
+    effectiveDate: '2011-04-01',
+    implication: 'Dasar lokal pengendalian pencemaran air Kalimantan Timur untuk pembanding ambang TSS SK Pertek PT DKB.',
+    requiredActions: 'Konfirmasi pemberlakuan TSS pada SK Pertek BMAL PT DKB No. 600.4/865/B.III.2/DLH/2025 terhadap ketentuan daerah terkini.',
+    affectedModules: ['monitoring', 'standards'],
+    status: 'BERLAKU',
+    verificationStatus: 'Terverifikasi',
   },
 ];
 
@@ -462,226 +709,123 @@ export function isProtectedConservationStatus(status?: string | null): boolean {
   );
 }
 
-export interface StandardEvaluationOptions {
-  standards?: EnvironmentalStandard[];
-  thresholds?: InternalThresholdsConfig;
-  locationCode?: string;
-  sampleDate?: string;
-  kelasAir?: 'I' | 'II' | 'III' | 'IV';
-}
+export type StandardEvaluationOptions = Partial<EvaluateSampleOptions>;
 
 export function resolveActiveStandards(
   standards: EnvironmentalStandard[] | undefined,
   media: StandardMedia,
-  opts?: { locationCode?: string; sampleDate?: string; kelasAir?: 'I' | 'II' | 'III' | 'IV' }
+  opts?: { locationCode?: string; sampleDate?: string; kelasAir?: 'I' | 'II' | 'III' | 'IV'; standardId?: string | null }
 ): Record<string, EnvironmentalStandard> {
-  const result: Record<string, EnvironmentalStandard> = {};
-  const list = (standards && standards.length > 0)
-    ? standards
-    : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
-
-  const relevant = list.filter((s) => s.media === media && s.isActive);
-
-  for (const std of relevant) {
-    if (std.effectiveFrom && opts?.sampleDate && std.effectiveFrom > opts.sampleDate) {
-      continue;
-    }
-    const existing = result[std.parameterKey];
-    const locMatches = Boolean(std.locationCode && opts?.locationCode && std.locationCode.toUpperCase() === opts.locationCode.toUpperCase());
-    const classMatches = Boolean(std.kelasAir && opts?.kelasAir && std.kelasAir === opts.kelasAir);
-    if (std.locationCode && (!opts?.locationCode || !locMatches)) {
-      continue;
-    }
-    if (!existing) {
-      result[std.parameterKey] = std;
-    } else {
-      const existingLocScore = existing.locationCode ? 2 : 0;
-      const existingClassScore = existing.kelasAir && opts?.kelasAir && existing.kelasAir === opts.kelasAir ? 1 : 0;
-      const candidateScore = (locMatches ? 2 : 0) + (classMatches ? 1 : 0);
-      if (candidateScore >= existingLocScore + existingClassScore) {
-        result[std.parameterKey] = std;
-      }
-    }
-  }
-  return result;
-}
-
-function evaluateLimitPair(
-  value: number,
-  minLimit: number | null | undefined,
-  maxLimit: number | null | undefined,
-  thresholds: InternalThresholdsConfig
-): 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau' {
-  const hasMin = typeof minLimit === 'number' && !isNaN(minLimit);
-  const hasMax = typeof maxLimit === 'number' && !isNaN(maxLimit);
-
-  if (!hasMin && !hasMax) {
-    return 'dipantau';
-  }
-
-  const warningRatio = thresholds.warningRatio ?? 0.85;
-  const phMargin = thresholds.phMargin ?? 0.3;
-
-  if (hasMin && hasMax) {
-    if (value < (minLimit as number) || value > (maxLimit as number)) {
-      return 'tidak_memenuhi';
-    }
-    if (value < (minLimit as number) + phMargin || value > (maxLimit as number) - phMargin) {
-      return 'mendekati';
-    }
-    return 'memenuhi';
-  }
-
-  if (hasMax) {
-    if (value > (maxLimit as number)) {
-      return 'tidak_memenuhi';
-    }
-    if (value > (maxLimit as number) * warningRatio) {
-      return 'mendekati';
-    }
-    return 'memenuhi';
-  }
-
-  if (hasMin) {
-    if (value < (minLimit as number)) {
-      return 'tidak_memenuhi';
-    }
-    if (value < (minLimit as number) + ((minLimit as number) * (1 - warningRatio))) {
-      return 'mendekati';
-    }
-    return 'memenuhi';
-  }
-
-  return 'dipantau';
+  const effectiveList = standards !== undefined ? standards : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+  return resolveEffectiveStandardsMap(effectiveList, media, opts);
 }
 
 /**
- * Evaluasi parameter air limbah terhadap baku mutu dinamis (koleksi standards/{id}, fallback WASTEWATER_STANDARDS).
- * Batas bersifat INKLUSIF (nilai tepat sama dengan batas = memenuhi).
- * Parameter dengan min=null dan max=null (Debit) berstatus 'dipantau'.
+ * Evaluasi satu parameter air limbah melalui engine tunggal `evaluateSampleCompliance`.
  */
 export function evaluateParam(
   key: string,
-  value: number,
+  value: unknown,
   options?: StandardEvaluationOptions
-): 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau' {
-  const thresholds = options?.thresholds ?? DEFAULT_INTERNAL_THRESHOLDS;
-  const activeMap = resolveActiveStandards(options?.standards, 'air_limbah', {
-    locationCode: options?.locationCode,
-    sampleDate: options?.sampleDate,
-  });
-  const dynStd = activeMap[key];
-  if (dynStd) {
-    if (dynStd.verificationStatus === 'Perlu verifikasi') {
-      return 'dipantau';
+) {
+  const standards = options?.standards !== undefined
+    ? options.standards
+    : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+  const res = evaluateSampleCompliance(
+    'air_limbah',
+    { [key]: value },
+    {
+      standards,
+      thresholds: options?.thresholds,
+      locationCode: options?.locationCode,
+      sampleDate: options?.sampleDate,
+      standardId: options?.standardId,
+      unitMap: options?.unitMap,
     }
-    return evaluateLimitPair(value, dynStd.minLimit, dynStd.maxLimit, thresholds);
-  }
-
-  const std = WASTEWATER_STANDARDS.find(s => s.key === key);
-  if (!std || (std.min === null && std.max === null)) {
-    return 'dipantau';
-  }
-  return evaluateLimitPair(value, std.min, std.max, thresholds);
+  );
+  return res.params[key]?.status ?? 'belum_dievaluasi';
 }
 
 export function evaluateWastewaterStatus(
-  ph: number,
-  tss: number,
-  debit: number,
-  fe: number,
-  mn: number,
+  ph: unknown,
+  tss: unknown,
+  debit: unknown,
+  fe: unknown,
+  mn: unknown,
   options?: StandardEvaluationOptions
-): 'Safe' | 'Warning' | 'Exceeded' {
-  const params: Array<{ key: string; val: number }> = [
-    { key: 'ph', val: ph },
-    { key: 'tss', val: tss },
-    { key: 'debit', val: debit },
-    { key: 'fe', val: fe },
-    { key: 'mn', val: mn },
-  ];
-
-  const results = params.map(p => evaluateParam(p.key, p.val, options));
-
-  if (results.some(r => r === 'tidak_memenuhi')) {
-    return 'Exceeded';
-  }
-  if (results.some(r => r === 'mendekati')) {
-    return 'Warning';
-  }
-  return 'Safe';
+) {
+  const standards = options?.standards !== undefined
+    ? options.standards
+    : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+  const res = evaluateSampleCompliance(
+    'air_limbah',
+    { ph, tss, debit, fe, mn },
+    {
+      standards,
+      thresholds: options?.thresholds,
+      locationCode: options?.locationCode,
+      sampleDate: options?.sampleDate,
+      standardId: options?.standardId,
+      unitMap: options?.unitMap,
+    }
+  );
+  return res.legacyStatus;
 }
 
 export function evaluateSurfaceWaterParam(
   key: 'ph' | 'tss' | 'doVal' | 'bod' | 'cod' | 'fe' | 'mn',
-  value: number,
+  value: unknown,
   options?: StandardEvaluationOptions
-): {
-  result: 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau';
-  verificationStatus: 'Terverifikasi' | 'Perlu verifikasi';
-  standard?: EnvironmentalStandard;
-} {
-  const thresholds = options?.thresholds ?? DEFAULT_INTERNAL_THRESHOLDS;
-  const activeMap = resolveActiveStandards(options?.standards, 'air_permukaan', {
-    locationCode: options?.locationCode,
-    sampleDate: options?.sampleDate,
-    kelasAir: options?.kelasAir ?? 'II',
-  });
-  const std = activeMap[key];
-  if (std) {
-    if (std.verificationStatus === 'Perlu verifikasi') {
-      return { result: 'dipantau', verificationStatus: 'Perlu verifikasi', standard: std };
+) {
+  const standards = options?.standards !== undefined
+    ? options.standards
+    : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+  const res = evaluateSampleCompliance(
+    'air_permukaan',
+    { [key]: value },
+    {
+      standards,
+      thresholds: options?.thresholds,
+      locationCode: options?.locationCode,
+      sampleDate: options?.sampleDate,
+      kelasAir: options?.kelasAir ?? 'II',
+      standardId: options?.standardId,
+      unitMap: options?.unitMap,
     }
-    return {
-      result: evaluateLimitPair(value, std.minLimit, std.maxLimit, thresholds),
-      verificationStatus: 'Terverifikasi',
-      standard: std,
-    };
-  }
-
-  // Fallback jika standard tidak ditemukan
-  const fallbackMap: Record<string, { min: number | null; max: number | null; verified: boolean }> = {
-    ph: { min: 6.0, max: 9.0, verified: true },
-    tss: { min: null, max: 50, verified: true },
-    doVal: { min: 4.0, max: null, verified: true },
-    bod: { min: null, max: 3.0, verified: true },
-    cod: { min: null, max: 25.0, verified: true },
-    fe: { min: null, max: 0.3, verified: false },
-    mn: { min: null, max: 0.1, verified: false },
-  };
-  const fb = fallbackMap[key];
-  if (!fb || !fb.verified) {
-    return { result: 'dipantau', verificationStatus: 'Perlu verifikasi' };
-  }
+  );
+  const detail = res.params[key];
   return {
-    result: evaluateLimitPair(value, fb.min, fb.max, thresholds),
-    verificationStatus: 'Terverifikasi',
+    result: detail?.status ?? 'belum_dievaluasi',
+    verificationStatus: detail?.standard?.verificationStatus ?? 'Perlu verifikasi',
+    standard: detail?.standard,
   };
 }
 
 export function evaluateSurfaceWaterStatus(
-  ph: number,
-  tss: number,
-  doVal: number,
-  bod: number,
-  cod: number,
-  fe: number,
-  mn: number,
+  ph: unknown,
+  tss: unknown,
+  doVal: unknown,
+  bod: unknown,
+  cod: unknown,
+  fe: unknown,
+  mn: unknown,
   options?: StandardEvaluationOptions
-): 'Safe' | 'Warning' | 'Exceeded' {
-  const params: Array<{ key: 'ph' | 'tss' | 'doVal' | 'bod' | 'cod' | 'fe' | 'mn'; val: number }> = [
-    { key: 'ph', val: ph },
-    { key: 'tss', val: tss },
-    { key: 'doVal', val: doVal },
-    { key: 'bod', val: bod },
-    { key: 'cod', val: cod },
-    { key: 'fe', val: fe },
-    { key: 'mn', val: mn },
-  ];
-
-  const evaluated = params.map(p => evaluateSurfaceWaterParam(p.key, p.val, options));
-  if (evaluated.some(e => e.result === 'tidak_memenuhi')) return 'Exceeded';
-  if (evaluated.some(e => e.result === 'mendekati')) return 'Warning';
-  return 'Safe';
+) {
+  const standards = options?.standards !== undefined
+    ? options.standards
+    : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+  const res = evaluateSampleCompliance(
+    'air_permukaan',
+    { ph, tss, doVal, bod, cod, fe, mn },
+    {
+      standards,
+      thresholds: options?.thresholds,
+      locationCode: options?.locationCode,
+      sampleDate: options?.sampleDate,
+      kelasAir: options?.kelasAir ?? 'II',
+      standardId: options?.standardId,
+      unitMap: options?.unitMap,
+    }
+  );
+  return res.legacyStatus;
 }
-

@@ -7,13 +7,12 @@ import {
   collection, 
   doc, 
   getDoc, 
-  setDoc,
   onSnapshot, 
   query, 
   where, 
   runTransaction, 
   serverTimestamp, 
-  updateDoc 
+  writeBatch 
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../utils/firebaseAuth';
 import { 
@@ -175,6 +174,7 @@ export const evidenceService = {
       };
 
       const publicVerification: EvidenceVerification = {
+        reportId: id,
         documentNo,
         type: 'daily',
         period,
@@ -185,10 +185,11 @@ export const evidenceService = {
         hashPrefix: snapshotHash.slice(0, 12),
       };
 
-      // 1. Increment counter atomically
+      // 1. Increment counter atomically (menyertakan lastReportId sesuai rules S-08)
       transaction.set(counterRef, cleanFirestoreData({
         value: seq,
         updatedAt: serverTimestamp(),
+        lastReportId: id,
       }));
 
       // 2. Write full evidence report
@@ -236,7 +237,8 @@ export const evidenceService = {
     const userEmail = auth.currentUser?.email || reviewedSignature.email;
 
     try {
-      await updateDoc(reportRef, cleanFirestoreData({
+      const batch = writeBatch(db);
+      batch.update(reportRef, cleanFirestoreData({
         'signatures.reviewed': reviewedSignature,
         status: 'Diperiksa',
         updatedAt: serverTimestamp(),
@@ -244,10 +246,12 @@ export const evidenceService = {
       }));
 
       if (report.verifyToken) {
-        await updateDoc(doc(db, 'evidence_verify', report.verifyToken), cleanFirestoreData({
+        batch.update(doc(db, 'evidence_verify', report.verifyToken), cleanFirestoreData({
+          reportId: report.id || reportId,
           status: 'Diperiksa',
         }));
       }
+      await batch.commit();
 
       await auditService.createLog({
         collection: 'evidence_reports',
@@ -321,6 +325,7 @@ export const evidenceService = {
     };
 
     const publicVerification: EvidenceVerification = {
+      reportId: id,
       documentNo,
       type: 'monthly',
       period,
@@ -332,8 +337,10 @@ export const evidenceService = {
     };
 
     try {
-      await setDoc(reportRef, cleanFirestoreData(newReport));
-      await setDoc(verifyRef, cleanFirestoreData(publicVerification));
+      const batch = writeBatch(db);
+      batch.set(reportRef, cleanFirestoreData(newReport));
+      batch.set(verifyRef, cleanFirestoreData(publicVerification));
+      await batch.commit();
 
       await auditService.createLog({
         collection: 'evidence_reports',
@@ -376,7 +383,8 @@ export const evidenceService = {
     const userEmail = auth.currentUser?.email || approvedSignature.email;
 
     try {
-      await updateDoc(reportRef, cleanFirestoreData({
+      const batch = writeBatch(db);
+      batch.update(reportRef, cleanFirestoreData({
         'signatures.approved': approvedSignature,
         status: 'Disetujui',
         updatedAt: serverTimestamp(),
@@ -384,10 +392,12 @@ export const evidenceService = {
       }));
 
       if (report.verifyToken) {
-        await updateDoc(doc(db, 'evidence_verify', report.verifyToken), cleanFirestoreData({
+        batch.update(doc(db, 'evidence_verify', report.verifyToken), cleanFirestoreData({
+          reportId: report.id || reportId,
           status: 'Disetujui',
         }));
       }
+      await batch.commit();
 
       await auditService.createLog({
         collection: 'evidence_reports',
@@ -423,6 +433,9 @@ export const evidenceService = {
     }
 
     const oldReport = snap.data() as EvidenceReport;
+    if (oldReport.status === 'Dibatalkan') {
+      throw new Error('Dokumen yang sudah dibatalkan tidak dapat direvisi.');
+    }
     const newHash = await computeSnapshotHash(newSnapshot);
     const userEmail = auth.currentUser?.email || preparedSignature.email;
     const nextRevision = (oldReport.revision || 0) + 1;
@@ -438,7 +451,8 @@ export const evidenceService = {
     const newHistory = [...(oldReport.revisionHistory || []), revisionItem];
 
     try {
-      await updateDoc(reportRef, cleanFirestoreData({
+      const batch = writeBatch(db);
+      batch.update(reportRef, cleanFirestoreData({
         revision: nextRevision,
         snapshot: newSnapshot,
         snapshotHash: newHash,
@@ -452,12 +466,14 @@ export const evidenceService = {
       }));
 
       if (oldReport.verifyToken) {
-        await updateDoc(doc(db, 'evidence_verify', oldReport.verifyToken), cleanFirestoreData({
+        batch.update(doc(db, 'evidence_verify', oldReport.verifyToken), cleanFirestoreData({
+          reportId: oldReport.id || reportId,
           status: 'Disiapkan',
           overall: newSnapshot.overall,
           hashPrefix: newHash.slice(0, 12),
         }));
       }
+      await batch.commit();
 
       await auditService.createLog({
         collection: 'evidence_reports',
@@ -480,8 +496,9 @@ export const evidenceService = {
     reportId: string,
     cancellationReason: string
   ): Promise<void> => {
-    if (!cancellationReason.trim()) {
-      throw new Error('Alasan pembatalan dokumen wajib diisi.');
+    const trimmedReason = cancellationReason.trim();
+    if (trimmedReason.length < 10 || trimmedReason.length > 500) {
+      throw new Error('Alasan pembatalan dokumen wajib diisi minimal 10 karakter dan maksimal 500 karakter.');
     }
 
     const reportRef = doc(db, 'evidence_reports', reportId);
@@ -491,27 +508,33 @@ export const evidenceService = {
     }
 
     const report = snap.data() as EvidenceReport;
+    if (report.status === 'Dibatalkan') {
+      throw new Error('Dokumen ini sudah berstatus Dibatalkan.');
+    }
     const userEmail = auth.currentUser?.email || 'admin';
 
     try {
-      await updateDoc(reportRef, cleanFirestoreData({
+      const batch = writeBatch(db);
+      batch.update(reportRef, cleanFirestoreData({
         status: 'Dibatalkan',
-        cancellationReason: cancellationReason.trim(),
+        cancellationReason: trimmedReason,
         updatedAt: serverTimestamp(),
         updatedBy: userEmail,
       }));
 
       if (report.verifyToken) {
-        await updateDoc(doc(db, 'evidence_verify', report.verifyToken), cleanFirestoreData({
+        batch.update(doc(db, 'evidence_verify', report.verifyToken), cleanFirestoreData({
+          reportId: report.id || reportId,
           status: 'Dibatalkan',
         }));
       }
+      await batch.commit();
 
       await auditService.createLog({
         collection: 'evidence_reports',
         recordId: reportId,
         action: 'update',
-        details: `Membatalkan dokumen ${report.documentNo}. Alasan: ${cancellationReason}`,
+        details: `Membatalkan dokumen ${report.documentNo}. Alasan: ${trimmedReason}`,
       });
 
       triggerToast(`Dokumen ${report.documentNo} telah dibatalkan`, 'warning');

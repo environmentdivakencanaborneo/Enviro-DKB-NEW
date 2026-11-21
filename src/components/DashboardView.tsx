@@ -34,6 +34,8 @@ import {
   SolidWasteData,
   EnvironmentalDocument,
   AlertNotification,
+  EnvironmentalStandard,
+  InternalThresholdsConfig,
 } from '../types';
 import { calculateGuaranteeMetrics } from '../utils/guaranteeMetrics';
 import {
@@ -51,14 +53,28 @@ import {
 import MiningEnvIcon from './MiningEnvIcon';
 import StatusBadge from './StatusBadge';
 import EmptyState from './EmptyState';
-import { INDONESIAN_REGULATIONS } from '../data/regulations';
+import { INDONESIAN_REGULATIONS, INITIAL_STANDARDS_SEED } from '../data/regulations';
 import { computeDocumentStatus } from '../utils/documentStatus';
 import { todayLocalISO } from '../utils/dateUtils';
 import { useAuth } from '../services/authService';
 import { NEON_CHART, NEON_TOOLTIP_CONTENT_STYLE } from '../utils/chartTheme';
+import {
+  DEFAULT_INTERNAL_THRESHOLDS_VALUE,
+  formatStandardLimitDisplay,
+  parseStrictNumber,
+  resolveEffectiveStandardsMap,
+} from '../utils/waterQualityEval';
 
 // Custom Glass Tooltip for pH & TSS line charts
-const CustomChartTooltip = ({ active, payload, label }: any) => {
+const CustomChartTooltip = ({
+  active,
+  payload,
+  label,
+  phMin,
+  phMax,
+  tssMax,
+  tssLimitLabel,
+}: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="glass-panel rounded-xl px-3.5 py-3 text-xs space-y-1.5 shadow-glow-cyan">
@@ -68,16 +84,24 @@ const CustomChartTooltip = ({ active, payload, label }: any) => {
         {payload.map((pld: any, index: number) => {
           const isPH = pld.name === 'pH';
           const isTSS = pld.name === 'TSS';
-          const val = Number(pld.value);
+          const val = parseStrictNumber(pld.value);
           let limitText = '';
           let isExceeded = false;
 
           if (isPH) {
-            isExceeded = val < 6.0 || val > 9.0;
-            limitText = '(Baku Mutu: 6.0 - 9.0)';
+            if (val !== null && phMin !== null && phMax !== null) {
+              isExceeded = val < phMin || val > phMax;
+              limitText = `(Baku Mutu: ${phMin} - ${phMax})`;
+            } else {
+              limitText = '(Baku Mutu: Belum Terverifikasi)';
+            }
           } else if (isTSS) {
-            isExceeded = val > 300;
-            limitText = '(Baku Mutu: max 300 mg/L)';
+            if (val !== null && tssMax !== null) {
+              isExceeded = val > tssMax;
+              limitText = `(Baku Mutu: max ${tssMax} mg/L)`;
+            } else {
+              limitText = `(Baku Mutu: ${tssLimitLabel || 'Perlu Verifikasi'})`;
+            }
           }
 
           return (
@@ -86,8 +110,18 @@ const CustomChartTooltip = ({ active, payload, label }: any) => {
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: pld.color }} />
                 <span className="text-text-mid font-medium">
                   {pld.name}:{' '}
-                  <strong className={`font-mono tabular-nums ${isExceeded ? 'text-neon-red font-bold' : 'text-neon-green font-bold'}`}>
-                    {val}
+                  <strong
+                    className={`font-mono tabular-nums ${
+                      val === null
+                        ? 'text-text-low'
+                        : isExceeded
+                        ? 'text-neon-red font-bold'
+                        : (isTSS && tssMax === null)
+                        ? 'text-neon-amber font-bold'
+                        : 'text-neon-green font-bold'
+                    }`}
+                  >
+                    {val !== null ? val : '—'}
                   </strong>
                 </span>
               </div>
@@ -225,6 +259,8 @@ interface DashboardViewProps {
   calendar: ComplianceCalendarEvent[];
   environmentalCosts?: EnvironmentalCost[];
   solidWasteTargetPct?: number;
+  standards?: EnvironmentalStandard[];
+  internalThresholds?: InternalThresholdsConfig;
   setCurrentTab: (tab: string) => void;
 }
 
@@ -241,11 +277,51 @@ export default function DashboardView({
   wasteStocks,
   calendar,
   environmentalCosts = [],
-  solidWasteTargetPct = 30,
+  solidWasteTargetPct: solidWasteTargetPctProp = 30,
+  standards,
+  internalThresholds = DEFAULT_INTERNAL_THRESHOLDS_VALUE,
   setCurrentTab,
 }: DashboardViewProps) {
   const { user } = useAuth();
   const [chartMetric, setChartMetric] = useState<'ph' | 'tss' | 'combined' | 'rainfall'>('combined');
+  const solidWasteTargetPct = internalThresholds?.solidWasteTargetPct ?? solidWasteTargetPctProp;
+
+  const activeWwStandards = useMemo(() => {
+    const stdList = standards !== undefined ? standards : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+    return resolveEffectiveStandardsMap(stdList, 'air_limbah', { sampleDate: todayLocalISO() });
+  }, [standards]);
+
+  const activeSwStandards = useMemo(() => {
+    const stdList = standards !== undefined ? standards : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+    return resolveEffectiveStandardsMap(stdList, 'air_permukaan', {
+      sampleDate: todayLocalISO(),
+      kelasAir: 'II',
+    });
+  }, [standards]);
+
+  const phStd = activeWwStandards.ph;
+  const tssStd = activeWwStandards.tss;
+  const isStdVerified = (s?: EnvironmentalStandard) =>
+    Boolean(
+      s &&
+        s.isActive &&
+        s.applicable !== false &&
+        s.verificationStatus === 'Terverifikasi' &&
+        s.effectiveStatus !== 'MENUNGGU VERIFIKASI'
+    );
+  const phMin =
+    isStdVerified(phStd) && typeof phStd?.minLimit === 'number' && Number.isFinite(phStd.minLimit)
+      ? phStd.minLimit
+      : null;
+  const phMax =
+    isStdVerified(phStd) && typeof phStd?.maxLimit === 'number' && Number.isFinite(phStd.maxLimit)
+      ? phStd.maxLimit
+      : null;
+  const tssMax =
+    isStdVerified(tssStd) && typeof tssStd?.maxLimit === 'number' && Number.isFinite(tssStd.maxLimit)
+      ? tssStd.maxLimit
+      : null;
+  const tssLimitLabel = formatStandardLimitDisplay(tssStd);
 
   // Calculations
   const totalSeedsIn = nursery.reduce((sum, x) => sum + x.quantity, 0);
@@ -255,21 +331,43 @@ export default function DashboardView({
   const totalGuaranteesValue = guaranteeMetrics.totalActiveValue;
   const activeGuaranteesCount = guaranteeMetrics.activeCount;
 
-  const totalWaterTests = wastewater.length;
-  const passedWaterTests = wastewater.filter(x => x.status === 'Safe').length;
-  const warningWaterTests = wastewater.filter(x => x.status === 'Warning').length;
-  const failedWaterTests = wastewater.filter(x => x.status === 'Exceeded').length;
+  const passedWaterTests = wastewater.filter(
+    x => x.status === 'Safe' || x.status === 'Warning' || x.evaluationStatus === 'MEMENUHI'
+  ).length;
+  const failedWaterTests = wastewater.filter(
+    x => x.status === 'Exceeded' || x.evaluationStatus === 'TIDAK MEMENUHI'
+  ).length;
+  const pendingWaterTests = wastewater.filter(
+    x =>
+      x.status === 'Incomplete' ||
+      x.status === 'Unevaluated' ||
+      x.evaluationStatus === 'DATA TIDAK LENGKAP' ||
+      x.evaluationStatus === 'BELUM DIEVALUASI'
+  ).length;
+  const evaluatedWaterTests = passedWaterTests + failedWaterTests;
 
   const waterComplianceRate =
-    totalWaterTests > 0 ? Math.round(((passedWaterTests + warningWaterTests) / totalWaterTests) * 100) : 100;
+    evaluatedWaterTests > 0 ? Math.round((passedWaterTests / evaluatedWaterTests) * 100) : null;
 
-  // Surface water stats
-  const totalSurfaceWaterTests = surfaceWater.length;
-  const failedSurfaceWaterTests = surfaceWater.filter(x => x.status === 'Exceeded').length;
+  // Surface water stats (do not treat Incomplete/Unevaluated as compliant)
+  const passedSurfaceWaterTests = surfaceWater.filter(
+    x => x.status === 'Safe' || x.status === 'Warning' || x.evaluationStatus === 'MEMENUHI'
+  ).length;
+  const failedSurfaceWaterTests = surfaceWater.filter(
+    x => x.status === 'Exceeded' || x.evaluationStatus === 'TIDAK MEMENUHI'
+  ).length;
+  const pendingSurfaceWaterTests = surfaceWater.filter(
+    x =>
+      x.status === 'Incomplete' ||
+      x.status === 'Unevaluated' ||
+      x.evaluationStatus === 'DATA TIDAK LENGKAP' ||
+      x.evaluationStatus === 'BELUM DIEVALUASI'
+  ).length;
+  const evaluatedSurfaceWaterTests = passedSurfaceWaterTests + failedSurfaceWaterTests;
   const surfaceWaterComplianceRate =
-    totalSurfaceWaterTests > 0
-      ? Math.round(((totalSurfaceWaterTests - failedSurfaceWaterTests) / totalSurfaceWaterTests) * 100)
-      : 100;
+    evaluatedSurfaceWaterTests > 0
+      ? Math.round((passedSurfaceWaterTests / evaluatedSurfaceWaterTests) * 100)
+      : null;
 
   // Solid waste stats
   const totalSolidWasteRecycled = solidWaste.reduce((sum, x) => sum + x.recycledKg + x.compostedKg, 0);
@@ -305,37 +403,58 @@ export default function DashboardView({
   const totalCostRealized = totalOpexRealized + totalCapexRealized;
   const costPercentage = totalCostPlan > 0 ? (totalCostRealized / totalCostPlan) * 100 : 0;
 
-  // Find oldest B3 waste item
-  const maxDaysB3 = wasteStocks.length > 0 ? Math.max(...wasteStocks.map(x => x.daysInTps)) : 0;
+  // B3 waste storage metrics per waste type / batch limit (90/180/365 hari)
+  const activeWasteStocks = wasteStocks.filter(s => s.currentStock > 0);
+  const maxDaysB3 = activeWasteStocks.length > 0 ? Math.max(...activeWasteStocks.map(x => x.daysInTps)) : 0;
+  const minB3DaysRemaining = useMemo(() => {
+    if (activeWasteStocks.length === 0) return null;
+    const remainders: number[] = [];
+    activeWasteStocks.forEach(s => {
+      if (s.batchWarnings && s.batchWarnings.length > 0) {
+        s.batchWarnings.forEach(bw => remainders.push(bw.daysRemaining));
+      } else {
+        remainders.push((s.maxStorageDays || 90) - s.daysInTps);
+      }
+    });
+    return remainders.length > 0 ? Math.min(...remainders) : null;
+  }, [activeWasteStocks]);
+  const unverifiedB3Count = activeWasteStocks.filter(s => s.verificationStatus === 'PERLU VERIFIKASI').length;
   const totalB3StockKg = wasteStocks.reduce((sum, x) => sum + Math.max(0, x.currentStock), 0);
 
-  // Sparklines from real ordered datasets
+  // Sparklines from real ordered datasets (ignore missing/null values)
   const waterSpark = useMemo(() => {
     return [...wastewater]
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-7)
-      .map(x => ({ v: Number(x.tss) || 0 }));
+      .map(x => parseStrictNumber(x.tss))
+      .filter((v): v is number => v !== null)
+      .map(v => ({ v }));
   }, [wastewater]);
 
   const surfaceSpark = useMemo(() => {
     return [...surfaceWater]
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-7)
-      .map(x => ({ v: Number(x.tss) || 0 }));
+      .map(x => parseStrictNumber(x.tss))
+      .filter((v): v is number => v !== null)
+      .map(v => ({ v }));
   }, [surfaceWater]);
 
   const solidWasteSpark = useMemo(() => {
     return [...solidWaste]
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-7)
-      .map(x => ({ v: Number(x.recycledKg + x.compostedKg) || 0 }));
+      .map(x => (parseStrictNumber(x.recycledKg) ?? 0) + (parseStrictNumber(x.compostedKg) ?? 0))
+      .map(v => ({ v }));
   }, [solidWaste]);
 
   const rainfallSpark = useMemo(() => {
     return [...rainfall]
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-7)
-      .map(x => ({ v: Number(x.rainfall) || 0 }));
+      .map(x => parseStrictNumber(x.rainfall))
+      .filter((v): v is number => v !== null)
+      .map(v => ({ v }));
   }, [rainfall]);
 
   // 30 days trend computation
@@ -587,7 +706,11 @@ export default function DashboardView({
               </span>
               <div className="flex items-end justify-between gap-2 mt-1">
                 <span className="text-3xl font-bold font-mono tabular-nums text-text-hi tracking-tight leading-none">
-                  <AnimatedCounter value={waterComplianceRate} format={v => Math.round(v) + '%'} />
+                  {waterComplianceRate !== null ? (
+                    <AnimatedCounter value={waterComplianceRate} format={v => Math.round(v) + '%'} />
+                  ) : (
+                    <span className="text-lg text-text-low font-mono">N/A</span>
+                  )}
                 </span>
                 <MiniSparkline data={waterSpark} color={NEON_CHART.cyan} gradId="spark-water" />
               </div>
@@ -595,15 +718,33 @@ export default function DashboardView({
           </div>
           <div className="mt-4 pt-3 border-t border-border-subtle flex items-center justify-between gap-2 text-xs">
             <StatusBadge
-              status={failedWaterTests > 0 ? 'Mendekati' : 'Memenuhi'}
-              label={`${passedWaterTests} Aman`}
+              status={
+                failedWaterTests > 0
+                  ? 'Tidak Memenuhi'
+                  : evaluatedWaterTests === 0
+                  ? 'Perlu Verifikasi'
+                  : pendingWaterTests > 0
+                  ? 'Dipantau'
+                  : 'Memenuhi'
+              }
+              label={
+                evaluatedWaterTests === 0
+                  ? `${pendingWaterTests} Belum Eval`
+                  : `${passedWaterTests} Memenuhi`
+              }
             />
             {failedWaterTests > 0 ? (
               <span className="text-[11px] font-bold text-neon-red font-mono tabular-nums">
                 {failedWaterTests} Melebihi
               </span>
+            ) : pendingWaterTests > 0 ? (
+              <span className="text-[10px] text-neon-amber font-mono tabular-nums">
+                {pendingWaterTests} Belum Eval/Lkp
+              </span>
             ) : (
-              <span className="text-[10px] text-text-low font-mono">Baku Mutu Terpenuhi</span>
+              <span className="text-[10px] text-text-low font-mono">
+                {wastewater.length === 0 ? 'Belum ada sampel' : 'Terverifikasi'}
+              </span>
             )}
           </div>
         </motion.div>
@@ -665,11 +806,23 @@ export default function DashboardView({
           </div>
           <div className="mt-4 pt-3 border-t border-border-subtle flex items-center justify-between gap-2 text-xs">
             <StatusBadge
-              status={maxDaysB3 >= 80 ? 'Tidak Memenuhi' : maxDaysB3 >= 60 ? 'Mendekati' : 'Dipantau'}
+              status={
+                minB3DaysRemaining !== null && minB3DaysRemaining <= 0
+                  ? 'Tidak Memenuhi'
+                  : minB3DaysRemaining !== null && minB3DaysRemaining <= 15
+                  ? 'Mendekati'
+                  : unverifiedB3Count > 0
+                  ? 'Perlu Verifikasi'
+                  : 'Dipantau'
+              }
               label={`${maxDaysB3} Hari di TPS`}
             />
             <span className="text-[10px] text-text-mid font-mono tabular-nums">
-              Sisa {Math.max(0, 90 - maxDaysB3)} Hari
+              {minB3DaysRemaining !== null
+                ? minB3DaysRemaining <= 0
+                  ? `Lewat ${Math.abs(minB3DaysRemaining)} Hari`
+                  : `Sisa ${minB3DaysRemaining} Hari`
+                : 'Stok Kosong'}
             </span>
           </div>
         </motion.div>
@@ -724,7 +877,11 @@ export default function DashboardView({
               </span>
               <div className="flex items-end justify-between gap-2 mt-1">
                 <span className="text-3xl font-bold font-mono tabular-nums text-text-hi tracking-tight leading-none">
-                  <AnimatedCounter value={surfaceWaterComplianceRate} format={v => Math.round(v) + '%'} />
+                  {surfaceWaterComplianceRate !== null ? (
+                    <AnimatedCounter value={surfaceWaterComplianceRate} format={v => Math.round(v) + '%'} />
+                  ) : (
+                    <span className="text-lg text-text-low font-mono">N/A</span>
+                  )}
                 </span>
                 <MiniSparkline data={surfaceSpark} color={NEON_CHART.green} gradId="spark-surface" />
               </div>
@@ -732,10 +889,26 @@ export default function DashboardView({
           </div>
           <div className="mt-4 pt-3 border-t border-border-subtle flex items-center justify-between gap-2 text-xs">
             <StatusBadge
-              status={failedSurfaceWaterTests > 0 ? 'Mendekati' : 'Memenuhi'}
-              label={`${totalSurfaceWaterTests - failedSurfaceWaterTests} Titik Aman`}
+              status={
+                failedSurfaceWaterTests > 0
+                  ? 'Tidak Memenuhi'
+                  : evaluatedSurfaceWaterTests === 0
+                  ? 'Perlu Verifikasi'
+                  : pendingSurfaceWaterTests > 0
+                  ? 'Dipantau'
+                  : 'Memenuhi'
+              }
+              label={
+                evaluatedSurfaceWaterTests === 0
+                  ? `${pendingSurfaceWaterTests} Belum Eval`
+                  : `${passedSurfaceWaterTests} Memenuhi`
+              }
             />
-            <span className="text-[10px] text-text-low font-mono">PP 22/2021 Kelas II</span>
+            <span className="text-[10px] text-text-low font-mono">
+              {pendingSurfaceWaterTests > 0
+                ? `${pendingSurfaceWaterTests} Belum Eval/Lkp`
+                : 'PP 22/2021 Kelas II'}
+            </span>
           </div>
         </motion.div>
 
@@ -1168,30 +1341,38 @@ export default function DashboardView({
                       <XAxis dataKey="label" stroke={NEON_CHART.tickFill} fontSize={10} tickLine={false} />
                       <YAxis yAxisId="left" domain={[4, 10]} stroke={NEON_CHART.cyan} fontSize={10} tickLine={false} />
                       <YAxis yAxisId="right" orientation="right" stroke={NEON_CHART.violet} fontSize={10} tickLine={false} />
-                      <RechartsTooltip content={<CustomChartTooltip />} />
+                      <RechartsTooltip
+                        content={<CustomChartTooltip phMin={phMin} phMax={phMax} tssMax={tssMax} tssLimitLabel={tssLimitLabel} />}
+                      />
                       <Legend verticalAlign="top" height={36} iconSize={8} wrapperStyle={{ fontSize: 10, color: NEON_CHART.tickFill }} />
 
-                      <ReferenceLine
-                        yAxisId="left"
-                        y={6}
-                        stroke={NEON_CHART.red}
-                        strokeDasharray="4 4"
-                        label={{ value: 'pH Min (6.0)', position: 'insideBottomLeft', fill: NEON_CHART.red, fontSize: 9 }}
-                      />
-                      <ReferenceLine
-                        yAxisId="left"
-                        y={9}
-                        stroke={NEON_CHART.red}
-                        strokeDasharray="4 4"
-                        label={{ value: 'pH Max (9.0)', position: 'insideTopLeft', fill: NEON_CHART.red, fontSize: 9 }}
-                      />
-                      <ReferenceLine
-                        yAxisId="right"
-                        y={300}
-                        stroke={NEON_CHART.red}
-                        strokeDasharray="4 4"
-                        label={{ value: 'Batas TSS (300 mg/L)', position: 'insideTopRight', fill: NEON_CHART.red, fontSize: 9 }}
-                      />
+                      {phMin !== null && (
+                        <ReferenceLine
+                          yAxisId="left"
+                          y={phMin}
+                          stroke={NEON_CHART.red}
+                          strokeDasharray="4 4"
+                          label={{ value: `pH Min (${phMin})`, position: 'insideBottomLeft', fill: NEON_CHART.red, fontSize: 9 }}
+                        />
+                      )}
+                      {phMax !== null && (
+                        <ReferenceLine
+                          yAxisId="left"
+                          y={phMax}
+                          stroke={NEON_CHART.red}
+                          strokeDasharray="4 4"
+                          label={{ value: `pH Max (${phMax})`, position: 'insideTopLeft', fill: NEON_CHART.red, fontSize: 9 }}
+                        />
+                      )}
+                      {tssMax !== null && (
+                        <ReferenceLine
+                          yAxisId="right"
+                          y={tssMax}
+                          stroke={NEON_CHART.red}
+                          strokeDasharray="4 4"
+                          label={{ value: `Batas TSS (${tssMax} mg/L)`, position: 'insideTopRight', fill: NEON_CHART.red, fontSize: 9 }}
+                        />
+                      )}
 
                       <Line yAxisId="left" type="monotone" dataKey="pH" name="pH" stroke={NEON_CHART.cyan} strokeWidth={2.5} activeDot={{ r: 6 }} dot={{ r: 3 }} />
                       <Line yAxisId="right" type="monotone" dataKey="TSS" name="TSS" stroke={NEON_CHART.violet} strokeWidth={2.5} activeDot={{ r: 6 }} dot={{ r: 3 }} />
@@ -1201,21 +1382,27 @@ export default function DashboardView({
                       <CartesianGrid strokeDasharray="3 3" stroke={NEON_CHART.gridStroke} />
                       <XAxis dataKey="label" stroke={NEON_CHART.tickFill} fontSize={10} tickLine={false} />
                       <YAxis domain={[4, 10]} stroke={NEON_CHART.cyan} fontSize={10} tickLine={false} />
-                      <RechartsTooltip content={<CustomChartTooltip />} />
+                      <RechartsTooltip
+                        content={<CustomChartTooltip phMin={phMin} phMax={phMax} tssMax={tssMax} tssLimitLabel={tssLimitLabel} />}
+                      />
                       <Legend verticalAlign="top" height={36} iconSize={8} wrapperStyle={{ fontSize: 10, color: NEON_CHART.tickFill }} />
 
-                      <ReferenceLine
-                        y={6}
-                        stroke={NEON_CHART.red}
-                        strokeDasharray="4 4"
-                        label={{ value: 'pH Min (6.0)', position: 'insideBottomLeft', fill: NEON_CHART.red, fontSize: 9 }}
-                      />
-                      <ReferenceLine
-                        y={9}
-                        stroke={NEON_CHART.red}
-                        strokeDasharray="4 4"
-                        label={{ value: 'pH Max (9.0)', position: 'insideTopLeft', fill: NEON_CHART.red, fontSize: 9 }}
-                      />
+                      {phMin !== null && (
+                        <ReferenceLine
+                          y={phMin}
+                          stroke={NEON_CHART.red}
+                          strokeDasharray="4 4"
+                          label={{ value: `pH Min (${phMin})`, position: 'insideBottomLeft', fill: NEON_CHART.red, fontSize: 9 }}
+                        />
+                      )}
+                      {phMax !== null && (
+                        <ReferenceLine
+                          y={phMax}
+                          stroke={NEON_CHART.red}
+                          strokeDasharray="4 4"
+                          label={{ value: `pH Max (${phMax})`, position: 'insideTopLeft', fill: NEON_CHART.red, fontSize: 9 }}
+                        />
+                      )}
 
                       <Line type="monotone" dataKey="pH" name="pH" stroke={NEON_CHART.cyan} strokeWidth={2.5} activeDot={{ r: 6 }} dot={{ r: 4 }} />
                     </LineChart>
@@ -1224,15 +1411,19 @@ export default function DashboardView({
                       <CartesianGrid strokeDasharray="3 3" stroke={NEON_CHART.gridStroke} />
                       <XAxis dataKey="label" stroke={NEON_CHART.tickFill} fontSize={10} tickLine={false} />
                       <YAxis stroke={NEON_CHART.violet} fontSize={10} tickLine={false} />
-                      <RechartsTooltip content={<CustomChartTooltip />} />
+                      <RechartsTooltip
+                        content={<CustomChartTooltip phMin={phMin} phMax={phMax} tssMax={tssMax} tssLimitLabel={tssLimitLabel} />}
+                      />
                       <Legend verticalAlign="top" height={36} iconSize={8} wrapperStyle={{ fontSize: 10, color: NEON_CHART.tickFill }} />
 
-                      <ReferenceLine
-                        y={300}
-                        stroke={NEON_CHART.red}
-                        strokeDasharray="4 4"
-                        label={{ value: 'Batas TSS (300 mg/L)', position: 'insideTopRight', fill: NEON_CHART.red, fontSize: 9 }}
-                      />
+                      {tssMax !== null && (
+                        <ReferenceLine
+                          y={tssMax}
+                          stroke={NEON_CHART.red}
+                          strokeDasharray="4 4"
+                          label={{ value: `Batas TSS (${tssMax} mg/L)`, position: 'insideTopRight', fill: NEON_CHART.red, fontSize: 9 }}
+                        />
+                      )}
 
                       <Line type="monotone" dataKey="TSS" name="TSS" stroke={NEON_CHART.violet} strokeWidth={2.5} activeDot={{ r: 6 }} dot={{ r: 4 }} />
                     </LineChart>
@@ -1307,17 +1498,65 @@ export default function DashboardView({
                   </span>
                 </div>
                 <p className="text-[11px] text-text-mid mt-1.5 leading-relaxed">{reg.description}</p>
-                {reg.parameters && reg.parameters.length > 0 && (
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {reg.parameters.map((param, pi) => (
-                      <span
-                        key={pi}
-                        className="text-[9.5px] bg-bg-0 text-text-hi font-mono font-semibold border border-border-neon px-2 py-0.5 rounded-md tabular-nums"
-                      >
-                        {param.name}: {param.limit}
-                      </span>
-                    ))}
-                  </div>
+                {reg.id === 'PP-22-2021' || reg.id === 'KepmenLH-113-2003' ? (
+                  (() => {
+                    const stdMap = reg.id === 'PP-22-2021' ? activeSwStandards : activeWwStandards;
+                    const stdItems = Object.values(stdMap);
+                    if (stdItems.length === 0) {
+                      return (
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          <span className="text-[9.5px] bg-bg-0 text-text-mid font-mono font-semibold border border-border-subtle px-2 py-0.5 rounded-md">
+                            Belum ada standar aktif di Master Baku Mutu
+                          </span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {stdItems.map((std) => {
+                          const verStatus = std.verificationStatus || 'Perlu verifikasi';
+                          const isUnverified =
+                            verStatus === 'Perlu verifikasi' ||
+                            std.effectiveStatus === 'MENUNGGU VERIFIKASI';
+                          return (
+                            <span
+                              key={std.id}
+                              className={`text-[9.5px] bg-bg-0 text-text-hi font-mono font-semibold border px-2 py-0.5 rounded-md tabular-nums inline-flex items-center gap-1.5 ${
+                                isUnverified ? 'border-neon-amber/50' : 'border-border-neon'
+                              }`}
+                            >
+                              <span>
+                                {std.parameterLabel}: {formatStandardLimitDisplay(std)}
+                              </span>
+                              <span
+                                className={`text-[8.5px] px-1 py-[1px] rounded ${
+                                  isUnverified
+                                    ? 'bg-neon-amber/15 text-neon-amber'
+                                    : 'bg-neon-green/15 text-neon-green'
+                                }`}
+                              >
+                                {verStatus}
+                              </span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
+                ) : (
+                  reg.parameters &&
+                  reg.parameters.length > 0 && (
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {reg.parameters.map((param, pi) => (
+                        <span
+                          key={pi}
+                          className="text-[9.5px] bg-bg-0 text-text-hi font-mono font-semibold border border-border-neon px-2 py-0.5 rounded-md tabular-nums"
+                        >
+                          {param.name}: {param.limit}
+                        </span>
+                      ))}
+                    </div>
+                  )
                 )}
               </div>
             ))}

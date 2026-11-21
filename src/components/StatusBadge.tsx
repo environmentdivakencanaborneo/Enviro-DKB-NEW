@@ -38,6 +38,9 @@ export function resolveStatusTone(rawStatus?: string | null): CanonicalStatusTon
       'hijau',
       'emas',
       'selesai diverifikasi',
+      'berlaku',
+      'terverifikasi',
+      'terhitung',
     ].includes(s)
   ) {
     return 'memenuhi';
@@ -55,6 +58,7 @@ export function resolveStatusTone(rawStatus?: string | null): CanonicalStatusTon
       'dalam tindak lanjut',
       'segera habis',
       'biru',
+      'diubah',
     ].includes(s)
   ) {
     return 'mendekati';
@@ -79,6 +83,7 @@ export function resolveStatusTone(rawStatus?: string | null): CanonicalStatusTon
       'pembekuan izin',
       'paksaan pemerintah',
       'non-compliant',
+      'suspended',
     ].includes(s)
   ) {
     return 'tidak_memenuhi';
@@ -93,6 +98,9 @@ export function resolveStatusTone(rawStatus?: string | null): CanonicalStatusTon
       'dalam pelaksanaan',
       'in progress',
       'info',
+      'tidak berlaku',
+      'notapplicable',
+      'draft',
     ].includes(s)
   ) {
     return 'dipantau';
@@ -156,11 +164,17 @@ export default function StatusBadge({
   const displayLabel =
     label ||
     (status === 'Safe'
-      ? 'Memenuhi'
+      ? 'MEMENUHI'
       : status === 'Warning'
-      ? 'Mendekati'
+      ? 'MENDEKATI'
       : status === 'Exceeded'
-      ? 'Tidak Memenuhi'
+      ? 'TIDAK MEMENUHI'
+      : status === 'Incomplete'
+      ? 'DATA TIDAK LENGKAP'
+      : status === 'Unevaluated'
+      ? 'BELUM DIEVALUASI'
+      : status === 'NotApplicable'
+      ? 'TIDAK BERLAKU'
       : status || cfg.defaultLabel);
 
   const sizing =

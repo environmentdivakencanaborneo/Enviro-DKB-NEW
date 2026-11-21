@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import ModalPortal from './ModalPortal';
-import { RegulatoryWatchData } from '../types';
+import { RegulatoryWatchData, RegulatoryWatchStatus } from '../types';
 import { regulatoryService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
 import { todayLocalISO } from '../utils/dateUtils';
+import { triggerToast } from '../utils/errorHandler';
 import { 
   BookOpen, Plus, Search, Download, 
   Trash2, Edit, X,
@@ -35,6 +36,19 @@ const STANDARD_SOURCES = [
   'Lainnya'
 ];
 
+const DEM_MODULES = [
+  'Monitoring Mutu Air',
+  'Air Limbah Domestik',
+  'Limbah B3',
+  'Sampah Non-B3',
+  'Udara & Emisi',
+  'Inventarisasi GRK',
+  'PROPER & RKAB',
+  'Reklamasi & Jamrek',
+  'Pertek & SLO',
+  'Kalender Pelaporan',
+];
+
 export default function RegulatoryWatchView({ 
   data, 
   isLoading, 
@@ -59,23 +73,38 @@ export default function RegulatoryWatchView({
   
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [changeReason, setChangeReason] = useState('');
 
   const [formData, setFormData] = useState<Partial<RegulatoryWatchData>>({
     source: 'KLH/BPLH',
+    issuer: 'Kementerian Lingkungan Hidup / BPLH',
     regulationNo: '',
     about: '',
     issueDate: todayLocalISO(),
+    enactedDate: todayLocalISO(),
+    promulgatedDate: '',
+    effectiveDate: '',
     implication: '',
-    status: 'Perlu Kajian',
-    link: ''
+    requiredActions: '',
+    affectedModules: [],
+    amendedBy: '',
+    revokedBy: '',
+    relationNotes: '',
+    status: 'MENUNGGU VERIFIKASI',
+    verificationStatus: 'Perlu verifikasi',
+    link: '',
+    officialSourceUrl: '',
   });
 
   const [deleteConfirm, setDeleteConfirm] = useState<{id: string, message: string} | null>(null);
 
   const filteredData = useMemo(() => {
     return data.filter(f => {
-      const matchSearch = f.regulationNo.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          f.about.toLowerCase().includes(searchQuery.toLowerCase());
+      const q = searchQuery.toLowerCase();
+      const matchSearch =
+        (f.regulationNo || '').toLowerCase().includes(q) ||
+        (f.about || '').toLowerCase().includes(q) ||
+        (f.issuer || f.source || '').toLowerCase().includes(q);
       const matchStatus = statusFilter === 'All' || f.status === statusFilter;
       return matchSearch && matchStatus;
     });
@@ -85,15 +114,23 @@ export default function RegulatoryWatchView({
     if (!canEdit) return onUnauthorizedAction("Simpan Regulasi");
     
     try {
+      const payload: Partial<RegulatoryWatchData> = {
+        ...formData,
+        issueDate: formData.enactedDate || formData.issueDate || '',
+        officialSourceUrl: formData.officialSourceUrl || formData.link || undefined,
+      };
       if (editingId) {
-        await regulatoryService.update(editingId, formData);
+        await regulatoryService.update(editingId, payload, changeReason.trim() || undefined);
+        triggerToast("Data regulasi berhasil diperbarui.", "success");
       } else {
-        await regulatoryService.add(formData as any);
+        await regulatoryService.add(payload as any);
+        triggerToast("Regulasi berhasil ditambahkan.", "success");
       }
       setFormOpen(false);
       setEditingId(null);
+      setChangeReason('');
     } catch (error: any) {
-      alert("Gagal menyimpan data: " + error.message);
+      triggerToast("Gagal menyimpan data: " + error.message, "error");
     }
   };
 
@@ -101,9 +138,10 @@ export default function RegulatoryWatchView({
     if (!allowedDelete) return onUnauthorizedAction("Hapus Data Regulasi");
     try {
       await regulatoryService.delete(id);
+      triggerToast("Data regulasi berhasil dihapus.", "success");
       setDeleteConfirm(null);
     } catch (e: any) {
-      alert("Gagal menghapus: " + e.message);
+      triggerToast("Gagal menghapus: " + e.message, "error");
     }
   };
 
@@ -113,7 +151,7 @@ export default function RegulatoryWatchView({
     setSeedInfo(null);
     try {
       const res = await regulatoryService.seedLatestRegulations();
-      setSeedInfo(`Seed selesai: ${res.inserted} regulasi baru ditambahkan (status Perlu Kajian), ${res.skipped} sudah tersedia.`);
+      setSeedInfo(`Seed selesai: ${res.inserted} regulasi baru ditambahkan (item 2025–2026 bertanda MENUNGGU VERIFIKASI), ${res.skipped} sudah tersedia.`);
     } catch (err: any) {
       setSeedInfo(`Gagal memuat seed regulasi: ${err?.message || 'Terjadi kesalahan.'}`);
     } finally {
@@ -125,11 +163,18 @@ export default function RegulatoryWatchView({
     exportToExcel(filteredData, "Pemantau_Regulasi_LH_ESDM");
   };
 
-  const mapRegulatoryStatus = (status: string) => {
-    if (status === 'Berlaku') return 'Aktif';
-    if (status === 'Perlu Kajian') return 'Perlu Kajian';
-    if (status === 'Draft') return 'Dipantau';
+  const mapRegulatoryStatus = (status: RegulatoryWatchStatus | string) => {
+    if (status === 'BERLAKU' || status === 'Berlaku') return 'Aktif';
+    if (status === 'DIUBAH') return 'Mendekati';
+    if (status === 'MENUNGGU VERIFIKASI' || status === 'Perlu Kajian') return 'Perlu Kajian';
+    if (status === 'DRAFT' || status === 'Draft') return 'Dipantau';
     return 'Dicabut';
+  };
+
+  const toggleModule = (mod: string) => {
+    const curr = formData.affectedModules || [];
+    const next = curr.includes(mod) ? curr.filter((x) => x !== mod) : [...curr, mod];
+    setFormData({ ...formData, affectedModules: next });
   };
 
   return (
@@ -183,14 +228,26 @@ export default function RegulatoryWatchView({
               onClick={() => {
                 if (!canEdit) return onUnauthorizedAction("Tambah Pemantauan Regulasi");
                 setEditingId(null);
+                setChangeReason('');
                 setFormData({
                   source: 'KLH/BPLH',
+                  issuer: '',
                   regulationNo: '',
                   about: '',
                   issueDate: todayLocalISO(),
+                  enactedDate: todayLocalISO(),
+                  promulgatedDate: '',
+                  effectiveDate: '',
                   implication: '',
-                  status: 'Perlu Kajian',
-                  link: ''
+                  requiredActions: '',
+                  affectedModules: [],
+                  amendedBy: '',
+                  revokedBy: '',
+                  relationNotes: '',
+                  status: 'MENUNGGU VERIFIKASI',
+                  verificationStatus: 'Perlu verifikasi',
+                  link: '',
+                  officialSourceUrl: '',
                 });
                 setFormOpen(true);
               }}
@@ -214,7 +271,7 @@ export default function RegulatoryWatchView({
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-low h-4 w-4" />
             <input 
               type="text" 
-              placeholder="Cari nomor peraturan atau tentang..." 
+              placeholder="Cari nomor peraturan, perihal, atau instansi..." 
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 text-sm"
@@ -227,10 +284,13 @@ export default function RegulatoryWatchView({
               className="px-3.5 py-2.5 text-sm cursor-pointer"
             >
               <option value="All">Semua Status</option>
-              <option value="Perlu Kajian">Perlu Kajian</option>
-              <option value="Berlaku">Berlaku</option>
-              <option value="Draft">Draft</option>
-              <option value="Dicabut">Dicabut</option>
+              <option value="DRAFT">DRAFT</option>
+              <option value="MENUNGGU VERIFIKASI">MENUNGGU VERIFIKASI</option>
+              <option value="BERLAKU">BERLAKU</option>
+              <option value="DIUBAH">DIUBAH</option>
+              <option value="DICABUT">DICABUT</option>
+              <option value="Perlu Kajian">Perlu Kajian (Legacy)</option>
+              <option value="Berlaku">Berlaku (Legacy)</option>
             </select>
           </div>
         </div>
@@ -256,30 +316,68 @@ export default function RegulatoryWatchView({
                   <div className="flex-1 space-y-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <StatusBadge status={mapRegulatoryStatus(item.status)} label={item.status} />
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase border ${
+                        item.verificationStatus === 'Terverifikasi'
+                          ? 'bg-neon-green/10 border-neon-green/35 text-neon-green'
+                          : 'bg-neon-amber/10 border-neon-amber/35 text-neon-amber'
+                      }`}>
+                        {item.verificationStatus || 'Perlu verifikasi'}
+                      </span>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-bg-2 border border-border-subtle text-text-hi">
-                        {item.source}
+                        {item.issuer || item.source}
                       </span>
                       <span className="text-xs text-text-mid font-mono tabular-nums">
-                        Terbit: {item.issueDate}
+                        Penetapan: {item.enactedDate || item.issueDate || '-'} · Pengundangan: {item.promulgatedDate || '-'} · Berlaku: {item.effectiveDate || '-'}
                       </span>
                     </div>
                     
                     <div>
                       <h3 className="text-base font-bold text-text-hi font-heading">{item.regulationNo}</h3>
                       <p className="text-sm text-text-mid mt-1 font-semibold">{item.about}</p>
+                      {(item.amendedBy || item.revokedBy || item.relationNotes) && (
+                        <p className="text-[11px] text-neon-amber mt-1 font-mono">
+                          {item.amendedBy ? `Diubah oleh: ${item.amendedBy}. ` : ''}
+                          {item.revokedBy ? `Mencabut/Dicabut: ${item.revokedBy}. ` : ''}
+                          {item.relationNotes || ''}
+                        </p>
+                      )}
                     </div>
 
-                    <div className="bg-neon-violet/8 p-3.5 rounded-xl border border-neon-violet/25 mt-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-neon-violet font-mono">Implikasi &amp; Dampak Operasional</p>
-                      <p className="text-xs text-text-hi whitespace-pre-wrap leading-relaxed">{item.implication}</p>
+                    {item.affectedModules && item.affectedModules.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {item.affectedModules.map((mod) => (
+                          <span key={mod} className="px-2 py-0.5 rounded text-[10px] bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan font-semibold">
+                            {mod}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="bg-neon-violet/8 p-3.5 rounded-xl border border-neon-violet/25 mt-2 space-y-2">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-neon-violet font-mono">Implikasi &amp; Dampak Operasional</p>
+                        <p className="text-xs text-text-hi whitespace-pre-wrap leading-relaxed">{item.implication}</p>
+                      </div>
+                      {item.requiredActions && (
+                        <div className="pt-2 border-t border-neon-violet/20">
+                          <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5 text-neon-cyan font-mono">Tindakan Wajib PT DKB</p>
+                          <p className="text-xs text-text-mid whitespace-pre-wrap">{item.requiredActions}</p>
+                        </div>
+                      )}
                     </div>
 
-                    {item.link && (
+                    {item.metadataHistory && item.metadataHistory.length > 0 && (
+                      <div className="text-[10px] text-text-low font-mono pt-1">
+                        Riwayat Metadata ({item.metadataHistory.length}): terakhir oleh {item.metadataHistory[item.metadataHistory.length - 1].updatedBy} — {item.metadataHistory[item.metadataHistory.length - 1].reason || '-'}
+                      </div>
+                    )}
+
+                    {(item.officialSourceUrl || item.link) && (
                       <div className="flex gap-4 pt-2.5 border-t border-border-subtle">
                         <div className="flex items-center gap-1.5">
                           <LinkIcon size={12} className="text-neon-cyan"/>
-                          <a href={item.link} target="_blank" rel="noreferrer" className="text-xs font-bold text-neon-cyan hover:underline">
-                            Tautan Regulasi Resmi
+                          <a href={item.officialSourceUrl || item.link} target="_blank" rel="noreferrer" className="text-xs font-bold text-neon-cyan hover:underline">
+                            Tautan Sumber Resmi JDIH
                           </a>
                         </div>
                       </div>
@@ -291,6 +389,7 @@ export default function RegulatoryWatchView({
                       onClick={() => {
                         if (!canEdit) return onUnauthorizedAction("Edit Regulasi");
                         setEditingId(item.id);
+                        setChangeReason('');
                         setFormData(item);
                         setFormOpen(true);
                       }}
@@ -335,7 +434,7 @@ export default function RegulatoryWatchView({
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">SUMBER INSTITUSI</label>
+                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">KATEGORI SUMBER</label>
                       <select
                         value={formData.source || 'KLH/BPLH'}
                         onChange={e => setFormData({...formData, source: e.target.value})}
@@ -350,38 +449,109 @@ export default function RegulatoryWatchView({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">TANGGAL TERBIT / DRAFT</label>
-                      <input type="date" value={formData.issueDate} onChange={e => setFormData({...formData, issueDate: e.target.value})} className="w-full p-2.5 text-sm font-mono" />
+                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">PENERBIT RESMI (ISSUER)</label>
+                      <input type="text" value={formData.issuer || ''} onChange={e => setFormData({...formData, issuer: e.target.value})} className="w-full p-2.5 text-sm" placeholder="Kementerian LH/BPLH / ESDM" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">NOMOR PERATURAN</label>
-                      <input type="text" value={formData.regulationNo} onChange={e => setFormData({...formData, regulationNo: e.target.value})} className="w-full p-2.5 text-sm" placeholder="Permen LH/BPLH No. 7 Tahun 2025" />
+                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">NOMOR PERATURAN *</label>
+                      <input type="text" value={formData.regulationNo || ''} onChange={e => setFormData({...formData, regulationNo: e.target.value})} className="w-full p-2.5 text-sm" placeholder="Permen LH/BPLH No. 7 Tahun 2025" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">STATUS</label>
+                        <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2.5 text-xs">
+                          <option value="DRAFT">DRAFT</option>
+                          <option value="MENUNGGU VERIFIKASI">MENUNGGU VERIFIKASI</option>
+                          <option value="BERLAKU">BERLAKU</option>
+                          <option value="DIUBAH">DIUBAH</option>
+                          <option value="DICABUT">DICABUT</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">VERIFIKASI JDIH</label>
+                        <select value={formData.verificationStatus || 'Perlu verifikasi'} onChange={e => setFormData({...formData, verificationStatus: e.target.value as any})} className="w-full p-2.5 text-xs">
+                          <option value="Perlu verifikasi">Perlu verifikasi</option>
+                          <option value="Terverifikasi">Terverifikasi</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">TGL PENETAPAN</label>
+                      <input type="date" value={formData.enactedDate ?? formData.issueDate ?? ''} onChange={e => setFormData({...formData, enactedDate: e.target.value, issueDate: e.target.value})} className="w-full p-2 text-xs font-mono" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">STATUS</label>
-                      <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full p-2.5 text-sm">
-                        <option value="Perlu Kajian">Perlu Kajian</option>
-                        <option value="Berlaku">Berlaku</option>
-                        <option value="Draft">Draft</option>
-                        <option value="Dicabut">Dicabut</option>
-                      </select>
+                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">TGL PENGUNDANGAN</label>
+                      <input type="date" value={formData.promulgatedDate || ''} onChange={e => setFormData({...formData, promulgatedDate: e.target.value})} className="w-full p-2 text-xs font-mono" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">TGL MULAI BERLAKU</label>
+                      <input type="date" value={formData.effectiveDate || ''} onChange={e => setFormData({...formData, effectiveDate: e.target.value})} className="w-full p-2 text-xs font-mono" />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">TENTANG (JUDUL REGULASI)</label>
-                    <textarea value={formData.about} onChange={e => setFormData({...formData, about: e.target.value})} rows={2} className="w-full p-2.5 text-sm resize-none" placeholder="Tata Cara Penerbitan Persetujuan Teknis..." />
+                    <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">TENTANG (JUDUL RESMI REGULASI) *</label>
+                    <textarea value={formData.about || ''} onChange={e => setFormData({...formData, about: e.target.value})} rows={2} className="w-full p-2.5 text-sm resize-none" placeholder="Tata Cara Penerbitan Persetujuan Teknis..." />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">DIUBAH OLEH (AMENDED BY)</label>
+                      <input type="text" value={formData.amendedBy || ''} onChange={e => setFormData({...formData, amendedBy: e.target.value})} className="w-full p-2 text-xs" placeholder="Misal: Permen ESDM 6/2026" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">MENCABUT / DICABUT OLEH</label>
+                      <input type="text" value={formData.revokedBy || ''} onChange={e => setFormData({...formData, revokedBy: e.target.value})} className="w-full p-2 text-xs" placeholder="Misal: Mencabut Permen LHK 1/2021" />
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">IMPLIKASI / DAMPAK KE OPERASIONAL</label>
-                    <textarea value={formData.implication} onChange={e => setFormData({...formData, implication: e.target.value})} rows={4} className="w-full p-2.5 text-sm resize-none" placeholder="Perusahaan wajib mengurus penambahan lingkup baku mutu..." />
+                    <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">MODUL DEM TERDAMPAK</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DEM_MODULES.map((mod) => {
+                        const checked = (formData.affectedModules || []).includes(mod);
+                        return (
+                          <button
+                            key={mod}
+                            type="button"
+                            onClick={() => toggleModule(mod)}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold border cursor-pointer ${
+                              checked
+                                ? 'bg-neon-cyan/15 border-neon-cyan/45 text-neon-cyan'
+                                : 'bg-bg-2/60 border-border-subtle text-text-mid'
+                            }`}
+                          >
+                            {mod}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">TAUTAN DOKUMEN RESMI</label>
-                    <input type="url" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} className="w-full p-2.5 text-sm" placeholder="https://..." />
+                    <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">IMPLIKASI / DAMPAK KE OPERASIONAL *</label>
+                    <textarea value={formData.implication || ''} onChange={e => setFormData({...formData, implication: e.target.value})} rows={3} className="w-full p-2.5 text-sm resize-none" placeholder="Perusahaan wajib mengurus penambahan lingkup baku mutu..." />
                   </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">TINDAKAN YANG HARUS DILAKUKAN PT DKB</label>
+                    <textarea value={formData.requiredActions || ''} onChange={e => setFormData({...formData, requiredActions: e.target.value})} rows={2} className="w-full p-2.5 text-xs resize-none" placeholder="Verifikasi dokumen resmi pada JDIH lalu update Master Baku Mutu..." />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-text-mid mb-1 font-mono">TAUTAN SUMBER RESMI JDIH</label>
+                    <input type="url" value={formData.officialSourceUrl ?? formData.link ?? ''} onChange={e => setFormData({...formData, officialSourceUrl: e.target.value, link: e.target.value})} className="w-full p-2.5 text-sm" placeholder="https://jdih.menlhk.go.id/..." />
+                  </div>
+
+                  {editingId && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-neon-amber mb-1 font-mono">ALASAN PERUBAHAN METADATA (AUDIT TRAIL)</label>
+                      <input type="text" value={changeReason} onChange={e => setChangeReason(e.target.value)} className="w-full p-2 text-xs" placeholder="Misal: Verifikasi tanggal pengundangan dari JDIH KLH/BPLH" />
+                    </div>
+                  )}
 
                 </div>
                 <div className="p-4 bg-bg-2/60 border-t border-border-neon flex justify-end gap-2 shrink-0">

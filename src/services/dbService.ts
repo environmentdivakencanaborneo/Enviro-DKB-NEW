@@ -15,6 +15,7 @@ import {
   onSnapshot,
   updateDoc,
   where,
+  documentId,
   serverTimestamp
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../utils/firebaseAuth';
@@ -89,8 +90,6 @@ import {
 } from '../utils/validation';
 import { auditService } from './auditService';
 import {
-  evaluateWastewaterStatus,
-  evaluateSurfaceWaterStatus,
   resolveActiveStandards,
   DEFAULT_INTERNAL_THRESHOLDS,
   DEFAULT_PROPER_CRITERIA,
@@ -98,11 +97,13 @@ import {
   REGULATORY_WATCH_SEED_15,
   isProtectedConservationStatus,
 } from '../data/regulations';
+import { evaluateSampleCompliance } from '../utils/waterQualityEval';
 import { getOfflineCache, setOfflineCache } from '../utils/googleSync';
 import { getTimeMs, compareLatestFirst } from '../utils/dateUtils';
-import { buildWasteLedger } from '../utils/wasteLedger';
+import { buildWasteLedger, simulateOutflowValidation } from '../utils/wasteLedger';
 
 let _cachedStandards: EnvironmentalStandard[] = getOfflineCache<EnvironmentalStandard[]>('standards', []);
+let _standardsLoadedFromServer = false;
 let _cachedThresholds: InternalThresholdsConfig = getOfflineCache<InternalThresholdsConfig>('env_thresholds', {
   ...DEFAULT_INTERNAL_THRESHOLDS,
 });
@@ -112,16 +113,16 @@ async function getEvaluationContext(
   opts?: { locationCode?: string; sampleDate?: string; kelasAir?: 'I' | 'II' | 'III' | 'IV' }
 ) {
   let standards = _cachedStandards;
-  if (!standards || standards.length === 0) {
+  if (!_standardsLoadedFromServer || !standards || standards.length === 0) {
     try {
       const snap = await getDocs(collection(db, 'standards'));
-      if (!snap.empty) {
-        standards = snap.docs.map((d) => ({ ...d.data(), id: d.id }) as EnvironmentalStandard);
-        _cachedStandards = standards;
-        setOfflineCache('standards', standards);
-      }
+      _standardsLoadedFromServer = true;
+      standards = snap.docs.map((d) => ({ ...d.data(), id: d.id }) as EnvironmentalStandard);
+      _cachedStandards = standards;
+      setOfflineCache('standards', standards);
     } catch {
-      // Fallback ke INITIAL_STANDARDS_SEED di resolveActiveStandards
+      // Tetap gunakan cache lokal jika offline; jangan fallback diam-diam ke angka hardcoded
+      standards = _cachedStandards || [];
     }
   }
 
@@ -136,7 +137,7 @@ async function getEvaluationContext(
       }
     }
   } catch {
-    // Fallback ke DEFAULT_INTERNAL_THRESHOLDS
+    // Gunakan DEFAULT_INTERNAL_THRESHOLDS (warningRatio 0.85, phMargin 0.3)
   }
 
   const activeMap = resolveActiveStandards(standards, media, opts);
@@ -150,7 +151,10 @@ async function getEvaluationContext(
       maxLimit: std.maxLimit ?? null,
       unit: std.unit,
       basisRegulasi: std.basisRegulasi,
+      approvalDocNo: std.approvalDocNo ?? null,
       verificationStatus: std.verificationStatus,
+      effectiveStatus: std.effectiveStatus ?? null,
+      applicable: std.applicable ?? true,
     };
   }
   const standardId = idList.join(',').slice(0, 120) || undefined;
@@ -242,12 +246,14 @@ export const waterQualityService = {
       locationCode: item.locationCode,
       sampleDate: item.date,
     });
-    const status = evaluateWastewaterStatus(item.ph, item.tss, item.debit, item.fe, item.mn, {
+    const evalRes = evaluateSampleCompliance('air_limbah', item as Record<string, unknown>, {
       standards: evalCtx.standards,
       thresholds: evalCtx.thresholds,
       locationCode: item.locationCode,
       sampleDate: item.date,
+      unitMap: item.unitMap,
     });
+    const status = evalRes.legacyStatus;
     const id = `WW-${crypto.randomUUID()}`;
     const hasPhoto = Boolean(photo && photo.dataUrl);
     
@@ -255,6 +261,9 @@ export const waterQualityService = {
       ...item,
       id,
       status,
+      evaluationStatus: evalRes.overall,
+      evaluationReason: evalRes.evaluationReason,
+      standardBasis: evalRes.standardsBasis,
       hasPhoto,
       standardId: evalCtx.standardId,
       standardSnapshot: evalCtx.standardSnapshot,
@@ -287,9 +296,11 @@ export const waterQualityService = {
     // Audit Log
     await auditService.createLog({
       collection: 'wastewater',
+      module: 'monitoring',
       recordId: id,
       action: 'insert',
-      details: `Menambah data kualitas air limbah di lokasi ${item.location} (${item.locationCode || 'N/A'}) dengan status ${status}${hasPhoto ? ' + Foto Evidence' : ''}`
+      details: `Menambah data kualitas air limbah di lokasi ${item.location} (${item.locationCode || 'N/A'}) dengan kesimpulan ${evalRes.overall}${hasPhoto ? ' + Foto Evidence' : ''}`,
+      afterData: newItem as Record<string, any>,
     });
 
     // Check if limits exceeded to trigger a system-wide alert
@@ -298,21 +309,21 @@ export const waterQualityService = {
         type: 'Critical',
         category: 'Wastewater',
         title: 'Baku Mutu Terlampaui!',
-        message: `Pengujian di ${item.location} melampaui batas regulasi: pH: ${item.ph}, TSS: ${item.tss} mg/L. Segera lakukan penambahan kapur hidrat.`
+        message: `Pengujian di ${item.location} melampaui batas regulasi (${evalRes.failedParams.join(', ')}): pH: ${item.ph}, TSS: ${item.tss} mg/L. Segera lakukan tindakan pengendalian.`
       });
     } else if (status === 'Warning') {
       await notificationService.add({
         type: 'Warning',
         category: 'Wastewater',
         title: 'Mendekati Baku Mutu',
-        message: `Pengujian di ${item.location} mendekati parameter kritis: pH: ${item.ph}, TSS: ${item.tss} mg/L.`
+        message: `Pengujian di ${item.location} mendekati parameter kritis (${evalRes.warningParams.join(', ')}): pH: ${item.ph}, TSS: ${item.tss} mg/L.`
       });
     }
 
     return newItem;
   },
 
-  delete: async (id: string): Promise<void> => {
+  delete: async (id: string, reason?: string): Promise<void> => {
     const docRef = doc(db, 'wastewater', id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) {
@@ -337,9 +348,12 @@ export const waterQualityService = {
     // Audit Log
     await auditService.createLog({
       collection: 'wastewater',
+      module: 'monitoring',
       recordId: id,
       action: 'delete',
-      details: `Menghapus kualitas air limbah di lokasi ${oldData.location || '-'}, tgl: ${oldData.date || '-'}, pH: ${oldData.ph ?? '-'}, TSS: ${oldData.tss ?? '-'}`
+      details: `Menghapus kualitas air limbah di lokasi ${oldData.location || '-'}, tgl: ${oldData.date || '-'}, pH: ${oldData.ph ?? '-'}, TSS: ${oldData.tss ?? '-'}`,
+      beforeData: oldData as Record<string, any>,
+      correctionReason: reason || null,
     });
   },
 
@@ -401,20 +415,24 @@ export const waterQualityService = {
       }
     }
 
-    const merged = { ...oldData, ...item, hasPhoto };
+    const merged = { ...oldData, ...item, id, hasPhoto };
     const evalCtx = await getEvaluationContext('air_limbah', {
       locationCode: merged.locationCode,
       sampleDate: merged.date,
     });
-    const status = evaluateWastewaterStatus(merged.ph, merged.tss, merged.debit, merged.fe, merged.mn, {
+    const evalRes = evaluateSampleCompliance('air_limbah', merged as Record<string, unknown>, {
       standards: evalCtx.standards,
       thresholds: evalCtx.thresholds,
       locationCode: merged.locationCode,
       sampleDate: merged.date,
+      unitMap: merged.unitMap,
     });
     const updatedItem: WastewaterData = {
       ...merged,
-      status,
+      status: evalRes.legacyStatus,
+      evaluationStatus: evalRes.overall,
+      evaluationReason: evalRes.evaluationReason,
+      standardBasis: evalRes.standardsBasis,
       standardId: evalCtx.standardId,
       standardSnapshot: evalCtx.standardSnapshot,
     };
@@ -433,9 +451,13 @@ export const waterQualityService = {
 
     await auditService.createLog({
       collection: 'wastewater',
+      module: 'monitoring',
       recordId: id,
       action: 'update',
-      details: `Mengubah data kualitas air limbah di lokasi ${updatedItem.location}`
+      details: `Mengubah data kualitas air limbah di lokasi ${updatedItem.location} (${evalRes.overall})`,
+      beforeData: oldData as Record<string, any>,
+      afterData: updatedItem as Record<string, any>,
+      correctionReason: item.correctionReason || null,
     });
   }
 };
@@ -463,12 +485,14 @@ export const surfaceWaterService = {
       sampleDate: item.date,
       kelasAir,
     });
-    const status = evaluateSurfaceWaterStatus(item.ph, item.tss, item.doVal, item.bod, item.cod, item.fe, item.mn, {
+    const evalRes = evaluateSampleCompliance('air_permukaan', { ...item, kelasAir }, {
       standards: evalCtx.standards,
       thresholds: evalCtx.thresholds,
       sampleDate: item.date,
       kelasAir,
+      unitMap: item.unitMap,
     });
+    const status = evalRes.legacyStatus;
     const id = `SW-${crypto.randomUUID()}`;
     
     const newItem: SurfaceWaterData = {
@@ -476,6 +500,9 @@ export const surfaceWaterService = {
       id,
       kelasAir,
       status,
+      evaluationStatus: evalRes.overall,
+      evaluationReason: evalRes.evaluationReason,
+      standardBasis: evalRes.standardsBasis,
       standardId: evalCtx.standardId,
       standardSnapshot: evalCtx.standardSnapshot,
     };
@@ -490,32 +517,33 @@ export const surfaceWaterService = {
     // Audit Log
     await auditService.createLog({
       collection: 'surfacewater',
+      module: 'monitoring',
       recordId: id,
       action: 'insert',
-      details: `Menambah data kualitas air permukaan di lokasi ${item.location} (Kelas ${kelasAir}) dengan status ${status}`
+      details: `Menambah data kualitas air permukaan di lokasi ${item.location} (Kelas ${kelasAir}) dengan kesimpulan ${evalRes.overall}`,
+      afterData: newItem as Record<string, any>,
     });
 
-    // Check if limits exceeded to trigger a system-wide alert (Fe/Mn yang berstatus 'Perlu verifikasi' sudah dikecualikan di evaluateSurfaceWaterStatus)
     if (status === 'Exceeded') {
       await notificationService.add({
         type: 'Critical',
         category: 'SurfaceWater',
         title: 'Baku Mutu Air Permukaan Terlampaui!',
-        message: `Pengujian di ${item.location} melampaui batas regulasi PP No. 22 Tahun 2021 Lampiran VI Kelas ${kelasAir}.`
+        message: `Pengujian di ${item.location} melampaui batas regulasi PP No. 22 Tahun 2021 Lampiran VI Kelas ${kelasAir} (${evalRes.failedParams.join(', ')}).`
       });
     } else if (status === 'Warning') {
       await notificationService.add({
         type: 'Warning',
         category: 'SurfaceWater',
         title: 'Air Permukaan Mendekati Baku Mutu',
-        message: `Pengujian di ${item.location} mendekati parameter kritis Kelas ${kelasAir}.`
+        message: `Pengujian di ${item.location} mendekati parameter kritis Kelas ${kelasAir} (${evalRes.warningParams.join(', ')}).`
       });
     }
 
     return newItem;
   },
 
-  delete: async (id: string): Promise<void> => {
+  delete: async (id: string, reason?: string): Promise<void> => {
     const docRef = doc(db, 'surfacewater', id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) {
@@ -533,9 +561,12 @@ export const surfaceWaterService = {
     // Audit Log
     await auditService.createLog({
       collection: 'surfacewater',
+      module: 'monitoring',
       recordId: id,
       action: 'delete',
-      details: `Menghapus kualitas air permukaan di lokasi ${oldData.location || '-'}, tgl: ${oldData.date || '-'}, status: ${oldData.status || '-'}`
+      details: `Menghapus kualitas air permukaan di lokasi ${oldData.location || '-'}, tgl: ${oldData.date || '-'}, status: ${oldData.status || '-'}`,
+      beforeData: oldData as Record<string, any>,
+      correctionReason: reason || null,
     });
   },
 
@@ -544,22 +575,26 @@ export const surfaceWaterService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Data tidak ditemukan");
     const oldData = snap.data() as SurfaceWaterData;
-    const merged = { ...oldData, ...item };
+    const merged = { ...oldData, ...item, id };
     const kelasAir = merged.kelasAir ?? 'II';
     const evalCtx = await getEvaluationContext('air_permukaan', {
       sampleDate: merged.date,
       kelasAir,
     });
-    const status = evaluateSurfaceWaterStatus(merged.ph, merged.tss, merged.doVal, merged.bod, merged.cod, merged.fe, merged.mn, {
+    const evalRes = evaluateSampleCompliance('air_permukaan', { ...merged, kelasAir }, {
       standards: evalCtx.standards,
       thresholds: evalCtx.thresholds,
       sampleDate: merged.date,
       kelasAir,
+      unitMap: merged.unitMap,
     });
     const updatedItem: SurfaceWaterData = {
       ...merged,
       kelasAir,
-      status,
+      status: evalRes.legacyStatus,
+      evaluationStatus: evalRes.overall,
+      evaluationReason: evalRes.evaluationReason,
+      standardBasis: evalRes.standardsBasis,
       standardId: evalCtx.standardId,
       standardSnapshot: evalCtx.standardSnapshot,
     };
@@ -578,9 +613,13 @@ export const surfaceWaterService = {
 
     await auditService.createLog({
       collection: 'surfacewater',
+      module: 'monitoring',
       recordId: id,
       action: 'update',
-      details: `Mengubah data kualitas air permukaan di lokasi ${updatedItem.location}`
+      details: `Mengubah data kualitas air permukaan di lokasi ${updatedItem.location} (${evalRes.overall})`,
+      beforeData: oldData as Record<string, any>,
+      afterData: updatedItem as Record<string, any>,
+      correctionReason: item.correctionReason || null,
     });
   }
 };
@@ -614,7 +653,7 @@ export const rainfallService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'rainfall', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'rainfall', id), stripUndefined({ ...newItem, ...trailCreate() }));
 
     // Audit Log
     await auditService.createLog({
@@ -665,14 +704,14 @@ export const rainfallService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Data tidak ditemukan");
     const oldData = snap.data() as RainfallData;
-    const updatedItem = { ...oldData, ...item };
+    const updatedItem = { ...oldData, ...item, id };
 
     const parseResult = RainfallSchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
 
     // Update offline cache
     const docs = getOfflineCache<RainfallData[]>('rainfall', []);
@@ -717,7 +756,7 @@ export const nurseryService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'nursery', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'nursery', id), stripUndefined({ ...newItem, ...trailCreate() }));
 
     // Audit Log
     await auditService.createLog({
@@ -758,14 +797,14 @@ export const nurseryService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Data tidak ditemukan");
     const oldData = snap.data() as NurseryData;
-    const updatedItem = { ...oldData, ...item };
+    const updatedItem = { ...oldData, ...item, id };
 
     const parseResult = NurserySchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
 
     // Update offline cache
     const docs = getOfflineCache<NurseryData[]>('nursery', []);
@@ -785,29 +824,51 @@ export const nurseryService = {
 export const reclamationService = {
   subscribeAll: (
     onPlans: (data: ReclamationPlan[]) => void,
-    onGuarantees: (data: ReclamationGuarantee[]) => void
+    onGuarantees: (data: ReclamationGuarantee[]) => void,
+    options?: { includeGuarantees?: boolean }
   ) => {
+    const includeGuarantees = options?.includeGuarantees ?? false;
     // Seed cache untuk masing-masing
     const cachedPlans = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
-    const cachedGuarantees = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
     if (cachedPlans.length > 0) onPlans(cachedPlans);
-    if (cachedGuarantees.length > 0) onGuarantees(cachedGuarantees);
 
-    const q = collection(db, 'reclamation');
-    return onSnapshot(q, (snapshot) => {
-      const plans = snapshot.docs
-        .filter(doc => doc.id.startsWith('RP-'))
-        .map(doc => ({ ...doc.data(), id: doc.id }) as ReclamationPlan);
-      const guarantees = snapshot.docs
-        .filter(doc => doc.id.startsWith('RG-'))
-        .map(doc => ({ ...doc.data(), id: doc.id }) as ReclamationGuarantee);
+    const plansQuery = query(
+      collection(db, 'reclamation'),
+      where(documentId(), '>=', 'RP-'),
+      where(documentId(), '<', 'RP.')
+    );
+    const unsubPlans = onSnapshot(plansQuery, (snapshot) => {
+      const plans = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as ReclamationPlan);
       setOfflineCache('reclamation_plans', plans);
-      setOfflineCache('reclamation_guarantees', guarantees);
       onPlans(plans);
-      onGuarantees(guarantees);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'reclamation');
     });
+
+    let unsubGuarantees: (() => void) | null = null;
+    if (includeGuarantees) {
+      const cachedGuarantees = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
+      if (cachedGuarantees.length > 0) onGuarantees(cachedGuarantees);
+      const guaranteesQuery = query(
+        collection(db, 'reclamation'),
+        where(documentId(), '>=', 'RG-'),
+        where(documentId(), '<', 'RG.')
+      );
+      unsubGuarantees = onSnapshot(guaranteesQuery, (snapshot) => {
+        const guarantees = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as ReclamationGuarantee);
+        setOfflineCache('reclamation_guarantees', guarantees);
+        onGuarantees(guarantees);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, 'reclamation');
+      });
+    } else {
+      onGuarantees([]);
+    }
+
+    return () => {
+      unsubPlans();
+      if (unsubGuarantees) unsubGuarantees();
+    };
   },
 
   addPlan: async (item: Omit<ReclamationPlan, 'id'>): Promise<ReclamationPlan> => {
@@ -822,7 +883,7 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'reclamation', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'reclamation', id), stripUndefined({ ...newItem, ...trailCreate() }));
 
     // Update offline cache
     const docs = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
@@ -846,7 +907,7 @@ export const reclamationService = {
       throw new Error("Rencana reklamasi tidak ditemukan.");
     }
     const current = snap.data() as ReclamationPlan;
-    const merged = { ...current, ...item };
+    const merged = { ...current, ...item, id };
 
     const parseResult = ReclamationPlanSchema.safeParse(merged);
     if (!parseResult.success) {
@@ -913,7 +974,7 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'reclamation', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'reclamation', id), stripUndefined({ ...newItem, ...trailCreate() }));
 
     // Update offline cache
     const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
@@ -966,7 +1027,7 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
 
     // Update offline cache
     const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
@@ -1024,7 +1085,7 @@ export const wasteB3Service = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'waste_b3', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'waste_b3', id), stripUndefined({ ...newItem, ...trailCreate() }));
 
     // Update offline cache
     const docs = getOfflineCache<WasteIn[]>('waste_in', []);
@@ -1033,15 +1094,17 @@ export const wasteB3Service = {
 
     await auditService.createLog({
       collection: 'waste_b3',
+      module: 'waste_b3',
       recordId: id,
       action: 'insert',
-      details: `Mencatat masuk limbah B3 ${item.wasteType} sebesar ${item.weightKg.toLocaleString('id-ID')} kg`
+      details: `Mencatat masuk limbah B3 ${item.wasteType} sebesar ${item.weightKg.toLocaleString('id-ID')} kg`,
+      afterData: newItem as Record<string, any>,
     });
 
     return newItem;
   },
 
-  deleteIn: async (id: string): Promise<void> => {
+  deleteIn: async (id: string, reason?: string): Promise<void> => {
     const docRef = doc(db, 'waste_b3', id);
     const targetSnap = await getDoc(docRef);
     if (!targetSnap.exists()) {
@@ -1081,13 +1144,16 @@ export const wasteB3Service = {
 
     await auditService.createLog({
       collection: 'waste_b3',
+      module: 'waste_b3',
       recordId: id,
       action: 'delete',
-      details: `Menghapus catatan masuk limbah B3 ${id} (Jenis: ${targetIn.wasteType || '-'}, TPS: ${targetIn.tpsLocation || '-'}, Berat: ${targetIn.weightKg ?? 0} kg, Tgl: ${targetIn.dateIn || '-'})`
+      details: `Menghapus catatan masuk limbah B3 ${id} (Jenis: ${targetIn.wasteType || '-'}, TPS: ${targetIn.tpsLocation || '-'}, Berat: ${targetIn.weightKg ?? 0} kg, Tgl: ${targetIn.dateIn || '-'})`,
+      beforeData: targetIn as Record<string, any>,
+      correctionReason: reason || null,
     });
   },
 
-  updateIn: async (id: string, item: Partial<WasteIn>): Promise<void> => {
+  updateIn: async (id: string, item: Partial<WasteIn>, reason?: string): Promise<void> => {
     const snapAll = await getDocs(collection(db, 'waste_b3'));
     const currentIn = snapAll.docs
       .filter(d => d.id.startsWith('WI-'))
@@ -1098,7 +1164,7 @@ export const wasteB3Service = {
 
     const oldData = currentIn.find(x => x.id === id);
     if (!oldData) throw new Error("Manifest masuk tidak ditemukan");
-    const updatedItem = { ...oldData, ...item };
+    const updatedItem = { ...oldData, ...item, id };
 
     const parseResult = WasteInSchema.safeParse(updatedItem);
     if (!parseResult.success) {
@@ -1115,7 +1181,7 @@ export const wasteB3Service = {
     }
 
     const docRef = doc(db, 'waste_b3', id);
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
 
     // Update offline cache
     const docs = getOfflineCache<WasteIn[]>('waste_in', []);
@@ -1124,13 +1190,20 @@ export const wasteB3Service = {
 
     await auditService.createLog({
       collection: 'waste_b3',
+      module: 'waste_b3',
       recordId: id,
       action: 'update',
-      details: `Mengubah manifest masuk limbah B3 ${updatedItem.wasteType} (${updatedItem.weightKg.toLocaleString('id-ID')} kg)`
+      details: `Mengubah manifest masuk limbah B3 ${updatedItem.wasteType} (${updatedItem.weightKg.toLocaleString('id-ID')} kg)`,
+      beforeData: oldData as Record<string, any>,
+      afterData: updatedItem as Record<string, any>,
+      correctionReason: reason || null,
     });
   },
 
-  addOut: async (item: Omit<WasteOut, 'id'>): Promise<WasteOut> => {
+  addOut: async (
+    item: Omit<WasteOut, 'id'>,
+    options?: { correctionOverride?: { authorized: boolean; reason?: string } }
+  ): Promise<WasteOut> => {
     const id = `WO-${crypto.randomUUID()}`;
     const newItem: WasteOut = {
       ...item,
@@ -1142,7 +1215,6 @@ export const wasteB3Service = {
       handleValidationError(parseResult.error);
     }
 
-    // Ambil data terkini untuk simulasi ledger penjagaan service
     const snapAll = await getDocs(collection(db, 'waste_b3'));
     const currentIn = snapAll.docs
       .filter(d => d.id.startsWith('WI-'))
@@ -1151,29 +1223,27 @@ export const wasteB3Service = {
       .filter(d => d.id.startsWith('WO-'))
       .map(d => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }) as WasteOut);
 
+    const sim = simulateOutflowValidation(
+      currentIn,
+      currentOut,
+      newItem,
+      false,
+      options?.correctionOverride
+    );
+    if (!sim.isValid) {
+      throw new Error(sim.errorMessage || 'Validasi stok limbah B3 gagal.');
+    }
+
     const candidateOut = [...currentOut, newItem];
     const ledger = buildWasteLedger(currentIn, candidateOut);
     const outInfo = ledger.outById[id];
 
-    if (outInfo && outInfo.shortfallKg > 0) {
-      throw new Error(`Stok tidak mencukupi untuk jenis limbah "${item.wasteType}" pada tanggal ${item.dateOut}. Kekurangan: ${outInfo.shortfallKg.toLocaleString('id-ID')} Kg.`);
-    }
+    await setDoc(doc(db, 'waste_b3', id), stripUndefined({ ...newItem, ...trailCreate() }));
 
-    const otherShortfall = candidateOut.find(o => o.id !== id && (ledger.outById[o.id]?.shortfallKg || 0) > 0);
-    if (otherShortfall) {
-      const shortage = ledger.outById[otherShortfall.id]?.shortfallKg || 0;
-      throw new Error(`Pengeluaran ini menyebabkan manifest ${otherShortfall.manifestNo || otherShortfall.id} kekurangan stok sebesar ${shortage.toLocaleString('id-ID')} Kg.`);
-    }
-
-    // Simpan ke Firestore
-    await setDoc(doc(db, 'waste_b3', id), { ...newItem, ...trailCreate() });
-
-    // Update offline cache
     const docs = getOfflineCache<WasteOut[]>('waste_out', []);
     const updated = [newItem, ...docs.filter(x => x.id !== id)].sort(compareLatestFirst);
     setOfflineCache('waste_out', updated);
 
-    // TODO: validasi ini belum atomik antar-user; solusi lanjutan = dokumen ringkasan stok per jenis yang diperbarui dalam runTransaction/Cloud Function.
     const remainingStock = ledger.stocks.find(s => s.wasteType === item.wasteType)?.currentStock ?? 0;
     const allocationsSummary = (outInfo?.allocations || [])
       .map(a => `${a.inId} (${a.kg.toLocaleString('id-ID')} Kg)`)
@@ -1181,15 +1251,18 @@ export const wasteB3Service = {
 
     await auditService.createLog({
       collection: 'waste_b3',
+      module: 'waste_b3',
       recordId: id,
       action: 'insert',
-      details: `Mencatat keluar transpor limbah B3 No Manifest: ${item.manifestNo} (${item.weightKg.toLocaleString('id-ID')} Kg, Jenis: ${item.wasteType}). Alokasi batch: ${allocationsSummary}. Sisa stok: ${remainingStock.toLocaleString('id-ID')} Kg.`
+      details: `Mencatat keluar transpor limbah B3 No Manifest: ${item.manifestNo} (${item.weightKg.toLocaleString('id-ID')} Kg, Jenis: ${item.wasteType}). Alokasi batch: ${allocationsSummary}. Sisa stok: ${remainingStock.toLocaleString('id-ID')} Kg.`,
+      afterData: newItem as Record<string, any>,
+      correctionReason: options?.correctionOverride?.authorized ? options.correctionOverride.reason || null : null,
     });
 
     return newItem;
   },
 
-  deleteOut: async (id: string): Promise<void> => {
+  deleteOut: async (id: string, reason?: string): Promise<void> => {
     const docRef = doc(db, 'waste_b3', id);
     const targetSnap = await getDoc(docRef);
     if (!targetSnap.exists()) {
@@ -1210,25 +1283,30 @@ export const wasteB3Service = {
 
     await deleteDoc(docRef);
 
-    // Update offline cache
     const docs = getOfflineCache<WasteOut[]>('waste_out', []);
     const updated = docs.filter(x => x.id !== id);
     setOfflineCache('waste_out', updated);
 
-    // TODO: validasi ini belum atomik antar-user; solusi lanjutan = dokumen ringkasan stok per jenis yang diperbarui dalam runTransaction/Cloud Function.
     const remainingStock = oldData
       ? (simLedger.stocks.find(s => s.wasteType === oldData.wasteType)?.currentStock ?? 0)
       : 0;
 
     await auditService.createLog({
       collection: 'waste_b3',
+      module: 'waste_b3',
       recordId: id,
       action: 'delete',
-      details: `Menghapus manifest keluar limbah B3 ${id} (No Manifest: ${oldData.manifestNo || '-'}, Jenis: ${oldData.wasteType || '-'}, Berat: ${oldData.weightKg ?? 0} kg, Transporter: ${oldData.transporter || '-'}). Sisa stok sesudahnya: ${remainingStock.toLocaleString('id-ID')} Kg.`
+      details: `Menghapus manifest keluar limbah B3 ${id} (No Manifest: ${oldData.manifestNo || '-'}, Jenis: ${oldData.wasteType || '-'}, Berat: ${oldData.weightKg ?? 0} kg, Transporter: ${oldData.transporter || '-'}). Sisa stok sesudahnya: ${remainingStock.toLocaleString('id-ID')} Kg.`,
+      beforeData: oldData as Record<string, any>,
+      correctionReason: reason || null,
     });
   },
 
-  updateOut: async (id: string, item: Partial<WasteOut>): Promise<void> => {
+  updateOut: async (
+    id: string,
+    item: Partial<WasteOut>,
+    options?: { correctionOverride?: { authorized: boolean; reason?: string } }
+  ): Promise<void> => {
     const snapAll = await getDocs(collection(db, 'waste_b3'));
     const currentIn = snapAll.docs
       .filter(d => d.id.startsWith('WI-'))
@@ -1239,37 +1317,35 @@ export const wasteB3Service = {
 
     const oldData = currentOut.find(x => x.id === id);
     if (!oldData) throw new Error("Manifest keluar tidak ditemukan");
-    const updatedItem = { ...oldData, ...item };
+    const updatedItem = { ...oldData, ...item, id };
 
     const parseResult = WasteOutSchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    // Simulasi kandidat update
+    const sim = simulateOutflowValidation(
+      currentIn,
+      currentOut,
+      updatedItem,
+      true,
+      options?.correctionOverride
+    );
+    if (!sim.isValid) {
+      throw new Error(sim.errorMessage || 'Validasi perubahan manifest keluar gagal.');
+    }
+
     const candidateOut = currentOut.map(x => x.id === id ? updatedItem : x);
     const ledger = buildWasteLedger(currentIn, candidateOut);
     const outInfo = ledger.outById[id];
 
-    if (outInfo && outInfo.shortfallKg > 0) {
-      throw new Error(`Stok tidak mencukupi untuk jenis limbah "${updatedItem.wasteType}" pada tanggal ${updatedItem.dateOut}. Kekurangan: ${outInfo.shortfallKg.toLocaleString('id-ID')} Kg.`);
-    }
-
-    const otherShortfall = candidateOut.find(o => o.id !== id && (ledger.outById[o.id]?.shortfallKg || 0) > 0);
-    if (otherShortfall) {
-      const shortage = ledger.outById[otherShortfall.id]?.shortfallKg || 0;
-      throw new Error(`Perubahan manifest ini menyebabkan manifest ${otherShortfall.manifestNo || otherShortfall.id} kekurangan stok sebesar ${shortage.toLocaleString('id-ID')} Kg.`);
-    }
-
     const docRef = doc(db, 'waste_b3', id);
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
 
-    // Update offline cache
     const docs = getOfflineCache<WasteOut[]>('waste_out', []);
     const updatedDocs = docs.map(x => x.id === id ? updatedItem : x).sort(compareLatestFirst);
     setOfflineCache('waste_out', updatedDocs);
 
-    // TODO: validasi ini belum atomik antar-user; solusi lanjutan = dokumen ringkasan stok per jenis yang diperbarui dalam runTransaction/Cloud Function.
     const remainingStock = ledger.stocks.find(s => s.wasteType === updatedItem.wasteType)?.currentStock ?? 0;
     const allocationsSummary = (outInfo?.allocations || [])
       .map(a => `${a.inId} (${a.kg.toLocaleString('id-ID')} Kg)`)
@@ -1277,9 +1353,13 @@ export const wasteB3Service = {
 
     await auditService.createLog({
       collection: 'waste_b3',
+      module: 'waste_b3',
       recordId: id,
       action: 'update',
-      details: `Mengubah manifest keluar limbah B3 No Manifest: ${updatedItem.manifestNo} (${updatedItem.weightKg.toLocaleString('id-ID')} Kg). Alokasi batch: ${allocationsSummary}. Sisa stok: ${remainingStock.toLocaleString('id-ID')} Kg.`
+      details: `Mengubah manifest keluar limbah B3 No Manifest: ${updatedItem.manifestNo} (${updatedItem.weightKg.toLocaleString('id-ID')} Kg). Alokasi batch: ${allocationsSummary}. Sisa stok: ${remainingStock.toLocaleString('id-ID')} Kg.`,
+      beforeData: oldData as Record<string, any>,
+      afterData: updatedItem as Record<string, any>,
+      correctionReason: options?.correctionOverride?.reason || null,
     });
   }
 };
@@ -1324,7 +1404,7 @@ export const documentService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'documents', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'documents', id), stripUndefined({ ...newItem, ...trailCreate() }));
 
     await auditService.createLog({
       collection: 'documents',
@@ -1364,14 +1444,14 @@ export const documentService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Dokumen tidak ditemukan");
     const oldData = snap.data() as EnvironmentalDocument;
-    const updatedItem = { ...oldData, ...item };
+    const updatedItem = { ...oldData, ...item, id };
 
     const parseResult = EnvironmentalDocumentSchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
 
     // Update offline cache
     const docs = getOfflineCache<EnvironmentalDocument[]>('documents', []);
@@ -1398,7 +1478,7 @@ export const documentService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'documents', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'documents', id), stripUndefined({ ...newItem, ...trailCreate() }));
 
     await auditService.createLog({
       collection: 'documents',
@@ -1417,14 +1497,14 @@ export const documentService = {
       throw new Error("Agenda kegiatan tidak ditemukan.");
     }
     const current = snap.data() as ComplianceCalendarEvent;
-    const merged = { ...current, ...updates };
+    const merged = { ...current, ...updates, id };
 
     const parseResult = ComplianceCalendarEventSchema.safeParse(merged);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...merged, ...trailUpdate() } as any);
+    await updateDoc(docRef, stripUndefined({ ...merged, ...trailUpdate() }) as any);
 
     await auditService.createLog({
       collection: 'documents',
@@ -1487,7 +1567,7 @@ export const environmentalCostService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'costs', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'costs', id), stripUndefined({ ...newItem, ...trailCreate() }));
 
     await auditService.createLog({
       collection: 'costs',
@@ -1527,14 +1607,14 @@ export const environmentalCostService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Data biaya tidak ditemukan");
     const oldData = snap.data() as EnvironmentalCost;
-    const updatedItem = { ...oldData, ...item };
+    const updatedItem = { ...oldData, ...item, id };
 
     const parseResult = EnvironmentalCostSchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
 
     // Update offline cache
     const docs = getOfflineCache<EnvironmentalCost[]>('costs', []);
@@ -1608,9 +1688,9 @@ export const notificationService = {
     if (snap.exists()) {
       const alert = snap.data() as AlertNotification;
       if (alert.createdBy === 'system') {
-        const readBy = alert.readBy || [];
-        if (!readBy.includes(userEmail)) {
-          await updateDoc(docRef, { readBy: [...readBy, userEmail] });
+        const currentReadBy = alert.readBy || [];
+        if (!currentReadBy.includes(userEmail) && currentReadBy.length < 100) {
+          await updateDoc(docRef, { readBy: Array.from(new Set([...currentReadBy, userEmail])) });
         }
       } else {
         await updateDoc(docRef, { read: true });
@@ -1621,15 +1701,19 @@ export const notificationService = {
   markAllAsRead: async (alerts: AlertNotification[], userEmail?: string): Promise<void> => {
     if (!userEmail) return;
     const unread = alerts.filter(a => {
-      if (a.createdBy === 'system') return !(a.readBy || []).includes(userEmail);
+      if (a.createdBy === 'system') {
+        const currentReadBy = a.readBy || [];
+        return !currentReadBy.includes(userEmail) && currentReadBy.length < 100;
+      }
       return !a.read;
     });
-    
+
     await Promise.all(
       unread.map(alert => {
         const docRef = doc(db, 'notifications', alert.id);
         if (alert.createdBy === 'system') {
-          return updateDoc(docRef, { clearedBy: [...(alert.clearedBy || []), userEmail], readBy: [...(alert.readBy || []), userEmail] });
+          const nextReadBy = Array.from(new Set([...(alert.readBy || []), userEmail]));
+          return updateDoc(docRef, { readBy: nextReadBy });
         }
         return updateDoc(docRef, { read: true });
       })
@@ -1642,7 +1726,17 @@ export const notificationService = {
       alerts.map(alert => {
         const docRef = doc(db, 'notifications', alert.id);
         if (alert.createdBy === 'system') {
-          return updateDoc(docRef, { clearedBy: [...(alert.clearedBy || []), userEmail], readBy: [...(alert.readBy || []), userEmail] });
+          const currentCleared = alert.clearedBy || [];
+          const currentRead = alert.readBy || [];
+          const updates: Record<string, any> = {};
+          if (!currentCleared.includes(userEmail) && currentCleared.length < 100) {
+            updates.clearedBy = Array.from(new Set([...currentCleared, userEmail]));
+          }
+          if (!currentRead.includes(userEmail) && currentRead.length < 100) {
+            updates.readBy = Array.from(new Set([...currentRead, userEmail]));
+          }
+          if (Object.keys(updates).length === 0) return Promise.resolve();
+          return updateDoc(docRef, updates);
         }
         // Hanya hapus jika notifikasi spesifik milik user
         if (alert.createdBy === userEmail) {
@@ -1683,7 +1777,7 @@ export const solidWasteService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'solid_waste', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'solid_waste', id), stripUndefined({ ...newItem, ...trailCreate() }));
 
     // Audit Log
     await auditService.createLog({
@@ -1739,14 +1833,14 @@ export const solidWasteService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Data sampah tidak ditemukan");
     const oldData = snap.data() as SolidWasteData;
-    const updatedItem = { ...oldData, ...item };
+    const updatedItem = { ...oldData, ...item, id };
 
     const parseResult = SolidWasteSchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() });
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
 
     // Update offline cache
     const docs = getOfflineCache<SolidWasteData[]>('solid_waste', []);
@@ -1788,7 +1882,7 @@ export const capaService = {
       id,
       createdAt: new Date().toISOString()
     };
-    await setDoc(doc(db, 'capa', id), { ...newItem, ...trailCreate() });
+    await setDoc(doc(db, 'capa', id), stripUndefined({ ...newItem, ...trailCreate() }));
     
     const docs = getOfflineCache<CapaData[]>('capa', []);
     setOfflineCache('capa', [newItem, ...docs]);
@@ -1816,10 +1910,11 @@ export const capaService = {
     const merged: CapaData = { 
       ...oldData, 
       ...item,
+      id,
       history: updatedHistory
     };
 
-    await updateDoc(docRef, { ...merged, ...trailUpdate() } as any);
+    await updateDoc(docRef, stripUndefined({ ...merged, ...trailUpdate() }) as any);
 
     const docs = getOfflineCache<CapaData[]>('capa', []);
     const updatedDocs = docs.map(x => x.id === id ? merged : x);
@@ -1882,7 +1977,7 @@ export const complianceMatrixService = {
     }
 
     const docRef = doc(db, 'compliance_matrix', id);
-    await setDoc(docRef, { ...newItem, ...trailCreate() });
+    await setDoc(docRef, stripUndefined({ ...newItem, ...trailCreate() }));
 
     const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
     setOfflineCache('compliance_matrix', [newItem, ...docs]);
@@ -1903,14 +1998,14 @@ export const complianceMatrixService = {
     if (!snap.exists()) throw new Error("Data matriks tidak ditemukan");
 
     const oldData = snap.data() as ComplianceMatrixData;
-    const updatedItem = { ...oldData, ...item };
+    const updatedItem = { ...oldData, ...item, id };
     
     const parseResult = ComplianceMatrixSchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() } as any);
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
 
     const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
     const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
@@ -1976,7 +2071,7 @@ export const incidentService = {
     }
 
     const docRef = doc(db, 'incidents', id);
-    await setDoc(docRef, { ...newItem, ...trailCreate() });
+    await setDoc(docRef, stripUndefined({ ...newItem, ...trailCreate() }));
 
     const docs = getOfflineCache<IncidentData[]>('incidents', []);
     setOfflineCache('incidents', [newItem, ...docs]);
@@ -1997,14 +2092,14 @@ export const incidentService = {
     if (!snap.exists()) throw new Error("Data insiden tidak ditemukan");
 
     const oldData = snap.data() as IncidentData;
-    const updatedItem = { ...oldData, ...item };
+    const updatedItem = { ...oldData, ...item, id };
     
     const parseResult = IncidentSchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() } as any);
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
 
     const docs = getOfflineCache<IncidentData[]>('incidents', []);
     const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
@@ -2070,35 +2165,58 @@ export const regulatoryService = {
     }
 
     const docRef = doc(db, 'regulatory', id);
-    await setDoc(docRef, { ...newItem, ...trailCreate() });
+    await setDoc(docRef, stripUndefined({ ...newItem, ...trailCreate() }));
 
     const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
     setOfflineCache('regulatory', [newItem, ...docs]);
     
     await auditService.createLog({
       collection: 'regulatory',
+      module: 'regulatory_watch',
       action: 'insert',
       recordId: id,
-      details: `Created new Regulatory Watch (${newItem.regulationNo})`
+      details: `Menambahkan Regulatory Watch (${newItem.regulationNo}, status: ${newItem.status})`,
+      afterData: newItem as Record<string, any>,
     });
 
     return newItem;
   },
 
-  update: async (id: string, item: Partial<RegulatoryWatchData>): Promise<void> => {
+  update: async (id: string, item: Partial<RegulatoryWatchData>, reason?: string): Promise<void> => {
     const docRef = doc(db, 'regulatory', id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Data regulasi tidak ditemukan");
 
     const oldData = snap.data() as RegulatoryWatchData;
-    const updatedItem = { ...oldData, ...item };
+    const metadataHistory = [...(oldData.metadataHistory || [])];
+    if (
+      item.status !== undefined && item.status !== oldData.status ||
+      item.verificationStatus !== undefined && item.verificationStatus !== oldData.verificationStatus ||
+      item.effectiveDate !== undefined && item.effectiveDate !== oldData.effectiveDate ||
+      item.revokedBy !== undefined && item.revokedBy !== oldData.revokedBy ||
+      item.amendedBy !== undefined && item.amendedBy !== oldData.amendedBy
+    ) {
+      metadataHistory.push({
+        updatedAt: new Date().toISOString(),
+        updatedBy: auth.currentUser?.email || 'system',
+        reason: reason || `Pembaruan status/metadata regulasi (${oldData.status} → ${item.status || oldData.status})`,
+        previousStatus: oldData.status,
+      });
+    }
+
+    const updatedItem: RegulatoryWatchData = {
+      ...oldData,
+      ...item,
+      id,
+      metadataHistory: metadataHistory.length > 0 ? metadataHistory : oldData.metadataHistory,
+    };
     
     const parseResult = RegulatoryWatchSchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, { ...updatedItem, ...trailUpdate() } as any);
+    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
 
     const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
     const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
@@ -2106,9 +2224,13 @@ export const regulatoryService = {
     
     await auditService.createLog({
       collection: 'regulatory',
+      module: 'regulatory_watch',
       action: 'update',
       recordId: id,
-      details: `Updated Regulatory Watch status/details`
+      details: `Memperbarui Regulatory Watch ${updatedItem.regulationNo} (${updatedItem.status})`,
+      beforeData: oldData as Record<string, any>,
+      afterData: updatedItem as Record<string, any>,
+      correctionReason: reason || null,
     });
   },
 
@@ -2127,9 +2249,11 @@ export const regulatoryService = {
     
     await auditService.createLog({
       collection: 'regulatory',
+      module: 'regulatory_watch',
       action: 'delete',
       recordId: id,
-      details: `Menghapus regulasi: ${oldData.regulationNo || '-'} (${oldData.about || '-'})`
+      details: `Menghapus regulasi: ${oldData.regulationNo || '-'} (${oldData.about || '-'})`,
+      beforeData: oldData as Record<string, any>,
     });
   },
 
@@ -2171,9 +2295,10 @@ export const regulatoryService = {
       setOfflineCache('regulatory', [...newlyInserted, ...docs]);
       await auditService.createLog({
         collection: 'regulatory',
+        module: 'regulatory_watch',
         recordId: 'seed-2024-2026',
         action: 'insert',
-        details: `Memuat ${inserted} regulasi referensi 2024-2026 (status Perlu Kajian, ${skipped} dilewati karena sudah ada)`
+        details: `Memuat ${inserted} regulasi referensi 2024-2026 (${skipped} dilewati karena sudah ada; item 2025-2026 bertanda MENUNGGU VERIFIKASI)`
       });
     }
 
@@ -2250,6 +2375,7 @@ export const nurseryStockOutService = {
     const merged = {
       ...current,
       ...updates,
+      id,
       updatedBy: user?.email || 'system',
       updatedAt: new Date().toISOString()
     };
@@ -2793,6 +2919,7 @@ export const standardsService = {
     const q = query(collection(db, 'standards'), orderBy('media', 'asc'));
     return onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(d => ({ ...d.data(), id: d.id }) as EnvironmentalStandard);
+      _standardsLoadedFromServer = true;
       _cachedStandards = docs;
       setOfflineCache('standards', docs);
       callback(docs);
@@ -2823,6 +2950,7 @@ export const standardsService = {
     if (inserted > 0) {
       await auditService.createLog({
         collection: 'standards',
+        module: 'standards_master',
         recordId: 'seed-defaults',
         action: 'insert',
         details: `Inisialisasi ${inserted} baku mutu standar (${skipped} sudah ada)`
@@ -2840,28 +2968,57 @@ export const standardsService = {
     await setDoc(doc(db, 'standards', id), stripUndefined({ ...newItem, ...trailCreate() }));
     await auditService.createLog({
       collection: 'standards',
+      module: 'standards_master',
       recordId: id,
       action: 'insert',
-      details: `Menambah baku mutu ${newItem.media} (${newItem.parameterLabel}) — ${newItem.basisRegulasi}`
+      details: `Menambah baku mutu ${newItem.media} (${newItem.parameterLabel}) — ${newItem.basisRegulasi}`,
+      afterData: newItem as Record<string, any>,
     });
     return newItem;
   },
 
-  update: async (id: string, item: Partial<EnvironmentalStandard>): Promise<void> => {
+  update: async (id: string, item: Partial<EnvironmentalStandard>, revisionReason?: string): Promise<void> => {
     const docRef = doc(db, 'standards', id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data baku mutu tidak ditemukan di server.');
     const oldData = snap.data() as EnvironmentalStandard;
-    const updatedItem: EnvironmentalStandard = { ...oldData, ...item, id };
+    const prevHistory = Array.isArray(oldData.revisionHistory) ? oldData.revisionHistory : [];
+    const nextRevisionEntry = {
+      revision: prevHistory.length + 1,
+      revisedAt: new Date().toISOString(),
+      revisedBy: auth.currentUser?.email || 'system',
+      reason: revisionReason?.trim() || item.notes?.trim() || 'Pembaruan master baku mutu',
+      previousSnapshot: {
+        minLimit: oldData.minLimit ?? null,
+        maxLimit: oldData.maxLimit ?? null,
+        unit: oldData.unit,
+        basisRegulasi: oldData.basisRegulasi,
+        effectiveFrom: oldData.effectiveFrom ?? null,
+        effectiveTo: oldData.effectiveTo ?? null,
+        verificationStatus: oldData.verificationStatus,
+        effectiveStatus: oldData.effectiveStatus ?? null,
+        isActive: oldData.isActive,
+      },
+    };
+    const updatedItem: EnvironmentalStandard = {
+      ...oldData,
+      ...item,
+      id,
+      revisionHistory: [...prevHistory, nextRevisionEntry],
+    };
     const parseResult = EnvironmentalStandardSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
     await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
     await auditService.createLog({
       collection: 'standards',
+      module: 'standards_master',
       recordId: id,
       action: 'update',
-      details: `Memperbarui baku mutu ${updatedItem.parameterLabel} (${updatedItem.media}, status: ${updatedItem.verificationStatus})`
+      details: `Memperbarui baku mutu ${updatedItem.parameterLabel} (${updatedItem.media}, status: ${updatedItem.verificationStatus})`,
+      beforeData: oldData as Record<string, any>,
+      afterData: updatedItem as Record<string, any>,
+      correctionReason: revisionReason || null,
     });
   },
 
@@ -2873,9 +3030,11 @@ export const standardsService = {
     await deleteDoc(docRef);
     await auditService.createLog({
       collection: 'standards',
+      module: 'standards_master',
       recordId: id,
       action: 'delete',
-      details: `Menghapus baku mutu ${oldData.parameterLabel || id} (${oldData.media || '-'})`
+      details: `Menghapus baku mutu ${oldData.parameterLabel || id} (${oldData.media || '-'})`,
+      beforeData: oldData as Record<string, any>,
     });
   }
 };
@@ -3210,7 +3369,27 @@ export const domesticWastewaterService = {
 
   add: async (item: Omit<DomesticWastewaterData, 'id'>): Promise<DomesticWastewaterData> => {
     const id = `DWW-${crypto.randomUUID()}`;
-    const newItem: DomesticWastewaterData = { ...item, id };
+    const evalCtx = await getEvaluationContext('air_limbah_domestik', {
+      locationCode: item.facilityName,
+      sampleDate: item.date,
+    });
+    const evalRes = evaluateSampleCompliance('air_limbah_domestik', item as Record<string, unknown>, {
+      standards: evalCtx.standards,
+      thresholds: evalCtx.thresholds,
+      locationCode: item.facilityName,
+      sampleDate: item.date,
+      unitMap: item.unitMap,
+    });
+    const newItem: DomesticWastewaterData = {
+      ...item,
+      id,
+      complianceStatus: evalRes.domesticStatus,
+      evaluationStatus: evalRes.overall,
+      evaluationReason: evalRes.evaluationReason,
+      standardBasis: evalRes.standardsBasis,
+      standardId: evalCtx.standardId,
+      standardSnapshot: evalCtx.standardSnapshot,
+    };
     const parseResult = DomesticWastewaterSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
@@ -3220,17 +3399,19 @@ export const domesticWastewaterService = {
 
     await auditService.createLog({
       collection: 'domestic_wastewater',
+      module: 'domestic_wastewater',
       recordId: id,
       action: 'insert',
-      details: `Mencatat air limbah domestik ${item.facilityName} tgl ${item.date} (Status: ${item.complianceStatus})`
+      details: `Mencatat air limbah domestik ${item.facilityName} tgl ${item.date} (Kesimpulan: ${evalRes.overall})`,
+      afterData: newItem as Record<string, any>,
     });
 
-    if (item.complianceStatus === 'Tidak Memenuhi') {
+    if (newItem.complianceStatus === 'Tidak Memenuhi') {
       await notificationService.add({
         type: 'Critical',
         category: 'Wastewater',
         title: 'Pelampauan Baku Mutu IPAL Domestik',
-        message: `Hasil IPAL Domestik ${item.facilityName} tanggal ${item.date} tidak memenuhi baku mutu master (${item.standardBasis || 'Permen LH/BPLH 11/2025'}).`
+        message: `Hasil IPAL Domestik ${item.facilityName} tanggal ${item.date} tidak memenuhi baku mutu master (${evalRes.failedParams.join(', ')}).`
       });
     }
 
@@ -3241,7 +3422,28 @@ export const domesticWastewaterService = {
     const docRef = doc(db, 'domestic_wastewater', id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data air limbah domestik tidak ditemukan.');
-    const updatedItem: DomesticWastewaterData = { ...(snap.data() as DomesticWastewaterData), ...item, id };
+    const oldData = snap.data() as DomesticWastewaterData;
+    const merged = { ...oldData, ...item, id };
+    const evalCtx = await getEvaluationContext('air_limbah_domestik', {
+      locationCode: merged.facilityName,
+      sampleDate: merged.date,
+    });
+    const evalRes = evaluateSampleCompliance('air_limbah_domestik', merged as Record<string, unknown>, {
+      standards: evalCtx.standards,
+      thresholds: evalCtx.thresholds,
+      locationCode: merged.facilityName,
+      sampleDate: merged.date,
+      unitMap: merged.unitMap,
+    });
+    const updatedItem: DomesticWastewaterData = {
+      ...merged,
+      complianceStatus: evalRes.domesticStatus,
+      evaluationStatus: evalRes.overall,
+      evaluationReason: evalRes.evaluationReason,
+      standardBasis: evalRes.standardsBasis,
+      standardId: evalCtx.standardId,
+      standardSnapshot: evalCtx.standardSnapshot,
+    };
     const parseResult = DomesticWastewaterSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
@@ -3251,9 +3453,13 @@ export const domesticWastewaterService = {
 
     await auditService.createLog({
       collection: 'domestic_wastewater',
+      module: 'domestic_wastewater',
       recordId: id,
       action: 'update',
-      details: `Memperbarui data IPAL domestik ${updatedItem.facilityName} (${updatedItem.date})`
+      details: `Memperbarui data IPAL domestik ${updatedItem.facilityName} (${updatedItem.date}) — ${evalRes.overall}`,
+      beforeData: oldData as Record<string, any>,
+      afterData: updatedItem as Record<string, any>,
+      correctionReason: item.correctionReason || null,
     });
   },
 
@@ -3268,9 +3474,11 @@ export const domesticWastewaterService = {
 
     await auditService.createLog({
       collection: 'domestic_wastewater',
+      module: 'domestic_wastewater',
       recordId: id,
       action: 'delete',
-      details: `Menghapus catatan IPAL domestik ${oldData.facilityName || '-'} (${oldData.date || '-'})`
+      details: `Menghapus catatan IPAL domestik ${oldData.facilityName || '-'} (${oldData.date || '-'})`,
+      beforeData: oldData as Record<string, any>,
     });
   }
 };
@@ -3304,9 +3512,11 @@ export const ghgFactorService = {
 
     await auditService.createLog({
       collection: 'ghg_factors',
+      module: 'ghg_inventory',
       recordId: id,
       action: 'insert',
-      details: `Menambah faktor emisi GRK ${item.factorName} (${item.factorKgCo2ePerUnit} kgCO2e/${item.unit}, Ref: ${item.referenceSource})`
+      details: `Menambah faktor emisi GRK ${item.factorName} (${item.factorKgCo2ePerUnit} kgCO2e/${item.unit}, Ref: ${item.referenceSource})`,
+      afterData: newItem as Record<string, any>,
     });
     return newItem;
   },
@@ -3315,7 +3525,8 @@ export const ghgFactorService = {
     const docRef = doc(db, 'ghg_factors', id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data faktor emisi GRK tidak ditemukan.');
-    const updatedItem: GhgEmissionFactorData = { ...(snap.data() as GhgEmissionFactorData), ...item, id };
+    const oldData = snap.data() as GhgEmissionFactorData;
+    const updatedItem: GhgEmissionFactorData = { ...oldData, ...item, id };
     const parseResult = GhgEmissionFactorSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
@@ -3325,9 +3536,12 @@ export const ghgFactorService = {
 
     await auditService.createLog({
       collection: 'ghg_factors',
+      module: 'ghg_inventory',
       recordId: id,
       action: 'update',
-      details: `Memperbarui faktor emisi GRK ${updatedItem.factorName}`
+      details: `Memperbarui faktor emisi GRK ${updatedItem.factorName}`,
+      beforeData: oldData as Record<string, any>,
+      afterData: updatedItem as Record<string, any>,
     });
   },
 
@@ -3342,9 +3556,11 @@ export const ghgFactorService = {
 
     await auditService.createLog({
       collection: 'ghg_factors',
+      module: 'ghg_inventory',
       recordId: id,
       action: 'delete',
-      details: `Menghapus faktor emisi GRK ${oldData.factorName || '-'}`
+      details: `Menghapus faktor emisi GRK ${oldData.factorName || '-'}`,
+      beforeData: oldData as Record<string, any>,
     });
   }
 };
@@ -3373,11 +3589,16 @@ export const ghgActivityService = {
     const docs = getOfflineCache<GhgActivityData[]>('ghg_activities', []);
     setOfflineCache('ghg_activities', [newItem, ...docs]);
 
+    const emissionTxt = item.emissionsTco2e !== null && item.emissionsTco2e !== undefined
+      ? `${item.emissionsTco2e} tCO2e`
+      : 'BELUM TERHITUNG';
     await auditService.createLog({
       collection: 'ghg_activities',
+      module: 'ghg_inventory',
       recordId: id,
       action: 'insert',
-      details: `Mencatat aktivitas GRK ${item.activityCategory} (${item.quantity} ${item.unit}, ${item.emissionsTco2e} tCO2e)`
+      details: `Mencatat aktivitas GRK ${item.activityCategory} (${item.quantity} ${item.unit}, ${emissionTxt})`,
+      afterData: newItem as Record<string, any>,
     });
     return newItem;
   },
@@ -3386,7 +3607,8 @@ export const ghgActivityService = {
     const docRef = doc(db, 'ghg_activities', id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data aktivitas GRK tidak ditemukan.');
-    const updatedItem: GhgActivityData = { ...(snap.data() as GhgActivityData), ...item, id };
+    const oldData = snap.data() as GhgActivityData;
+    const updatedItem: GhgActivityData = { ...oldData, ...item, id };
     const parseResult = GhgActivitySchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
@@ -3396,9 +3618,13 @@ export const ghgActivityService = {
 
     await auditService.createLog({
       collection: 'ghg_activities',
+      module: 'ghg_inventory',
       recordId: id,
       action: 'update',
-      details: `Memperbarui aktivitas GRK ${updatedItem.activityCategory} (${updatedItem.monthPeriod})`
+      details: `Memperbarui aktivitas GRK ${updatedItem.activityCategory} (${updatedItem.monthPeriod})`,
+      beforeData: oldData as Record<string, any>,
+      afterData: updatedItem as Record<string, any>,
+      correctionReason: item.correctionReason || null,
     });
   },
 
@@ -3413,9 +3639,11 @@ export const ghgActivityService = {
 
     await auditService.createLog({
       collection: 'ghg_activities',
+      module: 'ghg_inventory',
       recordId: id,
       action: 'delete',
-      details: `Menghapus aktivitas GRK ${oldData.activityCategory || '-'} (${oldData.date || '-'})`
+      details: `Menghapus aktivitas GRK ${oldData.activityCategory || '-'} (${oldData.date || '-'})`,
+      beforeData: oldData as Record<string, any>,
     });
   }
 };

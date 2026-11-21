@@ -43,18 +43,23 @@ import {
   Sliders
 } from 'lucide-react';
 import {
-  evaluateWastewaterStatus,
-  evaluateSurfaceWaterStatus,
-  evaluateSurfaceWaterParam,
   resolveActiveStandards,
+  evaluateSurfaceWaterParam,
   WASTEWATER_BASIS_LABEL,
   SURFACE_WATER_BASIS_LABEL,
   DEFAULT_INTERNAL_THRESHOLDS,
 } from '../data/regulations';
+import {
+  evaluateSampleCompliance,
+  formatLocaleNumberStrict,
+  formatStandardLimitDisplay,
+  parseStrictNumber,
+} from '../utils/waterQualityEval';
 import { todayLocalISO } from '../utils/dateUtils';
 import { wqLocationService } from '../services/wqLocationService';
 import { waterQualityService } from '../services/dbService';
 import { isSuperintendent, isAdmin } from '../services/permissionService';
+import { triggerToast } from '../utils/errorHandler';
 import PhotoUploader, { CompressedPhotoData } from './PhotoUploader';
 import WqLocationModal from './WqLocationModal';
 import StandardsConfigModal from './StandardsConfigModal';
@@ -160,6 +165,14 @@ export default function MonitoringView({
   const [wDebitStr, setWDebitStr] = useState('');
   const [wFeStr, setWFeStr] = useState('');
   const [wMnStr, setWMnStr] = useState('');
+  const [wUnitMap, setWUnitMap] = useState<Record<string, string>>({
+    ph: '-',
+    tss: 'mg/L',
+    debit: 'm³/s',
+    fe: 'mg/L',
+    mn: 'mg/L',
+  });
+  const [wCorrectionReason, setWCorrectionReason] = useState('');
   const [wMonitoringType, setWMonitoringType] = useState<'Harian' | 'Bulanan'>('Harian');
   const [wPhoto, setWPhoto] = useState<CompressedPhotoData | null>(null);
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
@@ -175,7 +188,7 @@ export default function MonitoringView({
   const [surfaceFilterLoc, setSurfaceFilterLoc] = useState('');
   const [surfaceFilterStatus, setSurfaceFilterStatus] = useState('');
   
-  // Surface Form Fields
+  // Surface Form Fields (All numeric fields start EMPTY, never fake defaults or 0-coerced)
   const [swDate, setSwDate] = useState(todayLocalISO());
   const [swLoc, setSwLoc] = useState('Air Sungai Sembakung (Hulu)');
   const [swOfficer, setSwOfficer] = useState(defaultOfficer);
@@ -189,44 +202,74 @@ export default function MonitoringView({
       setSwOfficer(defaultOfficer);
     }
   }, [defaultOfficer, wOfficer, swOfficer]);
-  const [swPh, setSwPh] = useState(7.0);
-  const [swTss, setSwTss] = useState(15);
-  const [swDoVal, setSwDoVal] = useState(6.2);
-  const [swBod, setSwBod] = useState(1.8);
-  const [swCod, setSwCod] = useState(12.0);
-  const [swFe, setSwFe] = useState(0.15);
-  const [swMn, setSwMn] = useState(0.04);
+
+  const [swPhStr, setSwPhStr] = useState('');
+  const [swTssStr, setSwTssStr] = useState('');
+  const [swDoStr, setSwDoStr] = useState('');
+  const [swBodStr, setSwBodStr] = useState('');
+  const [swCodStr, setSwCodStr] = useState('');
+  const [swFeStr, setSwFeStr] = useState('');
+  const [swMnStr, setSwMnStr] = useState('');
+  const [swUnitMap, setSwUnitMap] = useState<Record<string, string>>({
+    ph: '-',
+    tss: 'mg/L',
+    doVal: 'mg/L',
+    bod: 'mg/L',
+    cod: 'mg/L',
+    fe: 'mg/L',
+    mn: 'mg/L',
+  });
+  const [swCorrectionReason, setSwCorrectionReason] = useState('');
   const [swKelasAir, setSwKelasAir] = useState<'I' | 'II' | 'III' | 'IV'>('II');
   const [swMonitoringType, setSwMonitoringType] = useState<'Harian' | 'Bulanan'>('Harian');
 
-  const dynamicSurfaceStatus = evaluateSurfaceWaterStatus(
-    swPh,
-    swTss,
-    swDoVal,
-    swBod,
-    swCod,
-    swFe,
-    swMn,
-    {
-      standards,
-      thresholds: internalThresholds,
-      sampleDate: swDate,
-      kelasAir: swKelasAir,
-    }
+  const swPhNum = parseStrictNumber(swPhStr);
+  const swTssNum = parseStrictNumber(swTssStr);
+  const swDoNum = parseStrictNumber(swDoStr);
+  const swBodNum = parseStrictNumber(swBodStr);
+  const swCodNum = parseStrictNumber(swCodStr);
+  const swFeNum = parseStrictNumber(swFeStr);
+  const swMnNum = parseStrictNumber(swMnStr);
+
+  const surfaceEval = useMemo(
+    () =>
+      evaluateSampleCompliance(
+        'air_permukaan',
+        {
+          date: swDate,
+          location: swLoc,
+          kelasAir: swKelasAir,
+          ph: swPhNum,
+          tss: swTssNum,
+          doVal: swDoNum,
+          bod: swBodNum,
+          cod: swCodNum,
+          fe: swFeNum,
+          mn: swMnNum,
+        },
+        {
+          standards,
+          thresholds: internalThresholds,
+          sampleDate: swDate,
+          kelasAir: swKelasAir,
+          unitMap: swUnitMap,
+        }
+      ),
+    [standards, internalThresholds, swDate, swLoc, swKelasAir, swPhNum, swTssNum, swDoNum, swBodNum, swCodNum, swFeNum, swMnNum, swUnitMap]
   );
 
   // RAINFALL STATE
   const [showRainForm, setShowRainForm] = useState(false);
   const [rainFilterStation, setRainFilterStation] = useState('');
   
-  // Rain Form Fields
+  // Rain Form Fields (starts empty, never coerced silently to 0)
   const [rDate, setRDate] = useState(todayLocalISO());
   const [rStart, setRStart] = useState('14:00');
   const [rEnd, setREnd] = useState('15:30');
   const [rStation, setRStation] = useState('Stasiun Pit West / WS-01');
   const [rType, setRType] = useState<'Manual' | 'Automatic'>('Automatic');
-  const [rRainfall, setRRainfall] = useState(25.0);
-  const [rWeather, setRWeather] = useState<'Clear' | 'Cloudy' | 'Light Rain' | 'Heavy Rain' | 'Storm'>('Heavy Rain');
+  const [rRainfallStr, setRRainfallStr] = useState('');
+  const [rWeather, setRWeather] = useState<'Clear' | 'Cloudy' | 'Light Rain' | 'Heavy Rain' | 'Storm'>('Clear');
   const [rNotes, setRNotes] = useState('');
 
   // BMKG Weather Classification Helper
@@ -257,31 +300,31 @@ export default function MonitoringView({
     [standards, swDate, swKelasAir]
   );
 
-  const phMinLimit = activeWaterStds.ph?.minLimit ?? 6.0;
-  const phMaxLimit = activeWaterStds.ph?.maxLimit ?? 9.0;
-  const tssMaxLimit = activeWaterStds.tss?.maxLimit ?? 300;
-  const feMaxLimit = activeWaterStds.fe?.maxLimit ?? 7.0;
-  const mnMaxLimit = activeWaterStds.mn?.maxLimit ?? 4.0;
+  const isStdVerified = (std?: EnvironmentalStandard | null) =>
+    Boolean(
+      std &&
+        std.applicable !== false &&
+        std.verificationStatus === 'Terverifikasi' &&
+        std.effectiveStatus !== 'MENUNGGU VERIFIKASI'
+    );
 
-  const phLimitRange = `${phMinLimit.toFixed(1)} - ${phMaxLimit.toFixed(1)}`;
-  const tssLimit = `${tssMaxLimit} mg/L`;
-  const debitLimit = "Bebas / Pantau";
-  const feLimit = `${feMaxLimit.toFixed(1)} mg/L`;
-  const mnLimit = `${mnMaxLimit.toFixed(1)} mg/L`;
+  const phMinLimit = isStdVerified(activeWaterStds.ph) ? (activeWaterStds.ph?.minLimit ?? null) : null;
+  const phMaxLimit = isStdVerified(activeWaterStds.ph) ? (activeWaterStds.ph?.maxLimit ?? null) : null;
+  const tssMaxLimit = isStdVerified(activeWaterStds.tss) ? (activeWaterStds.tss?.maxLimit ?? null) : null;
+  const feMaxLimit = isStdVerified(activeWaterStds.fe) ? (activeWaterStds.fe?.maxLimit ?? null) : null;
+  const mnMaxLimit = isStdVerified(activeWaterStds.mn) ? (activeWaterStds.mn?.maxLimit ?? null) : null;
 
-  // Decimal parsing helper: accepts comma and dot, verifies finite number
-  const parseDecimal = (val: string): number | null => {
-    if (!val || val.trim() === '') return null;
-    const normalized = val.trim().replace(',', '.');
-    const n = Number(normalized);
-    return Number.isFinite(n) ? n : null;
-  };
+  const phLimitRange = formatStandardLimitDisplay(activeWaterStds.ph);
+  const tssLimit = activeWaterStds.tss ? `${formatStandardLimitDisplay(activeWaterStds.tss)}${tssMaxLimit !== null ? ` ${activeWaterStds.tss.unit}` : ''}` : 'Belum Ditetapkan';
+  const debitLimit = 'Bebas / Pantau';
+  const feLimit = activeWaterStds.fe ? `${formatStandardLimitDisplay(activeWaterStds.fe)}${feMaxLimit !== null ? ` ${activeWaterStds.fe.unit}` : ''}` : 'Belum Ditetapkan';
+  const mnLimit = activeWaterStds.mn ? `${formatStandardLimitDisplay(activeWaterStds.mn)}${mnMaxLimit !== null ? ` ${activeWaterStds.mn.unit}` : ''}` : 'Belum Ditetapkan';
 
-  const wPhNum = parseDecimal(wPhStr);
-  const wTssNum = parseDecimal(wTssStr);
-  const wDebitNum = parseDecimal(wDebitStr);
-  const wFeNum = parseDecimal(wFeStr);
-  const wMnNum = parseDecimal(wMnStr);
+  const wPhNum = parseStrictNumber(wPhStr);
+  const wTssNum = parseStrictNumber(wTssStr);
+  const wDebitNum = parseStrictNumber(wDebitStr);
+  const wFeNum = parseStrictNumber(wFeStr);
+  const wMnNum = parseStrictNumber(wMnStr);
 
   const areAllNumbersFilledAndFinite =
     wPhNum !== null && wPhNum >= 0 && wPhNum <= 14 &&
@@ -290,19 +333,29 @@ export default function MonitoringView({
     wFeNum !== null && wFeNum >= 0 &&
     wMnNum !== null && wMnNum >= 0;
 
-  // Water dynamic rating calculator (uses parsed values + active standards + thresholds)
-  const dynamicWaterStatus = evaluateWastewaterStatus(
-    wPhNum ?? 7.0,
-    wTssNum ?? 0,
-    wDebitNum ?? 0,
-    wFeNum ?? 0,
-    wMnNum ?? 0,
-    {
-      standards,
-      thresholds: internalThresholds,
-      locationCode: wLocationCode,
-      sampleDate: wDate,
-    }
+  const waterEval = useMemo(
+    () =>
+      evaluateSampleCompliance(
+        'air_limbah',
+        {
+          date: wDate,
+          location: wLoc,
+          locationCode: wLocationCode,
+          ph: wPhNum,
+          tss: wTssNum,
+          debit: wDebitNum,
+          fe: wFeNum,
+          mn: wMnNum,
+        },
+        {
+          standards,
+          thresholds: internalThresholds,
+          locationCode: wLocationCode,
+          sampleDate: wDate,
+          unitMap: wUnitMap,
+        }
+      ),
+    [standards, internalThresholds, wDate, wLoc, wLocationCode, wPhNum, wTssNum, wDebitNum, wFeNum, wMnNum, wUnitMap]
   );
 
   // Duplicate check for Daily ('Harian'): (date, locationCode) must be unique
@@ -387,22 +440,36 @@ export default function MonitoringView({
   const dailySafeCount = dailySamples.filter(w => w.status === 'Safe').length;
   const dailyWarningCount = dailySamples.filter(w => w.status === 'Warning').length;
   const dailyExceededCount = dailySamples.filter(w => w.status === 'Exceeded').length;
+  const dailyUnverifiedOrIncompleteCount = dailySamples.filter(
+    w => w.status === 'Incomplete' || w.status === 'Unevaluated'
+  ).length;
+  const dailyEvaluatedTotal = dailySafeCount + dailyWarningCount + dailyExceededCount;
   const dailyTotal = dailySamples.length;
-  const dailyComplianceRate = dailyTotal > 0 ? Math.round(((dailySafeCount + dailyWarningCount) / dailyTotal) * 100) : 0;
+  const dailyComplianceRate = dailyEvaluatedTotal > 0 ? Math.round(((dailySafeCount + dailyWarningCount) / dailyEvaluatedTotal) * 100) : 0;
 
   // 2. Monthly Statistics (Selected active month)
   const monthlySamples = activeWaterMonth ? wastewater.filter(w => w.date && w.date.startsWith(activeWaterMonth)) : [];
   const monthlySafeCount = monthlySamples.filter(w => w.status === 'Safe').length;
   const monthlyWarningCount = monthlySamples.filter(w => w.status === 'Warning').length;
   const monthlyExceededCount = monthlySamples.filter(w => w.status === 'Exceeded').length;
+  const monthlyUnverifiedOrIncompleteCount = monthlySamples.filter(
+    w => w.status === 'Incomplete' || w.status === 'Unevaluated'
+  ).length;
+  const monthlyEvaluatedTotal = monthlySafeCount + monthlyWarningCount + monthlyExceededCount;
   const monthlyTotal = monthlySamples.length;
-  const monthlyComplianceRate = monthlyTotal > 0 ? Math.round(((monthlySafeCount + monthlyWarningCount) / monthlyTotal) * 100) : 0;
+  const monthlyComplianceRate = monthlyEvaluatedTotal > 0 ? Math.round(((monthlySafeCount + monthlyWarningCount) / monthlyEvaluatedTotal) * 100) : 0;
 
-  const monthlyAvgPh = monthlyTotal > 0 ? Number((monthlySamples.reduce((acc, w) => acc + w.ph, 0) / monthlyTotal).toFixed(2)) : 0;
-  const monthlyAvgTss = monthlyTotal > 0 ? Math.round(monthlySamples.reduce((acc, w) => acc + w.tss, 0) / monthlyTotal) : 0;
-  const monthlyAvgDebit = monthlyTotal > 0 ? Number((monthlySamples.reduce((acc, w) => acc + (w.debit ?? 0), 0) / monthlyTotal).toFixed(3)) : 0;
-  const monthlyAvgFe = monthlyTotal > 0 ? Number((monthlySamples.reduce((acc, w) => acc + w.fe, 0) / monthlyTotal).toFixed(2)) : 0;
-  const monthlyAvgMn = monthlyTotal > 0 ? Number((monthlySamples.reduce((acc, w) => acc + w.mn, 0) / monthlyTotal).toFixed(2)) : 0;
+  const avgStrict = (vals: unknown[], decimals: number): number | null => {
+    const nums = vals.map(parseStrictNumber).filter((n): n is number => n !== null);
+    if (nums.length === 0) return null;
+    return Number((nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(decimals));
+  };
+
+  const monthlyAvgPh = avgStrict(monthlySamples.map(w => w.ph), 2);
+  const monthlyAvgTss = avgStrict(monthlySamples.map(w => w.tss), 1);
+  const monthlyAvgDebit = avgStrict(monthlySamples.map(w => w.debit), 3);
+  const monthlyAvgFe = avgStrict(monthlySamples.map(w => w.fe), 2);
+  const monthlyAvgMn = avgStrict(monthlySamples.map(w => w.mn), 2);
 
   const startEditWater = (item: WastewaterData) => {
     setEditingWaterId(item.id);
@@ -419,11 +486,13 @@ export default function MonitoringView({
     setWSource(item.wastewaterSource || matchedLoc?.defaultSource || 'Settling Pond Outlet');
     setWOfficer(item.officer);
 
-    setWPhStr(String(item.ph));
-    setWTssStr(String(item.tss));
-    setWDebitStr(item.debit !== undefined ? String(item.debit) : '');
-    setWFeStr(String(item.fe));
-    setWMnStr(String(item.mn));
+    setWPhStr(item.ph !== null && item.ph !== undefined ? String(item.ph) : '');
+    setWTssStr(item.tss !== null && item.tss !== undefined ? String(item.tss) : '');
+    setWDebitStr(item.debit !== null && item.debit !== undefined ? String(item.debit) : '');
+    setWFeStr(item.fe !== null && item.fe !== undefined ? String(item.fe) : '');
+    setWMnStr(item.mn !== null && item.mn !== undefined ? String(item.mn) : '');
+    setWUnitMap(item.unitMap || { ph: '-', tss: 'mg/L', debit: 'm³/s', fe: 'mg/L', mn: 'mg/L' });
+    setWCorrectionReason(item.correctionReason || '');
     setWMonitoringType(item.monitoringType || 'Harian');
 
     setWPhoto(null);
@@ -470,9 +539,29 @@ export default function MonitoringView({
     setWDebitStr('');
     setWFeStr('');
     setWMnStr('');
+    setWUnitMap({ ph: '-', tss: 'mg/L', debit: 'm³/s', fe: 'mg/L', mn: 'mg/L' });
+    setWCorrectionReason('');
     setWMonitoringType('Harian');
     setWPhoto(null);
     setEditingWaterId(null);
+  };
+
+  const resetSurfaceWaterForm = () => {
+    setSwDate(todayLocalISO());
+    setSwLoc('Air Sungai Sembakung (Hulu)');
+    setSwOfficer(defaultOfficer);
+    setSwPhStr('');
+    setSwTssStr('');
+    setSwDoStr('');
+    setSwBodStr('');
+    setSwCodStr('');
+    setSwFeStr('');
+    setSwMnStr('');
+    setSwUnitMap({ ph: '-', tss: 'mg/L', doVal: 'mg/L', bod: 'mg/L', cod: 'mg/L', fe: 'mg/L', mn: 'mg/L' });
+    setSwCorrectionReason('');
+    setSwKelasAir('II');
+    setSwMonitoringType('Harian');
+    setEditingSurfaceWaterId(null);
   };
 
   const startEditSurfaceWater = (item: SurfaceWaterData) => {
@@ -480,38 +569,61 @@ export default function MonitoringView({
     setSwDate(item.date);
     setSwLoc(item.location);
     setSwOfficer(item.officer);
-    setSwPh(item.ph);
-    setSwTss(item.tss);
-    setSwDoVal(item.doVal);
-    setSwBod(item.bod);
-    setSwCod(item.cod);
-    setSwFe(item.fe);
-    setSwMn(item.mn);
+    setSwPhStr(item.ph !== null && item.ph !== undefined ? String(item.ph) : '');
+    setSwTssStr(item.tss !== null && item.tss !== undefined ? String(item.tss) : '');
+    setSwDoStr(item.doVal !== null && item.doVal !== undefined ? String(item.doVal) : '');
+    setSwBodStr(item.bod !== null && item.bod !== undefined ? String(item.bod) : '');
+    setSwCodStr(item.cod !== null && item.cod !== undefined ? String(item.cod) : '');
+    setSwFeStr(item.fe !== null && item.fe !== undefined ? String(item.fe) : '');
+    setSwMnStr(item.mn !== null && item.mn !== undefined ? String(item.mn) : '');
+    setSwUnitMap(item.unitMap || { ph: '-', tss: 'mg/L', doVal: 'mg/L', bod: 'mg/L', cod: 'mg/L', fe: 'mg/L', mn: 'mg/L' });
+    setSwCorrectionReason(item.correctionReason || '');
     setSwKelasAir(item.kelasAir || 'II');
     setSwMonitoringType(item.monitoringType || 'Harian');
     setShowSurfaceForm(true);
   };
 
+  const areAllSurfaceNumbersValid =
+    swPhNum !== null && swPhNum >= 0 && swPhNum <= 14 &&
+    swTssNum !== null && swTssNum >= 0 &&
+    swDoNum !== null && swDoNum >= 0 &&
+    swBodNum !== null && swBodNum >= 0 &&
+    swCodNum !== null && swCodNum >= 0 &&
+    swFeNum !== null && swFeNum >= 0 &&
+    swMnNum !== null && swMnNum >= 0;
+
   const handleSurfaceSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!swOfficer) {
-      alert("Masukkan nama petugas sampling.");
+    if (!swOfficer.trim()) {
+      triggerToast('Masukkan nama petugas sampling.', 'warning');
       return;
     }
-    
+    if (!areAllSurfaceNumbersValid) {
+      triggerToast('Semua parameter angka air permukaan wajib diisi dengan nilai numerik valid (tidak kosong/NaN).', 'warning');
+      return;
+    }
+    if (editingSurfaceWaterId && !swCorrectionReason.trim()) {
+      triggerToast('Alasan koreksi wajib diisi saat mengubah catatan kualitas air permukaan.', 'warning');
+      return;
+    }
+
     const payload = {
       date: swDate,
-      location: swLoc,
-      officer: swOfficer,
-      ph: Number(swPh),
-      tss: Number(swTss),
-      doVal: Number(swDoVal),
-      bod: Number(swBod),
-      cod: Number(swCod),
-      fe: Number(swFe),
-      mn: Number(swMn),
+      location: swLoc.trim(),
+      officer: swOfficer.trim(),
+      ph: swPhNum!,
+      tss: swTssNum!,
+      doVal: swDoNum!,
+      bod: swBodNum!,
+      cod: swCodNum!,
+      fe: swFeNum!,
+      mn: swMnNum!,
+      unitMap: swUnitMap,
       kelasAir: swKelasAir,
-      monitoringType: swMonitoringType
+      monitoringType: swMonitoringType,
+      ...(editingSurfaceWaterId && swCorrectionReason.trim()
+        ? { correctionReason: swCorrectionReason.trim() }
+        : {}),
     };
 
     if (editingSurfaceWaterId) {
@@ -523,16 +635,7 @@ export default function MonitoringView({
       onAddSurfaceWater(payload);
     }
 
-    // Reset fields
-    setSwPh(7.0);
-    setSwTss(15);
-    setSwDoVal(6.2);
-    setSwBod(1.8);
-    setSwCod(12.0);
-    setSwFe(0.15);
-    setSwMn(0.04);
-    setSwKelasAir('II');
-    setSwMonitoringType('Harian');
+    resetSurfaceWaterForm();
     setShowSurfaceForm(false);
   };
 
@@ -543,7 +646,7 @@ export default function MonitoringView({
     setREnd(item.endTime);
     setRStation(item.station);
     setRType(item.gaugeType);
-    setRRainfall(item.rainfall);
+    setRRainfallStr(item.rainfall !== null && item.rainfall !== undefined ? String(item.rainfall) : '');
     setRWeather(item.weather);
     setRNotes(item.notes || '');
     setShowRainForm(true);
@@ -553,17 +656,22 @@ export default function MonitoringView({
   const handleWaterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!wOfficer.trim()) {
-      alert("Masukkan nama petugas sampling.");
+      triggerToast('Masukkan nama petugas sampling.', 'warning');
       return;
     }
 
     if (!areAllNumbersFilledAndFinite) {
-      alert("Semua parameter angka (pH, TSS, Debit, Fe, Mn) wajib diisi dengan nilai numerik valid.");
+      triggerToast('Semua parameter angka (pH, TSS, Debit, Fe, Mn) wajib diisi dengan nilai numerik valid.', 'warning');
+      return;
+    }
+
+    if (editingWaterId && !wCorrectionReason.trim()) {
+      triggerToast('Alasan koreksi wajib diisi saat memperbarui data sampling air limbah.', 'warning');
       return;
     }
 
     if (isDuplicateDaily) {
-      alert(`Data harian titik ${wLocationCode} tanggal ${formatIndoDate(wDate)} sudah ada. Edit data yang ada.`);
+      triggerToast(`Data harian titik ${wLocationCode} tanggal ${formatIndoDate(wDate)} sudah ada. Edit data yang ada.`, 'warning');
       return;
     }
 
@@ -580,7 +688,11 @@ export default function MonitoringView({
       debit: wDebitNum!,
       fe: wFeNum!,
       mn: wMnNum!,
+      unitMap: wUnitMap,
       monitoringType: wMonitoringType,
+      ...(editingWaterId && wCorrectionReason.trim()
+        ? { correctionReason: wCorrectionReason.trim() }
+        : {}),
     };
 
     const photoPayload = wPhoto
@@ -605,10 +717,15 @@ export default function MonitoringView({
     }
   };
 
-  // Submit water formula
+  // Submit rain
   const handleRainSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+    const rRainfallNum = parseStrictNumber(rRainfallStr);
+    if (rRainfallNum === null || rRainfallNum < 0) {
+      triggerToast('Volume curah hujan (mm) wajib diisi dengan angka valid (>= 0).', 'warning');
+      return;
+    }
+
     // Calculate duration in minutes
     const [sH, sM] = rStart.split(':').map(Number);
     const [eH, eM] = rEnd.split(':').map(Number);
@@ -616,7 +733,7 @@ export default function MonitoringView({
     if (duration <= 0) duration = 60; // fallback
 
     // Calculate intensity: rainfall (mm) / (duration in hours)
-    const intensity = Number((rRainfall / (duration / 60)).toFixed(2));
+    const intensity = Number((rRainfallNum / (duration / 60)).toFixed(2));
 
     const payload = {
       date: rDate,
@@ -625,7 +742,7 @@ export default function MonitoringView({
       duration,
       station: rStation,
       gaugeType: rType,
-      rainfall: Number(rRainfall),
+      rainfall: rRainfallNum,
       intensity,
       weather: rWeather,
       notes: rNotes
@@ -641,8 +758,8 @@ export default function MonitoringView({
     }
 
     setRNotes('');
-    setRRainfall(25.0);
-    setRWeather('Heavy Rain');
+    setRRainfallStr('');
+    setRWeather('Clear');
     setShowRainForm(false);
   };
 
@@ -662,24 +779,29 @@ export default function MonitoringView({
   const dailySurfaceSafeCount = dailySurfaceSamples.filter(s => s.status === 'Safe').length;
   const dailySurfaceWarningCount = dailySurfaceSamples.filter(s => s.status === 'Warning').length;
   const dailySurfaceExceededCount = dailySurfaceSamples.filter(s => s.status === 'Exceeded').length;
+  const dailySurfaceEvaluated = dailySurfaceSafeCount + dailySurfaceWarningCount + dailySurfaceExceededCount;
   const dailySurfaceTotal = dailySurfaceSamples.length;
-  const dailySurfaceComplianceRate = dailySurfaceTotal > 0 ? Math.round(((dailySurfaceSafeCount + dailySurfaceWarningCount) / dailySurfaceTotal) * 100) : 0;
+  const dailySurfaceComplianceRate = dailySurfaceEvaluated > 0 ? Math.round(((dailySurfaceSafeCount + dailySurfaceWarningCount) / dailySurfaceEvaluated) * 100) : 0;
 
   // 2. Monthly Statistics (Selected active month)
   const monthlySurfaceSamples = activeSurfaceMonth ? surfaceWater.filter(s => s.date && s.date.startsWith(activeSurfaceMonth)) : [];
   const monthlySurfaceSafeCount = monthlySurfaceSamples.filter(s => s.status === 'Safe').length;
   const monthlySurfaceWarningCount = monthlySurfaceSamples.filter(s => s.status === 'Warning').length;
   const monthlySurfaceExceededCount = monthlySurfaceSamples.filter(s => s.status === 'Exceeded').length;
+  const monthlySurfaceUnverifiedOrIncomplete = monthlySurfaceSamples.filter(
+    s => s.status === 'Incomplete' || s.status === 'Unevaluated'
+  ).length;
+  const monthlySurfaceEvaluated = monthlySurfaceSafeCount + monthlySurfaceWarningCount + monthlySurfaceExceededCount;
   const monthlySurfaceTotal = monthlySurfaceSamples.length;
-  const monthlySurfaceComplianceRate = monthlySurfaceTotal > 0 ? Math.round(((monthlySurfaceSafeCount + monthlySurfaceWarningCount) / monthlySurfaceTotal) * 100) : 0;
+  const monthlySurfaceComplianceRate = monthlySurfaceEvaluated > 0 ? Math.round(((monthlySurfaceSafeCount + monthlySurfaceWarningCount) / monthlySurfaceEvaluated) * 100) : 0;
 
-  const monthlySurfaceAvgPh = monthlySurfaceTotal > 0 ? Number((monthlySurfaceSamples.reduce((acc, s) => acc + s.ph, 0) / monthlySurfaceTotal).toFixed(2)) : 0;
-  const monthlySurfaceAvgTss = monthlySurfaceTotal > 0 ? Math.round(monthlySurfaceSamples.reduce((acc, s) => acc + s.tss, 0) / monthlySurfaceTotal) : 0;
-  const monthlySurfaceAvgDo = monthlySurfaceTotal > 0 ? Number((monthlySurfaceSamples.reduce((acc, s) => acc + s.doVal, 0) / monthlySurfaceTotal).toFixed(2)) : 0;
-  const monthlySurfaceAvgBod = monthlySurfaceTotal > 0 ? Number((monthlySurfaceSamples.reduce((acc, s) => acc + s.bod, 0) / monthlySurfaceTotal).toFixed(2)) : 0;
-  const monthlySurfaceAvgCod = monthlySurfaceTotal > 0 ? Number((monthlySurfaceSamples.reduce((acc, s) => acc + s.cod, 0) / monthlySurfaceTotal).toFixed(2)) : 0;
-  const monthlySurfaceAvgFe = monthlySurfaceTotal > 0 ? Number((monthlySurfaceSamples.reduce((acc, s) => acc + s.fe, 0) / monthlySurfaceTotal).toFixed(2)) : 0;
-  const monthlySurfaceAvgMn = monthlySurfaceTotal > 0 ? Number((monthlySurfaceSamples.reduce((acc, s) => acc + s.mn, 0) / monthlySurfaceTotal).toFixed(2)) : 0;
+  const monthlySurfaceAvgPh = avgStrict(monthlySurfaceSamples.map(s => s.ph), 2);
+  const monthlySurfaceAvgTss = avgStrict(monthlySurfaceSamples.map(s => s.tss), 1);
+  const monthlySurfaceAvgDo = avgStrict(monthlySurfaceSamples.map(s => s.doVal), 2);
+  const monthlySurfaceAvgBod = avgStrict(monthlySurfaceSamples.map(s => s.bod), 2);
+  const monthlySurfaceAvgCod = avgStrict(monthlySurfaceSamples.map(s => s.cod), 2);
+  const monthlySurfaceAvgFe = avgStrict(monthlySurfaceSamples.map(s => s.fe), 2);
+  const monthlySurfaceAvgMn = avgStrict(monthlySurfaceSamples.map(s => s.mn), 2);
 
   // Filter lists
   const filteredWater = wastewater.filter(item => {
@@ -748,27 +870,46 @@ export default function MonitoringView({
       {activeTab === 'water' && (
         <div id="water-monitoring-panel" className="space-y-6">
           {/* Water parameters indicators banner */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5 glass-panel p-4 rounded-2xl">
-            <div className="text-center md:border-r border-border-subtle py-1.5 last:border-0">
-              <span className="text-[10px] text-text-mid uppercase tracking-widest font-mono">Baku pH</span>
-              <p className="text-sm font-bold font-mono text-neon-cyan mt-1 tabular-nums">{phLimitRange}</p>
+          <div className="glass-panel p-4 rounded-2xl space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
+              <div className="text-center md:border-r border-border-subtle py-1.5 last:border-0">
+                <span className="text-[10px] text-text-mid uppercase tracking-widest font-mono">Baku pH</span>
+                <p className="text-sm font-bold font-mono text-neon-cyan mt-1 tabular-nums">{phLimitRange}</p>
+              </div>
+              <div className="text-center md:border-r border-border-subtle py-1.5 last:border-0">
+                <span className="text-[10px] text-text-mid uppercase tracking-widest font-mono">Baku TSS</span>
+                <p
+                  className={`text-sm font-bold font-mono mt-1 tabular-nums ${
+                    tssMaxLimit === null ? 'text-neon-amber' : 'text-neon-cyan'
+                  }`}
+                >
+                  {tssLimit}
+                </p>
+              </div>
+              <div className="text-center md:border-r border-border-subtle py-1.5 last:border-0">
+                <span className="text-[10px] text-text-mid uppercase tracking-widest font-mono">Debit Air (m³/s)</span>
+                <p className="text-sm font-bold font-mono text-text-hi mt-1">{debitLimit}</p>
+              </div>
+              <div className="text-center md:border-r border-border-subtle py-1.5 last:border-0">
+                <span className="text-[10px] text-text-mid uppercase tracking-widest font-mono">Baku Besi (Fe)</span>
+                <p className="text-sm font-bold font-mono text-neon-cyan mt-1 tabular-nums">{feLimit}</p>
+              </div>
+              <div className="text-center py-1.5 last:border-0">
+                <span className="text-[10px] text-text-mid uppercase tracking-widest font-mono">Baku Mangan (Mn)</span>
+                <p className="text-sm font-bold font-mono text-neon-cyan mt-1 tabular-nums">{mnLimit}</p>
+              </div>
             </div>
-            <div className="text-center md:border-r border-border-subtle py-1.5 last:border-0">
-              <span className="text-[10px] text-text-mid uppercase tracking-widest font-mono">Baku TSS</span>
-              <p className="text-sm font-bold font-mono text-neon-cyan mt-1 tabular-nums">{tssLimit}</p>
-            </div>
-            <div className="text-center md:border-r border-border-subtle py-1.5 last:border-0">
-              <span className="text-[10px] text-text-mid uppercase tracking-widest font-mono">Debit Air (m³/s)</span>
-              <p className="text-sm font-bold font-mono text-text-hi mt-1">{debitLimit}</p>
-            </div>
-            <div className="text-center md:border-r border-border-subtle py-1.5 last:border-0">
-              <span className="text-[10px] text-text-mid uppercase tracking-widest font-mono">Baku Besi (Fe)</span>
-              <p className="text-sm font-bold font-mono text-neon-cyan mt-1 tabular-nums">{feLimit}</p>
-            </div>
-            <div className="text-center py-1.5 last:border-0">
-              <span className="text-[10px] text-text-mid uppercase tracking-widest font-mono">Baku Mangan (Mn)</span>
-              <p className="text-sm font-bold font-mono text-neon-cyan mt-1 tabular-nums">{mnLimit}</p>
-            </div>
+            {(activeWaterStds.tss?.verificationStatus === 'Perlu verifikasi' ||
+              activeWaterStds.tss?.effectiveStatus === 'MENUNGGU VERIFIKASI') && (
+              <div className="px-3 py-2 rounded-xl bg-neon-amber/10 border border-neon-amber/30 text-[11px] text-neon-amber flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>
+                  <strong>Perlu Verifikasi Manual (SK Pertek TSS):</strong> Standar TSS (
+                  <span className="font-mono">{activeWaterStds.tss?.approvalDocNo || '600.4/865/B.III.2/DLH/2025'}</span>
+                  ) masih menunggu verifikasi nilai ambang resmi. Sampel tidak dapat disimpulkan MEMENUHI sebelum nilai TSS terverifikasi.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Status Pemantauan Harian & Bulanan Dashboard Panel */}
@@ -791,7 +932,9 @@ export default function MonitoringView({
                     className="relative flex items-center justify-center shrink-0 w-20 h-20 rounded-full border-4"
                     style={{
                       borderColor:
-                        dailyComplianceRate >= 90
+                        dailyEvaluatedTotal === 0
+                          ? NEON_CHART.amber
+                          : dailyComplianceRate >= 90
                           ? NEON_CHART.green
                           : dailyComplianceRate >= 70
                           ? NEON_CHART.amber
@@ -800,7 +943,7 @@ export default function MonitoringView({
                   >
                     <div className="text-center">
                       <span className="text-sm font-extrabold font-mono text-text-hi tabular-nums">
-                        {dailyComplianceRate}%
+                        {dailyEvaluatedTotal > 0 ? `${dailyComplianceRate}%` : '—'}
                       </span>
                       <span className="block text-[8px] uppercase tracking-wider text-text-low font-mono mt-0.5">
                         Kepatuhan
@@ -811,21 +954,26 @@ export default function MonitoringView({
                   <div className="flex-1 w-full space-y-2">
                     <div className="flex items-center justify-between text-xs text-text-mid">
                       <span>Total Titik Dipantau:</span>
-                      <strong className="text-text-hi font-mono tabular-nums">{dailyTotal} Lokasi</strong>
+                      <strong className="text-text-hi font-mono tabular-nums">
+                        {dailyTotal} Lokasi
+                        {dailyUnverifiedOrIncompleteCount > 0 && (
+                          <span className="text-neon-amber ml-1">({dailyUnverifiedOrIncompleteCount} blm dievaluasi/lkp)</span>
+                        )}
+                      </strong>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 text-center font-mono text-[10px]">
                       <div className="bg-neon-green/10 border border-neon-green/30 rounded-xl py-1.5">
                         <span className="text-neon-green block font-bold text-xs tabular-nums">{dailySafeCount}</span>
-                        <span className="text-text-mid block text-[8px] uppercase tracking-wide">Lolos</span>
+                        <span className="text-text-mid block text-[8px] uppercase tracking-wide">Memenuhi</span>
                       </div>
                       <div className="bg-neon-amber/10 border border-neon-amber/30 rounded-xl py-1.5">
                         <span className="text-neon-amber block font-bold text-xs tabular-nums">{dailyWarningCount}</span>
-                        <span className="text-text-mid block text-[8px] uppercase tracking-wide">Warning</span>
+                        <span className="text-text-mid block text-[8px] uppercase tracking-wide">Mendekati</span>
                       </div>
                       <div className="bg-neon-red/10 border border-neon-red/30 rounded-xl py-1.5">
                         <span className="text-neon-red block font-bold text-xs tabular-nums">{dailyExceededCount}</span>
-                        <span className="text-text-mid block text-[8px] uppercase tracking-wide">Exceeded</span>
+                        <span className="text-text-mid block text-[8px] uppercase tracking-wide">Melebihi</span>
                       </div>
                     </div>
                   </div>
@@ -834,18 +982,32 @@ export default function MonitoringView({
 
               <div
                 className={`mt-4 px-3 py-2.5 rounded-xl border text-[11px] leading-relaxed flex items-center gap-2.5 ${
-                  dailyExceededCount > 0
+                  dailyTotal === 0
+                    ? 'bg-bg-2/60 border-border-subtle text-text-mid'
+                    : dailyExceededCount > 0
                     ? 'bg-neon-red/10 border-neon-red/35 text-neon-red'
-                    : dailyWarningCount > 0
+                    : dailyUnverifiedOrIncompleteCount > 0 || dailyWarningCount > 0
                     ? 'bg-neon-amber/10 border-neon-amber/35 text-neon-amber'
                     : 'bg-neon-green/10 border-neon-green/35 text-neon-green'
                 }`}
               >
-                {dailyExceededCount > 0 ? (
+                {dailyTotal === 0 ? (
+                  <>
+                    <Activity className="h-4 w-4 text-text-low shrink-0" />
+                    <span>Belum ada data pengamatan harian air limbah.</span>
+                  </>
+                ) : dailyExceededCount > 0 ? (
                   <>
                     <ShieldAlert className="h-4 w-4 text-neon-red shrink-0" />
                     <span>
                       <strong>Perhatian:</strong> Terdapat {dailyExceededCount} titik sampling yang melebihi standar mutu lingkungan tambang hari ini!
+                    </span>
+                  </>
+                ) : dailyUnverifiedOrIncompleteCount > 0 ? (
+                  <>
+                    <AlertTriangle className="h-4 w-4 text-neon-amber shrink-0" />
+                    <span>
+                      <strong>Belum Dapat Disimpulkan Memenuhi:</strong> {dailyUnverifiedOrIncompleteCount} titik memiliki data tidak lengkap atau standar menunggu verifikasi.
                     </span>
                   </>
                 ) : dailyWarningCount > 0 ? (
@@ -859,7 +1021,7 @@ export default function MonitoringView({
                   <>
                     <Check className="h-4 w-4 text-neon-green shrink-0" />
                     <span>
-                      <strong>Aman:</strong> Seluruh outlet air limbah tambang teruji hari ini berada dalam rentang baku aman sesuai peraturan pemerintah.
+                      <strong>Memenuhi:</strong> Seluruh outlet air limbah tambang teruji hari ini memenuhi baku mutu terverifikasi.
                     </span>
                   </>
                 )}
@@ -894,10 +1056,12 @@ export default function MonitoringView({
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
                   <div className="sm:col-span-4 flex flex-col items-center justify-center bg-bg-2/70 border border-border-neon rounded-2xl p-3 text-center">
                     <span className="text-2xl font-extrabold font-mono tabular-nums text-neon-cyan">
-                      {monthlyComplianceRate}%
+                      {monthlyEvaluatedTotal > 0 ? `${monthlyComplianceRate}%` : '—'}
                     </span>
-                    <span className="text-[9px] uppercase tracking-wider text-text-mid font-mono mt-0.5">Kepatuhan</span>
-                    <span className="text-[9px] text-text-low font-mono mt-1 tabular-nums">{monthlyTotal} Pengujian</span>
+                    <span className="text-[9px] uppercase tracking-wider text-text-mid font-mono mt-0.5">Kepatuhan Terverifikasi</span>
+                    <span className="text-[9px] text-text-low font-mono mt-1 tabular-nums">
+                      {monthlyTotal} Uji{monthlyUnverifiedOrIncompleteCount > 0 ? ` (${monthlyUnverifiedOrIncompleteCount} blm ev.)` : ''}
+                    </span>
                   </div>
 
                   <div className="sm:col-span-8 space-y-1.5">
@@ -909,28 +1073,42 @@ export default function MonitoringView({
                         <span className="text-text-mid text-[8px] uppercase">Rerata pH</span>
                         <strong
                           className={`text-xs mt-0.5 ${
-                            monthlyAvgPh < phMinLimit || monthlyAvgPh > phMaxLimit ? 'text-neon-red' : 'text-text-hi'
+                            monthlyAvgPh !== null && phMinLimit !== null && phMaxLimit !== null && (monthlyAvgPh < phMinLimit || monthlyAvgPh > phMaxLimit)
+                              ? 'text-neon-red'
+                              : 'text-text-hi'
                           }`}
                         >
-                          {monthlyAvgPh}
+                          {formatLocaleNumberStrict(monthlyAvgPh, 1, 2)}
                         </strong>
                       </div>
                       <div className="bg-bg-2/60 border border-border-subtle rounded-xl p-1.5 flex flex-col justify-center">
                         <span className="text-text-mid text-[8px] uppercase">Rerata TSS</span>
-                        <strong className={`text-xs mt-0.5 ${monthlyAvgTss > tssMaxLimit ? 'text-neon-red' : 'text-text-hi'}`}>
-                          {monthlyAvgTss} <span className="text-[8px] font-normal text-text-low">mg/L</span>
+                        <strong
+                          className={`text-xs mt-0.5 ${
+                            monthlyAvgTss !== null && tssMaxLimit !== null && monthlyAvgTss > tssMaxLimit ? 'text-neon-red' : 'text-text-hi'
+                          }`}
+                        >
+                          {formatLocaleNumberStrict(monthlyAvgTss, 0, 1)} <span className="text-[8px] font-normal text-text-low">mg/L</span>
                         </strong>
                       </div>
                       <div className="bg-bg-2/60 border border-border-subtle rounded-xl p-1.5 flex flex-col justify-center">
                         <span className="text-text-mid text-[8px] uppercase">Rerata Fe</span>
-                        <strong className={`text-xs mt-0.5 ${monthlyAvgFe > feMaxLimit ? 'text-neon-red' : 'text-text-hi'}`}>
-                          {monthlyAvgFe} <span className="text-[8px] font-normal text-text-low">mg/L</span>
+                        <strong
+                          className={`text-xs mt-0.5 ${
+                            monthlyAvgFe !== null && feMaxLimit !== null && monthlyAvgFe > feMaxLimit ? 'text-neon-red' : 'text-text-hi'
+                          }`}
+                        >
+                          {formatLocaleNumberStrict(monthlyAvgFe, 1, 2)} <span className="text-[8px] font-normal text-text-low">mg/L</span>
                         </strong>
                       </div>
                       <div className="bg-bg-2/60 border border-border-subtle rounded-xl p-1.5 flex flex-col justify-center">
                         <span className="text-text-mid text-[8px] uppercase">Rerata Mn</span>
-                        <strong className={`text-xs mt-0.5 ${monthlyAvgMn > mnMaxLimit ? 'text-neon-red' : 'text-text-hi'}`}>
-                          {monthlyAvgMn} <span className="text-[8px] font-normal text-text-low">mg/L</span>
+                        <strong
+                          className={`text-xs mt-0.5 ${
+                            monthlyAvgMn !== null && mnMaxLimit !== null && monthlyAvgMn > mnMaxLimit ? 'text-neon-red' : 'text-text-hi'
+                          }`}
+                        >
+                          {formatLocaleNumberStrict(monthlyAvgMn, 1, 2)} <span className="text-[8px] font-normal text-text-low">mg/L</span>
                         </strong>
                       </div>
                     </div>
@@ -941,9 +1119,19 @@ export default function MonitoringView({
               <div className="mt-4 flex items-center justify-between text-[10px] text-text-mid border-t border-border-subtle pt-2.5 gap-2">
                 <span>Periode Analisis: {formatIndoMonth(activeWaterMonth)}</span>
                 <StatusBadge
-                  status={monthlyComplianceRate >= 95 ? 'Memenuhi' : monthlyComplianceRate >= 80 ? 'Mendekati' : 'Tidak Memenuhi'}
+                  status={
+                    monthlyEvaluatedTotal === 0
+                      ? 'Belum Dievaluasi'
+                      : monthlyComplianceRate >= 95
+                      ? 'Memenuhi'
+                      : monthlyComplianceRate >= 80
+                      ? 'Mendekati'
+                      : 'Tidak Memenuhi'
+                  }
                   label={
-                    monthlyComplianceRate >= 95
+                    monthlyEvaluatedTotal === 0
+                      ? 'Menunggu Verifikasi / Data'
+                      : monthlyComplianceRate >= 95
                       ? 'Kinerja Sangat Baik'
                       : monthlyComplianceRate >= 80
                       ? 'Kinerja Butuh Perhatian'
@@ -979,6 +1167,9 @@ export default function MonitoringView({
                 <option value="Safe">Memenuhi Baku Mutu</option>
                 <option value="Warning">Mendekati Batas</option>
                 <option value="Exceeded">Melebihi Baku Mutu</option>
+                <option value="Incomplete">Data Tidak Lengkap</option>
+                <option value="Unevaluated">Belum Dievaluasi</option>
+                <option value="NotApplicable">Tidak Berlaku</option>
               </select>
             </div>
 
@@ -1208,7 +1399,7 @@ export default function MonitoringView({
                       onChange={(e) => setWTssStr(e.target.value)}
                       className="w-full px-3 py-2 text-xs font-mono"
                     />
-                    <span className="text-[9px] text-text-low mt-0.5 block font-mono">Baku: &le; {tssLimit}</span>
+                    <span className="text-[9px] text-text-low mt-0.5 block font-mono">Baku: {tssLimit}</span>
                   </div>
 
                   <div>
@@ -1242,7 +1433,7 @@ export default function MonitoringView({
                       onChange={(e) => setWFeStr(e.target.value)}
                       className="w-full px-3 py-2 text-xs font-mono"
                     />
-                    <span className="text-[9px] text-text-low mt-0.5 block font-mono">Baku: &le; {feLimit}</span>
+                    <span className="text-[9px] text-text-low mt-0.5 block font-mono">Baku: {feLimit}</span>
                   </div>
 
                   <div>
@@ -1259,10 +1450,56 @@ export default function MonitoringView({
                       onChange={(e) => setWMnStr(e.target.value)}
                       className="w-full px-3 py-2 text-xs font-mono"
                     />
-                    <span className="text-[9px] text-text-low mt-0.5 block font-mono">Baku: &le; {mnLimit}</span>
+                    <span className="text-[9px] text-text-low mt-0.5 block font-mono">Baku: {mnLimit}</span>
                   </div>
                 </div>
+
+                {/* Unit verification row */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-2">
+                  {(['ph', 'tss', 'debit', 'fe', 'mn'] as const).map((pk) => {
+                    const unitChoices =
+                      pk === 'ph'
+                        ? ['-']
+                        : pk === 'debit'
+                        ? ['m³/s', 'L/s']
+                        : ['mg/L', 'g/L', 'µg/L', 'ppm'];
+                    return (
+                      <div key={pk} className="flex items-center gap-1.5">
+                        <span className="text-[9px] text-text-low uppercase font-mono">Satuan:</span>
+                        <select
+                          aria-label={`Satuan ${pk}`}
+                          value={wUnitMap[pk] || '-'}
+                          onChange={(e) => setWUnitMap((prev) => ({ ...prev, [pk]: e.target.value }))}
+                          className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-bg-0 border border-border-subtle"
+                        >
+                          {unitChoices.map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
+
+              {editingWaterId && (
+                <div>
+                  <label className="block text-[11px] text-neon-amber font-bold mb-1.5 uppercase">
+                    Alasan Koreksi Data *
+                  </label>
+                  <input
+                    id="water-field-correction-reason"
+                    type="text"
+                    required
+                    placeholder="Jelaskan alasan perubahan nilai/data untuk jejak audit..."
+                    value={wCorrectionReason}
+                    onChange={(e) => setWCorrectionReason(e.target.value)}
+                    className="w-full px-3 py-2 text-xs"
+                  />
+                </div>
+              )}
 
               {/* Row 4 */}
               <div>
@@ -1294,21 +1531,20 @@ export default function MonitoringView({
               )}
 
               {/* Real-time Validation Feedback badge */}
-              <div className="p-3 rounded-xl border flex flex-wrap items-center justify-between gap-2 bg-bg-2/60 border-border-subtle">
-                <p className="text-xs text-text-mid">Verifikasi baku mutu otomatis ({WASTEWATER_BASIS_LABEL}) :</p>
-                <StatusBadge
-                  size="sm"
-                  status={!areAllNumbersFilledAndFinite ? 'Perlu Verifikasi' : dynamicWaterStatus}
-                  label={
-                    !areAllNumbersFilledAndFinite
-                      ? 'Menunggu Input Lengkap'
-                      : dynamicWaterStatus === 'Safe'
-                      ? 'Memenuhi Baku Mutu'
-                      : dynamicWaterStatus === 'Warning'
-                      ? 'Mendekati Batas Parameter'
-                      : 'Melebihi Baku Mutu'
-                  }
-                />
+              <div className="p-3 rounded-xl border space-y-1.5 bg-bg-2/60 border-border-subtle">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-text-mid">Verifikasi baku mutu otomatis ({waterEval.standardsBasis}) :</p>
+                  <StatusBadge
+                    size="sm"
+                    status={waterEval.overall}
+                    label={
+                      waterEval.overall === 'MEMENUHI' && waterEval.warningParams.length > 0
+                        ? 'MEMENUHI (MENDEKATI BATAS INTERNAL)'
+                        : waterEval.overall
+                    }
+                  />
+                </div>
+                <p className="text-[11px] text-text-mid">{waterEval.evaluationReason}</p>
               </div>
 
               {/* Actions */}
@@ -1440,42 +1676,60 @@ export default function MonitoringView({
                         </td>
                         <td
                           className={`p-3.5 text-right font-bold font-mono tabular-nums ${
-                            item.ph < (item.standardSnapshot?.ph?.min ?? phMinLimit) ||
-                            item.ph > (item.standardSnapshot?.ph?.max ?? phMaxLimit)
+                            typeof item.ph === 'number' &&
+                            (item.standardSnapshot?.ph?.min ?? phMinLimit) !== null &&
+                            (item.standardSnapshot?.ph?.max ?? phMaxLimit) !== null &&
+                            (item.ph < (item.standardSnapshot?.ph?.min ?? phMinLimit)! ||
+                              item.ph > (item.standardSnapshot?.ph?.max ?? phMaxLimit)!)
                               ? 'text-neon-red'
                               : 'text-text-hi'
                           }`}
                         >
-                          {item.ph}
+                          {formatLocaleNumberStrict(item.ph, 1, 2)}
                         </td>
                         <td
                           className={`p-3.5 text-right font-bold font-mono tabular-nums ${
-                            item.tss > (item.standardSnapshot?.tss?.max ?? tssMaxLimit)
+                            typeof item.tss === 'number' &&
+                            (item.standardSnapshot?.tss?.max ?? tssMaxLimit) !== null &&
+                            item.tss > (item.standardSnapshot?.tss?.max ?? tssMaxLimit)!
                               ? 'text-neon-red'
                               : 'text-text-hi'
                           }`}
                         >
-                          {item.tss}
+                          {formatLocaleNumberStrict(item.tss, 0, 1)}
                         </td>
                         <td className="p-3.5 text-right font-bold font-mono tabular-nums text-neon-cyan">
-                          {(item.debit ?? 0).toFixed(3)}
+                          {formatLocaleNumberStrict(item.debit, 3, 3)}
                         </td>
                         <td
                           className={`p-3.5 text-right font-bold font-mono tabular-nums ${
-                            item.fe > (item.standardSnapshot?.fe?.max ?? feMaxLimit) ? 'text-neon-red' : 'text-text-hi'
+                            typeof item.fe === 'number' &&
+                            (item.standardSnapshot?.fe?.max ?? feMaxLimit) !== null &&
+                            item.fe > (item.standardSnapshot?.fe?.max ?? feMaxLimit)!
+                              ? 'text-neon-red'
+                              : 'text-text-hi'
                           }`}
                         >
-                          {item.fe}
+                          {formatLocaleNumberStrict(item.fe, 1, 3)}
                         </td>
                         <td
                           className={`p-3.5 text-right font-bold font-mono tabular-nums ${
-                            item.mn > (item.standardSnapshot?.mn?.max ?? mnMaxLimit) ? 'text-neon-red' : 'text-text-hi'
+                            typeof item.mn === 'number' &&
+                            (item.standardSnapshot?.mn?.max ?? mnMaxLimit) !== null &&
+                            item.mn > (item.standardSnapshot?.mn?.max ?? mnMaxLimit)!
+                              ? 'text-neon-red'
+                              : 'text-text-hi'
                           }`}
                         >
-                          {item.mn}
+                          {formatLocaleNumberStrict(item.mn, 1, 3)}
                         </td>
-                        <td className="p-3.5 text-center">
-                          <StatusBadge status={item.status} />
+                        <td className="p-3.5 text-center" title={item.evaluationReason || undefined}>
+                          <StatusBadge status={item.evaluationStatus || item.status} />
+                          {item.evaluationReason && (
+                            <span className="block text-[9px] text-text-low mt-0.5 max-w-[180px] truncate mx-auto">
+                              {item.evaluationReason}
+                            </span>
+                          )}
                         </td>
                         <td className="p-3.5 text-center pr-5">
                           <div className="flex items-center justify-center gap-1.5">
@@ -1531,62 +1785,62 @@ export default function MonitoringView({
               <div className="text-center border-r border-border-subtle last:border-0 py-1">
                 <span className="text-[10px] text-text-mid uppercase font-mono">pH</span>
                 <p className="text-xs font-bold font-mono text-text-hi mt-0.5 tabular-nums">
-                  {(activeSurfaceStds.ph?.minLimit ?? 6.0).toFixed(1)} – {(activeSurfaceStds.ph?.maxLimit ?? 9.0).toFixed(1)}
+                  {formatStandardLimitDisplay(activeSurfaceStds.ph)}
                 </p>
-                <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {monthlySurfaceAvgPh}</p>
+                <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {formatLocaleNumberStrict(monthlySurfaceAvgPh, 1, 2)}</p>
               </div>
               <div className="text-center border-r border-border-subtle last:border-0 py-1">
-                <span className="text-[10px] text-text-mid uppercase font-mono">TSS Max</span>
+                <span className="text-[10px] text-text-mid uppercase font-mono">TSS</span>
                 <p className="text-xs font-bold font-mono text-text-hi mt-0.5 tabular-nums">
-                  {activeSurfaceStds.tss?.maxLimit ?? 50} mg/L
+                  {formatStandardLimitDisplay(activeSurfaceStds.tss)}
                 </p>
-                <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {monthlySurfaceAvgTss}</p>
+                <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {formatLocaleNumberStrict(monthlySurfaceAvgTss, 0, 1)}</p>
               </div>
               <div className="text-center border-r border-border-subtle last:border-0 py-1">
-                <span className="text-[10px] text-text-mid uppercase font-mono">DO Min</span>
+                <span className="text-[10px] text-text-mid uppercase font-mono">DO</span>
                 <p className="text-xs font-bold font-mono text-text-hi mt-0.5 tabular-nums">
-                  ≥ {(activeSurfaceStds.doVal?.minLimit ?? 4.0).toFixed(1)} mg/L
+                  {formatStandardLimitDisplay(activeSurfaceStds.doVal)}
                 </p>
-                <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {monthlySurfaceAvgDo}</p>
+                <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {formatLocaleNumberStrict(monthlySurfaceAvgDo, 1, 2)}</p>
               </div>
               <div className="text-center border-r border-border-subtle last:border-0 py-1">
-                <span className="text-[10px] text-text-mid uppercase font-mono">BOD Max</span>
+                <span className="text-[10px] text-text-mid uppercase font-mono">BOD</span>
                 <p className="text-xs font-bold font-mono text-text-hi mt-0.5 tabular-nums">
-                  {(activeSurfaceStds.bod?.maxLimit ?? 3.0).toFixed(1)} mg/L
+                  {formatStandardLimitDisplay(activeSurfaceStds.bod)}
                 </p>
-                <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {monthlySurfaceAvgBod}</p>
+                <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {formatLocaleNumberStrict(monthlySurfaceAvgBod, 1, 2)}</p>
               </div>
               <div className="text-center border-r border-border-subtle last:border-0 py-1">
-                <span className="text-[10px] text-text-mid uppercase font-mono">COD Max</span>
+                <span className="text-[10px] text-text-mid uppercase font-mono">COD</span>
                 <p className="text-xs font-bold font-mono text-text-hi mt-0.5 tabular-nums">
-                  {activeSurfaceStds.cod?.maxLimit ?? 25} mg/L
+                  {formatStandardLimitDisplay(activeSurfaceStds.cod)}
                 </p>
-                <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {monthlySurfaceAvgCod}</p>
+                <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {formatLocaleNumberStrict(monthlySurfaceAvgCod, 1, 2)}</p>
               </div>
               <div className="text-center border-r border-border-subtle last:border-0 py-1">
-                <span className="text-[10px] text-text-mid uppercase font-mono">Fe Max</span>
+                <span className="text-[10px] text-text-mid uppercase font-mono">Fe</span>
                 <p className="text-xs font-bold font-mono text-text-hi mt-0.5 tabular-nums">
-                  {activeSurfaceStds.fe?.maxLimit ?? 0.3} mg/L
+                  {formatStandardLimitDisplay(activeSurfaceStds.fe)}
                 </p>
                 {activeSurfaceStds.fe?.verificationStatus !== 'Terverifikasi' ? (
                   <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-neon-amber/15 text-neon-amber border border-neon-amber/30 font-semibold mt-0.5">
-                    Informatif (Perlu verifikasi)
+                    Perlu verifikasi manual
                   </span>
                 ) : (
-                  <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {monthlySurfaceAvgFe}</p>
+                  <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {formatLocaleNumberStrict(monthlySurfaceAvgFe, 1, 2)}</p>
                 )}
               </div>
               <div className="text-center py-1">
-                <span className="text-[10px] text-text-mid uppercase font-mono">Mn Max</span>
+                <span className="text-[10px] text-text-mid uppercase font-mono">Mn</span>
                 <p className="text-xs font-bold font-mono text-text-hi mt-0.5 tabular-nums">
-                  {activeSurfaceStds.mn?.maxLimit ?? 0.1} mg/L
+                  {formatStandardLimitDisplay(activeSurfaceStds.mn)}
                 </p>
                 {activeSurfaceStds.mn?.verificationStatus !== 'Terverifikasi' ? (
                   <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-neon-amber/15 text-neon-amber border border-neon-amber/30 font-semibold mt-0.5">
-                    Informatif (Perlu verifikasi)
+                    Perlu verifikasi manual
                   </span>
                 ) : (
-                  <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {monthlySurfaceAvgMn}</p>
+                  <p className="text-[10px] text-neon-cyan font-mono tabular-nums">Avg: {formatLocaleNumberStrict(monthlySurfaceAvgMn, 1, 2)}</p>
                 )}
               </div>
             </div>
@@ -1598,10 +1852,11 @@ export default function MonitoringView({
               <div>
                 <span className="text-[10px] text-text-mid uppercase font-mono font-bold">Kepatuhan Bulan Ini</span>
                 <p className="text-2xl font-bold font-mono tabular-nums text-neon-green mt-1">
-                  {monthlySurfaceComplianceRate}%
+                  {monthlySurfaceEvaluated > 0 ? `${monthlySurfaceComplianceRate}%` : '—'}
                 </p>
                 <p className="text-[11px] text-text-mid mt-0.5 font-mono">
-                  {monthlySurfaceSafeCount} Aman • {monthlySurfaceWarningCount} Warning • {monthlySurfaceExceededCount} Exceeded
+                  {monthlySurfaceSafeCount} Memenuhi • {monthlySurfaceWarningCount} Mendekati • {monthlySurfaceExceededCount} Melebihi
+                  {monthlySurfaceUnverifiedOrIncomplete > 0 ? ` • ${monthlySurfaceUnverifiedOrIncomplete} Blm Evaluasi/Lkp` : ''}
                 </p>
               </div>
               <div className="p-3 rounded-xl bg-neon-green/10 border border-neon-green/30 text-neon-green">
@@ -1613,9 +1868,11 @@ export default function MonitoringView({
               <div>
                 <span className="text-[10px] text-text-mid uppercase font-mono font-bold">Rata-rata DO / BOD</span>
                 <p className="text-2xl font-bold font-mono tabular-nums text-neon-cyan mt-1">
-                  {monthlySurfaceAvgDo} / {monthlySurfaceAvgBod}
+                  {formatLocaleNumberStrict(monthlySurfaceAvgDo, 1, 2)} / {formatLocaleNumberStrict(monthlySurfaceAvgBod, 1, 2)}
                 </p>
-                <p className="text-[11px] text-text-mid mt-0.5 font-mono">mg/L (Target DO ≥ 4, BOD ≤ 3)</p>
+                <p className="text-[11px] text-text-mid mt-0.5 font-mono">
+                  DO: {formatStandardLimitDisplay(activeSurfaceStds.doVal)} • BOD: {formatStandardLimitDisplay(activeSurfaceStds.bod)}
+                </p>
               </div>
               <div className="p-3 rounded-xl bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan">
                 <Activity className="h-5 w-5" />
@@ -1659,12 +1916,19 @@ export default function MonitoringView({
                     <YAxis stroke={NEON_CHART.tickFill} fontSize={10} tickLine={false} />
                     <RechartsTooltip contentStyle={NEON_TOOLTIP_CONTENT_STYLE} />
                     <Legend wrapperStyle={{ fontSize: 11, color: NEON_CHART.tickFill }} />
-                    <ReferenceLine
-                      y={50}
-                      stroke={NEON_CHART.red}
-                      strokeDasharray="4 4"
-                      label={{ value: 'Max TSS 50', position: 'insideTopRight', fill: NEON_CHART.red, fontSize: 9 }}
-                    />
+                    {isStdVerified(activeSurfaceStds.tss) && typeof activeSurfaceStds.tss?.maxLimit === 'number' && (
+                      <ReferenceLine
+                        y={activeSurfaceStds.tss.maxLimit}
+                        stroke={NEON_CHART.red}
+                        strokeDasharray="4 4"
+                        label={{
+                          value: `Max TSS ${activeSurfaceStds.tss.maxLimit}`,
+                          position: 'insideTopRight',
+                          fill: NEON_CHART.red,
+                          fontSize: 9,
+                        }}
+                      />
+                    )}
                     <Line type="monotone" dataKey="pH" stroke={NEON_CHART.green} strokeWidth={2} dot={{ r: 3 }} />
                     <Line type="monotone" dataKey="DO" stroke={NEON_CHART.cyan} strokeWidth={2} dot={{ r: 3 }} />
                     <Line type="monotone" dataKey="TSS" stroke={NEON_CHART.amber} strokeWidth={2} dot={{ r: 3 }} />
@@ -1696,9 +1960,12 @@ export default function MonitoringView({
                 className="px-3 py-2 text-xs"
               >
                 <option value="">Semua Status</option>
-                <option value="Safe">Lolos / Safe</option>
-                <option value="Warning">Warning</option>
-                <option value="Exceeded">Melampaui Baku Mutu</option>
+                <option value="Safe">Memenuhi Baku Mutu</option>
+                <option value="Warning">Mendekati Batas</option>
+                <option value="Exceeded">Melebihi Baku Mutu</option>
+                <option value="Incomplete">Data Tidak Lengkap</option>
+                <option value="Unevaluated">Belum Dievaluasi</option>
+                <option value="NotApplicable">Tidak Berlaku</option>
               </select>
             </div>
 
@@ -1719,8 +1986,9 @@ export default function MonitoringView({
                 onClick={() => {
                   if (showSurfaceForm) {
                     setShowSurfaceForm(false);
-                    setEditingSurfaceWaterId(null);
+                    resetSurfaceWaterForm();
                   } else {
+                    resetSurfaceWaterForm();
                     setShowSurfaceForm(true);
                   }
                 }}
@@ -1747,14 +2015,8 @@ export default function MonitoringView({
                 </h3>
                 <StatusBadge
                   size="sm"
-                  status={dynamicSurfaceStatus}
-                  label={
-                    dynamicSurfaceStatus === 'Safe'
-                      ? 'MEMENUHI BAKU MUTU'
-                      : dynamicSurfaceStatus === 'Warning'
-                      ? 'MENDEKATI BATAS'
-                      : 'MELAMPAUI BAKU MUTU'
-                  }
+                  status={surfaceEval.overall}
+                  label={surfaceEval.overall}
                 />
               </div>
 
@@ -1791,51 +2053,94 @@ export default function MonitoringView({
 
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                 <div>
-                  <label className="block text-[11px] text-text-mid font-bold mb-1">pH (6-9)</label>
-                  <input type="number" step="0.01" required value={swPh} onChange={(e) => setSwPh(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                  <label className="block text-[11px] text-text-mid font-bold mb-1">
+                    pH ({formatStandardLimitDisplay(activeSurfaceStds.ph)})
+                  </label>
+                  <input type="text" inputMode="decimal" required placeholder="cth: 7.1" value={swPhStr} onChange={(e) => setSwPhStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                 </div>
                 <div>
                   <label className="block text-[11px] text-text-mid font-bold mb-1">
-                    TSS (≤{activeSurfaceStds.tss?.maxLimit ?? 50})
+                    TSS ({formatStandardLimitDisplay(activeSurfaceStds.tss)})
                   </label>
-                  <input type="number" step="0.1" required value={swTss} onChange={(e) => setSwTss(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                  <input type="text" inputMode="decimal" required placeholder="cth: 15" value={swTssStr} onChange={(e) => setSwTssStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                 </div>
                 <div>
                   <label className="block text-[11px] text-text-mid font-bold mb-1">
-                    DO (≥{activeSurfaceStds.doVal?.minLimit ?? 4})
+                    DO ({formatStandardLimitDisplay(activeSurfaceStds.doVal)})
                   </label>
-                  <input type="number" step="0.01" required value={swDoVal} onChange={(e) => setSwDoVal(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                  <input type="text" inputMode="decimal" required placeholder="cth: 6.2" value={swDoStr} onChange={(e) => setSwDoStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                 </div>
                 <div>
                   <label className="block text-[11px] text-text-mid font-bold mb-1">
-                    BOD (≤{activeSurfaceStds.bod?.maxLimit ?? 3})
+                    BOD ({formatStandardLimitDisplay(activeSurfaceStds.bod)})
                   </label>
-                  <input type="number" step="0.01" required value={swBod} onChange={(e) => setSwBod(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                  <input type="text" inputMode="decimal" required placeholder="cth: 1.8" value={swBodStr} onChange={(e) => setSwBodStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                 </div>
                 <div>
                   <label className="block text-[11px] text-text-mid font-bold mb-1">
-                    COD (≤{activeSurfaceStds.cod?.maxLimit ?? 25})
+                    COD ({formatStandardLimitDisplay(activeSurfaceStds.cod)})
                   </label>
-                  <input type="number" step="0.1" required value={swCod} onChange={(e) => setSwCod(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                  <input type="text" inputMode="decimal" required placeholder="cth: 12.0" value={swCodStr} onChange={(e) => setSwCodStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                 </div>
                 <div>
                   <label className="block text-[11px] text-text-mid font-bold mb-1">
-                    Fe (≤{activeSurfaceStds.fe?.maxLimit ?? 0.3})
+                    Fe ({formatStandardLimitDisplay(activeSurfaceStds.fe)})
                   </label>
-                  <input type="number" step="0.001" required value={swFe} onChange={(e) => setSwFe(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                  <input type="text" inputMode="decimal" required placeholder="cth: 0.15" value={swFeStr} onChange={(e) => setSwFeStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   {activeSurfaceStds.fe?.verificationStatus !== 'Terverifikasi' && (
-                    <span className="text-[9px] text-neon-amber block mt-0.5">Informatif (Perlu verifikasi)</span>
+                    <span className="text-[9px] text-neon-amber block mt-0.5">Perlu verifikasi manual</span>
                   )}
                 </div>
                 <div>
                   <label className="block text-[11px] text-text-mid font-bold mb-1">
-                    Mn (≤{activeSurfaceStds.mn?.maxLimit ?? 0.1})
+                    Mn ({formatStandardLimitDisplay(activeSurfaceStds.mn)})
                   </label>
-                  <input type="number" step="0.001" required value={swMn} onChange={(e) => setSwMn(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                  <input type="text" inputMode="decimal" required placeholder="cth: 0.04" value={swMnStr} onChange={(e) => setSwMnStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   {activeSurfaceStds.mn?.verificationStatus !== 'Terverifikasi' && (
-                    <span className="text-[9px] text-neon-amber block mt-0.5">Informatif (Perlu verifikasi)</span>
+                    <span className="text-[9px] text-neon-amber block mt-0.5">Perlu verifikasi manual</span>
                   )}
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                {(['ph', 'tss', 'doVal', 'bod', 'cod', 'fe', 'mn'] as const).map((pk) => {
+                  const unitChoices = pk === 'ph' ? ['-'] : ['mg/L', 'g/L', 'µg/L', 'ppm'];
+                  return (
+                    <div key={pk} className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-text-low uppercase font-mono">{pk}:</span>
+                      <select
+                        aria-label={`Satuan ${pk} air permukaan`}
+                        value={swUnitMap[pk] || '-'}
+                        onChange={(e) => setSwUnitMap((prev) => ({ ...prev, [pk]: e.target.value }))}
+                        className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-bg-0 border border-border-subtle"
+                      >
+                        {unitChoices.map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {editingSurfaceWaterId && (
+                <div>
+                  <label className="block text-[11px] text-neon-amber font-bold mb-1 uppercase">Alasan Koreksi Data *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Jelaskan alasan koreksi untuk audit trail..."
+                    value={swCorrectionReason}
+                    onChange={(e) => setSwCorrectionReason(e.target.value)}
+                    className="w-full px-3 py-2 text-xs"
+                  />
+                </div>
+              )}
+
+              <div className="p-3 rounded-xl bg-bg-2/60 border border-border-subtle text-[11px] text-text-mid">
+                {surfaceEval.evaluationReason}
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -1843,13 +2148,21 @@ export default function MonitoringView({
                   type="button"
                   onClick={() => {
                     setShowSurfaceForm(false);
-                    setEditingSurfaceWaterId(null);
+                    resetSurfaceWaterForm();
                   }}
                   className="px-4 py-2 border border-border-neon rounded-xl text-xs text-text-mid hover:text-text-hi font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
-                <button type="submit" className="neon-btn-primary px-5 py-2 rounded-xl text-xs cursor-pointer">
+                <button
+                  type="submit"
+                  disabled={!areAllSurfaceNumbersValid || !swOfficer.trim()}
+                  className={`px-5 py-2 rounded-xl text-xs ${
+                    !areAllSurfaceNumbersValid || !swOfficer.trim()
+                      ? 'bg-bg-2 text-text-low border border-border-subtle cursor-not-allowed opacity-60 font-bold'
+                      : 'neon-btn-primary cursor-pointer'
+                  }`}
+                >
                   {editingSurfaceWaterId ? 'Perbarui Data Air Permukaan' : 'Simpan Data Air Permukaan'}
                 </button>
               </div>
@@ -1915,41 +2228,66 @@ export default function MonitoringView({
                           </td>
                           <td
                             className={`p-3.5 text-right font-mono font-bold tabular-nums ${
-                              item.ph < (item.standardSnapshot?.ph?.min ?? 6) ||
-                              item.ph > (item.standardSnapshot?.ph?.max ?? 9)
+                              typeof item.ph === 'number' &&
+                              (item.standardSnapshot?.ph?.min ?? activeSurfaceStds.ph?.minLimit) !== undefined &&
+                              (item.standardSnapshot?.ph?.min ?? activeSurfaceStds.ph?.minLimit) !== null &&
+                              (item.standardSnapshot?.ph?.max ?? activeSurfaceStds.ph?.maxLimit) !== undefined &&
+                              (item.standardSnapshot?.ph?.max ?? activeSurfaceStds.ph?.maxLimit) !== null &&
+                              (item.ph < (item.standardSnapshot?.ph?.min ?? activeSurfaceStds.ph?.minLimit)! ||
+                                item.ph > (item.standardSnapshot?.ph?.max ?? activeSurfaceStds.ph?.maxLimit)!)
                                 ? 'text-neon-red'
                                 : 'text-text-hi'
                             }`}
                           >
-                            {item.ph}
+                            {formatLocaleNumberStrict(item.ph, 1, 2)}
                           </td>
                           <td
                             className={`p-3.5 text-right font-mono font-bold tabular-nums ${
-                              item.tss > (item.standardSnapshot?.tss?.max ?? 50) ? 'text-neon-red' : 'text-text-hi'
+                              typeof item.tss === 'number' &&
+                              (item.standardSnapshot?.tss?.max ?? activeSurfaceStds.tss?.maxLimit) !== undefined &&
+                              (item.standardSnapshot?.tss?.max ?? activeSurfaceStds.tss?.maxLimit) !== null &&
+                              item.tss > (item.standardSnapshot?.tss?.max ?? activeSurfaceStds.tss?.maxLimit)!
+                                ? 'text-neon-red'
+                                : 'text-text-hi'
                             }`}
                           >
-                            {item.tss}
+                            {formatLocaleNumberStrict(item.tss, 0, 1)}
                           </td>
                           <td
                             className={`p-3.5 text-right font-mono font-bold tabular-nums ${
-                              item.doVal < (item.standardSnapshot?.doVal?.min ?? 4) ? 'text-neon-red' : 'text-neon-cyan'
+                              typeof item.doVal === 'number' &&
+                              (item.standardSnapshot?.doVal?.min ?? activeSurfaceStds.doVal?.minLimit) !== undefined &&
+                              (item.standardSnapshot?.doVal?.min ?? activeSurfaceStds.doVal?.minLimit) !== null &&
+                              item.doVal < (item.standardSnapshot?.doVal?.min ?? activeSurfaceStds.doVal?.minLimit)!
+                                ? 'text-neon-red'
+                                : 'text-neon-cyan'
                             }`}
                           >
-                            {item.doVal}
+                            {formatLocaleNumberStrict(item.doVal, 1, 2)}
                           </td>
                           <td
                             className={`p-3.5 text-right font-mono font-bold tabular-nums ${
-                              item.bod > (item.standardSnapshot?.bod?.max ?? 3) ? 'text-neon-red' : 'text-text-hi'
+                              typeof item.bod === 'number' &&
+                              (item.standardSnapshot?.bod?.max ?? activeSurfaceStds.bod?.maxLimit) !== undefined &&
+                              (item.standardSnapshot?.bod?.max ?? activeSurfaceStds.bod?.maxLimit) !== null &&
+                              item.bod > (item.standardSnapshot?.bod?.max ?? activeSurfaceStds.bod?.maxLimit)!
+                                ? 'text-neon-red'
+                                : 'text-text-hi'
                             }`}
                           >
-                            {item.bod}
+                            {formatLocaleNumberStrict(item.bod, 1, 2)}
                           </td>
                           <td
                             className={`p-3.5 text-right font-mono font-bold tabular-nums ${
-                              item.cod > (item.standardSnapshot?.cod?.max ?? 25) ? 'text-neon-red' : 'text-text-hi'
+                              typeof item.cod === 'number' &&
+                              (item.standardSnapshot?.cod?.max ?? activeSurfaceStds.cod?.maxLimit) !== undefined &&
+                              (item.standardSnapshot?.cod?.max ?? activeSurfaceStds.cod?.maxLimit) !== null &&
+                              item.cod > (item.standardSnapshot?.cod?.max ?? activeSurfaceStds.cod?.maxLimit)!
+                                ? 'text-neon-red'
+                                : 'text-text-hi'
                             }`}
                           >
-                            {item.cod}
+                            {formatLocaleNumberStrict(item.cod, 1, 2)}
                           </td>
                           <td
                             className={`p-3.5 text-right font-mono font-bold tabular-nums ${
@@ -1958,10 +2296,10 @@ export default function MonitoringView({
                                 : 'text-text-hi'
                             }`}
                           >
-                            <span>{item.fe}</span>
+                            <span>{formatLocaleNumberStrict(item.fe, 1, 3)}</span>
                             {feEval.verificationStatus === 'Perlu verifikasi' && (
                               <span className="block text-[9px] font-sans font-semibold text-neon-amber">
-                                Informatif (Perlu verifikasi)
+                                Perlu verifikasi
                               </span>
                             )}
                           </td>
@@ -1972,15 +2310,15 @@ export default function MonitoringView({
                                 : 'text-text-hi'
                             }`}
                           >
-                            <span>{item.mn}</span>
+                            <span>{formatLocaleNumberStrict(item.mn, 1, 3)}</span>
                             {mnEval.verificationStatus === 'Perlu verifikasi' && (
                               <span className="block text-[9px] font-sans font-semibold text-neon-amber">
-                                Informatif (Perlu verifikasi)
+                                Perlu verifikasi
                               </span>
                             )}
                           </td>
-                          <td className="p-3.5 text-center">
-                            <StatusBadge status={item.status} />
+                          <td className="p-3.5 text-center" title={item.evaluationReason || undefined}>
+                            <StatusBadge status={item.evaluationStatus || item.status} />
                           </td>
                           <td className="p-3.5 text-center pr-5">
                             <div className="flex items-center justify-center gap-1.5">
@@ -2167,14 +2505,18 @@ export default function MonitoringView({
                   </label>
                   <input
                     id="rain-field-volume"
-                    type="number"
-                    step="0.1"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="cth: 25.0"
                     required
-                    value={rRainfall}
+                    value={rRainfallStr}
                     onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setRRainfall(val);
-                      setRWeather(getBMKGWeatherClass(val));
+                      const raw = e.target.value;
+                      setRRainfallStr(raw);
+                      const parsed = parseStrictNumber(raw);
+                      if (parsed !== null && parsed >= 0) {
+                        setRWeather(getBMKGWeatherClass(parsed));
+                      }
                     }}
                     className="w-full px-3 py-2 text-xs font-mono"
                   />
@@ -2482,7 +2824,7 @@ export default function MonitoringView({
                         await onDeleteRainfall(id);
                       }
                     } catch (err: any) {
-                      alert('Gagal menghapus data: ' + err.message);
+                      triggerToast('Gagal menghapus data: ' + err.message, 'error');
                     }
                   }}
                   className="neon-btn-danger px-3.5 py-2 rounded-xl text-xs transition-colors cursor-pointer"

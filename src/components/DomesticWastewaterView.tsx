@@ -14,6 +14,13 @@ import { domesticWastewaterService } from '../services/dbService';
 import { exportToExcel } from '../services/exportService';
 import { todayLocalISO } from '../utils/dateUtils';
 import { triggerToast } from '../utils/errorHandler';
+import {
+  evaluateSampleCompliance,
+  formatLocaleNumberStrict,
+  formatStandardLimitDisplay,
+  parseStrictNumber,
+  resolveEffectiveStandardsMap,
+} from '../utils/waterQualityEval';
 import StatusBadge from './StatusBadge';
 import TableSkeleton from './TableSkeleton';
 import EmptyState from './EmptyState';
@@ -62,26 +69,42 @@ export default function DomesticWastewaterView({
   const [date, setDate] = useState(todayLocalISO());
   const [facilityName, setFacilityName] = useState('IPAL Mess Karyawan');
   const [locationCode, setLocationCode] = useState('IPAL-DOM-01');
-  const [ph, setPh] = useState<number>(7.0);
-  const [bod, setBod] = useState<number>(0);
-  const [cod, setCod] = useState<number>(0);
-  const [tss, setTss] = useState<number>(0);
-  const [oilGrease, setOilGrease] = useState<number>(0);
-  const [ammonia, setAmmonia] = useState<number>(0);
-  const [totalColiform, setTotalColiform] = useState<number>(0);
-  const [debitM3Day, setDebitM3Day] = useState<number>(0);
+  const [phStr, setPhStr] = useState('');
+  const [bodStr, setBodStr] = useState('');
+  const [codStr, setCodStr] = useState('');
+  const [tssStr, setTssStr] = useState('');
+  const [oilGreaseStr, setOilGreaseStr] = useState('');
+  const [ammoniaStr, setAmmoniaStr] = useState('');
+  const [totalColiformStr, setTotalColiformStr] = useState('');
+  const [debitM3DayStr, setDebitM3DayStr] = useState('');
+  const [unitMap, setUnitMap] = useState<Record<string, string>>({
+    ph: '-',
+    bod: 'mg/L',
+    cod: 'mg/L',
+    tss: 'mg/L',
+    oilGrease: 'mg/L',
+    ammonia: 'mg/L',
+    totalColiform: 'MPN/100mL',
+    debitM3Day: 'm³/hari',
+  });
+  const [correctionReason, setCorrectionReason] = useState('');
   const [officer, setOfficer] = useState('');
   const [notes, setNotes] = useState('');
 
-  const activeDomesticStandards = useMemo(() => {
+  const activeDomesticStandards = useMemo(
+    () => resolveEffectiveStandardsMap(standards, 'air_limbah_domestik', { locationCode: locationCode || undefined, sampleDate: date }),
+    [standards, locationCode, date]
+  );
+
+  const verifiedDomesticStandards = useMemo(() => {
     const map: Record<string, EnvironmentalStandard> = {};
-    standards
-      .filter((s) => s.media === 'air_limbah_domestik' && s.isActive && s.verificationStatus === 'Terverifikasi')
-      .forEach((s) => {
-        map[s.parameterKey.toLowerCase()] = s;
-      });
+    Object.entries(activeDomesticStandards).forEach(([k, s]) => {
+      if (s.applicable !== false && s.verificationStatus === 'Terverifikasi' && s.effectiveStatus !== 'MENUNGGU VERIFIKASI') {
+        map[k] = s;
+      }
+    });
     return map;
-  }, [standards]);
+  }, [activeDomesticStandards]);
 
   const unverifiedDomesticCount = useMemo(() => {
     return standards.filter(
@@ -89,97 +112,76 @@ export default function DomesticWastewaterView({
     ).length;
   }, [standards]);
 
-  const evaluateDomesticCompliance = (values: {
-    ph: number;
-    bod: number;
-    cod: number;
-    tss: number;
-    oilGrease: number;
-    ammonia: number;
-    totalColiform: number;
-  }): { status: DomesticWastewaterData['complianceStatus']; basis?: string; standardId?: string } => {
-    const entries = Object.entries(activeDomesticStandards);
-    if (entries.length === 0) {
-      return { status: 'Belum Ada Baku Mutu', basis: 'Master baku mutu air_limbah_domestik belum diisi/diverifikasi' };
-    }
+  const phNum = parseStrictNumber(phStr);
+  const bodNum = parseStrictNumber(bodStr);
+  const codNum = parseStrictNumber(codStr);
+  const tssNum = parseStrictNumber(tssStr);
+  const oilGreaseNum = parseStrictNumber(oilGreaseStr);
+  const ammoniaNum = parseStrictNumber(ammoniaStr);
+  const totalColiformNum = parseStrictNumber(totalColiformStr);
+  const debitM3DayNum = parseStrictNumber(debitM3DayStr);
 
-    const warningRatio = internalThresholds.warningRatio ?? 0.85;
-    const phMargin = internalThresholds.phMargin ?? 0.3;
-
-    const paramValues: Record<string, number> = {
-      ph: values.ph,
-      bod: values.bod,
-      cod: values.cod,
-      tss: values.tss,
-      oilgrease: values.oilGrease,
-      oil_grease: values.oilGrease,
-      minyak_lemak: values.oilGrease,
-      ammonia: values.ammonia,
-      nh3: values.ammonia,
-      totalcoliform: values.totalColiform,
-      total_coliform: values.totalColiform,
-      coliform: values.totalColiform,
-    };
-
-    let hasWarning = false;
-    const basisList = new Set<string>();
-    const idList: string[] = [];
-
-    for (const [key, std] of entries) {
-      idList.push(std.id);
-      if (std.basisRegulasi) basisList.add(std.basisRegulasi);
-      const val = paramValues[key];
-      if (val === undefined) continue;
-
-      if (std.minLimit !== null && std.minLimit !== undefined && val < std.minLimit) {
-        return {
-          status: 'Tidak Memenuhi',
-          basis: Array.from(basisList).join('; ').slice(0, 280),
-          standardId: idList.join(',').slice(0, 120),
-        };
-      }
-      if (std.maxLimit !== null && std.maxLimit !== undefined && val > std.maxLimit) {
-        return {
-          status: 'Tidak Memenuhi',
-          basis: Array.from(basisList).join('; ').slice(0, 280),
-          standardId: idList.join(',').slice(0, 120),
-        };
-      }
-
-      if (key === 'ph') {
-        if (
-          (std.minLimit !== null && std.minLimit !== undefined && val < std.minLimit + phMargin) ||
-          (std.maxLimit !== null && std.maxLimit !== undefined && val > std.maxLimit - phMargin)
-        ) {
-          hasWarning = true;
+  const liveEval = useMemo(
+    () =>
+      evaluateSampleCompliance(
+        'air_limbah_domestik',
+        {
+          date,
+          locationCode,
+          ph: phNum,
+          bod: bodNum,
+          cod: codNum,
+          tss: tssNum,
+          oilGrease: oilGreaseNum,
+          ammonia: ammoniaNum,
+          totalColiform: totalColiformNum,
+          debitM3Day: debitM3DayNum,
+        },
+        {
+          standards,
+          thresholds: internalThresholds,
+          locationCode: locationCode.trim() || undefined,
+          sampleDate: date,
+          unitMap,
         }
-      } else if (std.maxLimit !== null && std.maxLimit !== undefined && std.maxLimit > 0) {
-        if (val >= std.maxLimit * warningRatio) {
-          hasWarning = true;
-        }
-      }
-    }
+      ),
+    [standards, internalThresholds, date, locationCode, phNum, bodNum, codNum, tssNum, oilGreaseNum, ammoniaNum, totalColiformNum, debitM3DayNum, unitMap]
+  );
 
-    return {
-      status: hasWarning ? 'Warning' : 'Memenuhi',
-      basis: Array.from(basisList).join('; ').slice(0, 280),
-      standardId: idList.join(',').slice(0, 120),
-    };
-  };
+  const areAllDomesticNumbersValid =
+    phNum !== null && phNum >= 0 && phNum <= 14 &&
+    bodNum !== null && bodNum >= 0 &&
+    codNum !== null && codNum >= 0 &&
+    tssNum !== null && tssNum >= 0 &&
+    oilGreaseNum !== null && oilGreaseNum >= 0 &&
+    ammoniaNum !== null && ammoniaNum >= 0 &&
+    totalColiformNum !== null && totalColiformNum >= 0 &&
+    debitM3DayNum !== null && debitM3DayNum >= 0;
 
   const resetForm = () => {
     setEditingId(null);
     setDate(todayLocalISO());
     setFacilityName('IPAL Mess Karyawan');
     setLocationCode('IPAL-DOM-01');
-    setPh(7.0);
-    setBod(0);
-    setCod(0);
-    setTss(0);
-    setOilGrease(0);
-    setAmmonia(0);
-    setTotalColiform(0);
-    setDebitM3Day(0);
+    setPhStr('');
+    setBodStr('');
+    setCodStr('');
+    setTssStr('');
+    setOilGreaseStr('');
+    setAmmoniaStr('');
+    setTotalColiformStr('');
+    setDebitM3DayStr('');
+    setUnitMap({
+      ph: '-',
+      bod: 'mg/L',
+      cod: 'mg/L',
+      tss: 'mg/L',
+      oilGrease: 'mg/L',
+      ammonia: 'mg/L',
+      totalColiform: 'MPN/100mL',
+      debitM3Day: 'm³/hari',
+    });
+    setCorrectionReason('');
     setOfficer('');
     setNotes('');
   };
@@ -196,14 +198,27 @@ export default function DomesticWastewaterView({
     setDate(item.date);
     setFacilityName(item.facilityName);
     setLocationCode(item.locationCode || '');
-    setPh(item.ph);
-    setBod(item.bod);
-    setCod(item.cod);
-    setTss(item.tss);
-    setOilGrease(item.oilGrease);
-    setAmmonia(item.ammonia);
-    setTotalColiform(item.totalColiform);
-    setDebitM3Day(item.debitM3Day);
+    setPhStr(item.ph !== null && item.ph !== undefined ? String(item.ph) : '');
+    setBodStr(item.bod !== null && item.bod !== undefined ? String(item.bod) : '');
+    setCodStr(item.cod !== null && item.cod !== undefined ? String(item.cod) : '');
+    setTssStr(item.tss !== null && item.tss !== undefined ? String(item.tss) : '');
+    setOilGreaseStr(item.oilGrease !== null && item.oilGrease !== undefined ? String(item.oilGrease) : '');
+    setAmmoniaStr(item.ammonia !== null && item.ammonia !== undefined ? String(item.ammonia) : '');
+    setTotalColiformStr(item.totalColiform !== null && item.totalColiform !== undefined ? String(item.totalColiform) : '');
+    setDebitM3DayStr(item.debitM3Day !== null && item.debitM3Day !== undefined ? String(item.debitM3Day) : '');
+    setUnitMap(
+      item.unitMap || {
+        ph: '-',
+        bod: 'mg/L',
+        cod: 'mg/L',
+        tss: 'mg/L',
+        oilGrease: 'mg/L',
+        ammonia: 'mg/L',
+        totalColiform: 'MPN/100mL',
+        debitM3Day: 'm³/hari',
+      }
+    );
+    setCorrectionReason(item.correctionReason || '');
     setOfficer(item.officer);
     setNotes(item.notes || '');
     setShowModal(true);
@@ -212,35 +227,42 @@ export default function DomesticWastewaterView({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit) return onUnauthorizedAction('Simpan Pemantauan Air Limbah Domestik');
+    if (!areAllDomesticNumbersValid) {
+      triggerToast('Semua parameter angka IPAL domestik wajib diisi dengan angka valid (pH 0–14, nilai lain ≥ 0).', 'warning');
+      return;
+    }
+    if (editingId && !correctionReason.trim()) {
+      triggerToast('Alasan koreksi wajib diisi saat mengubah data IPAL domestik.', 'warning');
+      return;
+    }
+
     try {
       setIsSaving(true);
-      const evalRes = evaluateDomesticCompliance({
-        ph: Number(ph),
-        bod: Number(bod),
-        cod: Number(cod),
-        tss: Number(tss),
-        oilGrease: Number(oilGrease),
-        ammonia: Number(ammonia),
-        totalColiform: Number(totalColiform),
-      });
+      const idList = Object.values(liveEval.params)
+        .map((p) => p.standard?.id)
+        .filter((x): x is string => Boolean(x));
 
       const payload: Omit<DomesticWastewaterData, 'id'> = {
         date,
         facilityName: facilityName.trim(),
         locationCode: locationCode.trim() || undefined,
-        ph: Number(ph),
-        bod: Number(bod),
-        cod: Number(cod),
-        tss: Number(tss),
-        oilGrease: Number(oilGrease),
-        ammonia: Number(ammonia),
-        totalColiform: Number(totalColiform),
-        debitM3Day: Number(debitM3Day),
-        complianceStatus: evalRes.status,
-        standardId: evalRes.standardId,
-        standardBasis: evalRes.basis,
+        ph: phNum!,
+        bod: bodNum!,
+        cod: codNum!,
+        tss: tssNum!,
+        oilGrease: oilGreaseNum!,
+        ammonia: ammoniaNum!,
+        totalColiform: totalColiformNum!,
+        debitM3Day: debitM3DayNum!,
+        unitMap,
+        complianceStatus: liveEval.domesticStatus,
+        evaluationStatus: liveEval.overall,
+        evaluationReason: liveEval.evaluationReason,
+        standardId: idList.join(',').slice(0, 120) || undefined,
+        standardBasis: liveEval.standardsBasis.slice(0, 280),
         officer: officer.trim(),
         notes: notes.trim() || undefined,
+        ...(editingId && correctionReason.trim() ? { correctionReason: correctionReason.trim() } : {}),
       };
       if (editingId) {
         await domesticWastewaterService.update(editingId, payload);
@@ -292,15 +314,17 @@ export default function DomesticWastewaterView({
         Tanggal: d.date,
         'Fasilitas IPAL': d.facilityName,
         'Kode Lokasi': d.locationCode || '-',
-        pH: d.ph,
-        'BOD (mg/L)': d.bod,
-        'COD (mg/L)': d.cod,
-        'TSS (mg/L)': d.tss,
-        'Minyak & Lemak (mg/L)': d.oilGrease,
-        'Amonia (mg/L)': d.ammonia,
-        'Total Coliform (MPN/100mL)': d.totalColiform,
-        'Debit (m3/hari)': d.debitM3Day,
+        pH: d.ph ?? '-',
+        'BOD (mg/L)': d.bod ?? '-',
+        'COD (mg/L)': d.cod ?? '-',
+        'TSS (mg/L)': d.tss ?? '-',
+        'Minyak & Lemak (mg/L)': d.oilGrease ?? '-',
+        'Amonia (mg/L)': d.ammonia ?? '-',
+        'Total Coliform (MPN/100mL)': d.totalColiform ?? '-',
+        'Debit (m3/hari)': d.debitM3Day ?? '-',
         Status: d.complianceStatus,
+        'Kesimpulan Evaluasi': d.evaluationStatus || d.complianceStatus,
+        'Alasan Evaluasi': d.evaluationReason || '-',
         'Dasar Baku Mutu': d.standardBasis || '-',
         Petugas: d.officer,
       })),
@@ -308,7 +332,7 @@ export default function DomesticWastewaterView({
     );
   };
 
-  const masterCount = Object.keys(activeDomesticStandards).length;
+  const masterCount = Object.keys(verifiedDomesticStandards).length;
 
   return (
     <div className="space-y-6 animate-fade-in text-text-hi text-left">
@@ -390,18 +414,11 @@ export default function DomesticWastewaterView({
             Baku Mutu Aktif &amp; Terverifikasi ({masterCount} Parameter — Koleksi standards)
           </div>
           <div className="flex flex-wrap gap-2">
-            {Object.values(activeDomesticStandards).map((s) => (
+            {Object.values(verifiedDomesticStandards).map((s) => (
               <div key={s.id} className="px-3 py-1.5 rounded-xl bg-bg-2/80 border border-border-neon text-xs">
                 <span className="font-bold text-text-hi">{s.parameterLabel}:</span>{' '}
                 <span className="font-mono text-neon-green font-semibold tabular-nums">
-                  {s.minLimit !== null && s.minLimit !== undefined && s.maxLimit !== null && s.maxLimit !== undefined
-                    ? `${s.minLimit}–${s.maxLimit}`
-                    : s.maxLimit !== null && s.maxLimit !== undefined
-                    ? `≤ ${s.maxLimit}`
-                    : s.minLimit !== null && s.minLimit !== undefined
-                    ? `≥ ${s.minLimit}`
-                    : 'Pantau'}{' '}
-                  {s.unit}
+                  {formatStandardLimitDisplay(s)} {s.unit}
                 </span>
               </div>
             ))}
@@ -427,6 +444,9 @@ export default function DomesticWastewaterView({
             <option value="Memenuhi">Memenuhi</option>
             <option value="Warning">Warning</option>
             <option value="Tidak Memenuhi">Tidak Memenuhi</option>
+            <option value="Data Tidak Lengkap">Data Tidak Lengkap</option>
+            <option value="Belum Dievaluasi">Belum Dievaluasi</option>
+            <option value="Tidak Berlaku">Tidak Berlaku</option>
             <option value="Belum Ada Baku Mutu">Belum Ada Baku Mutu</option>
           </select>
         </div>
@@ -470,18 +490,23 @@ export default function DomesticWastewaterView({
                         {item.locationCode || '-'} · {item.officer}
                       </div>
                     </td>
-                    <td className="p-3.5 text-right text-text-hi">{item.ph}</td>
-                    <td className="p-3.5 text-right text-text-hi">{item.bod}</td>
-                    <td className="p-3.5 text-right text-text-hi">{item.cod}</td>
-                    <td className="p-3.5 text-right text-text-hi">{item.tss}</td>
-                    <td className="p-3.5 text-right text-text-hi">{item.oilGrease}</td>
-                    <td className="p-3.5 text-right text-text-hi">{item.ammonia}</td>
-                    <td className="p-3.5 text-right text-text-hi">{item.totalColiform.toLocaleString('id-ID')}</td>
-                    <td className="p-3.5 text-center font-sans">
+                    <td className="p-3.5 text-right text-text-hi">{formatLocaleNumberStrict(item.ph, 1, 2)}</td>
+                    <td className="p-3.5 text-right text-text-hi">{formatLocaleNumberStrict(item.bod, 1, 2)}</td>
+                    <td className="p-3.5 text-right text-text-hi">{formatLocaleNumberStrict(item.cod, 1, 2)}</td>
+                    <td className="p-3.5 text-right text-text-hi">{formatLocaleNumberStrict(item.tss, 0, 1)}</td>
+                    <td className="p-3.5 text-right text-text-hi">{formatLocaleNumberStrict(item.oilGrease, 1, 2)}</td>
+                    <td className="p-3.5 text-right text-text-hi">{formatLocaleNumberStrict(item.ammonia, 1, 2)}</td>
+                    <td className="p-3.5 text-right text-text-hi">{formatLocaleNumberStrict(item.totalColiform, 0, 0)}</td>
+                    <td className="p-3.5 text-center font-sans" title={item.evaluationReason || undefined}>
                       <StatusBadge
-                        status={item.complianceStatus === 'Belum Ada Baku Mutu' ? 'Perlu Verifikasi' : item.complianceStatus}
-                        label={item.complianceStatus}
+                        status={item.evaluationStatus || item.complianceStatus}
+                        label={item.evaluationStatus || item.complianceStatus}
                       />
+                      {item.evaluationReason && (
+                        <span className="block text-[9px] text-text-low mt-0.5 max-w-[160px] truncate mx-auto">
+                          {item.evaluationReason}
+                        </span>
+                      )}
                     </td>
                     <td className="p-3.5 text-center pr-5 font-sans">
                       <div className="flex items-center justify-center gap-1">
@@ -547,50 +572,74 @@ export default function DomesticWastewaterView({
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">pH *</label>
-                    <input type="number" step="0.01" required value={ph} onChange={(e) => setPh(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                    <input type="text" inputMode="decimal" required placeholder="cth: 7.1" value={phStr} onChange={(e) => setPhStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">BOD (mg/L) *</label>
-                    <input type="number" step="0.01" min="0" required value={bod} onChange={(e) => setBod(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                    <input type="text" inputMode="decimal" required placeholder="cth: 12" value={bodStr} onChange={(e) => setBodStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">COD (mg/L) *</label>
-                    <input type="number" step="0.01" min="0" required value={cod} onChange={(e) => setCod(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                    <input type="text" inputMode="decimal" required placeholder="cth: 35" value={codStr} onChange={(e) => setCodStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">TSS (mg/L) *</label>
-                    <input type="number" step="0.01" min="0" required value={tss} onChange={(e) => setTss(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                    <input type="text" inputMode="decimal" required placeholder="cth: 15" value={tssStr} onChange={(e) => setTssStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Minyak &amp; Lemak (mg/L) *</label>
-                    <input type="number" step="0.01" min="0" required value={oilGrease} onChange={(e) => setOilGrease(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                    <input type="text" inputMode="decimal" required placeholder="cth: 1.5" value={oilGreaseStr} onChange={(e) => setOilGreaseStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Amonia (mg/L) *</label>
-                    <input type="number" step="0.01" min="0" required value={ammonia} onChange={(e) => setAmmonia(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                    <input type="text" inputMode="decimal" required placeholder="cth: 2.0" value={ammoniaStr} onChange={(e) => setAmmoniaStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Total Coliform (MPN/100mL) *</label>
-                    <input type="number" step="1" min="0" required value={totalColiform} onChange={(e) => setTotalColiform(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                    <input type="text" inputMode="numeric" required placeholder="cth: 450" value={totalColiformStr} onChange={(e) => setTotalColiformStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Debit (m³/hari) *</label>
-                    <input type="number" step="0.01" min="0" required value={debitM3Day} onChange={(e) => setDebitM3Day(Number(e.target.value))} className="w-full px-3 py-2 text-xs font-mono" />
+                    <input type="text" inputMode="decimal" required placeholder="cth: 18.5" value={debitM3DayStr} onChange={(e) => setDebitM3DayStr(e.target.value)} className="w-full px-3 py-2 text-xs font-mono" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Petugas / Lab Penguji *</label>
                     <input type="text" required value={officer} onChange={(e) => setOfficer(e.target.value)} className="w-full px-3 py-2 text-xs" />
                   </div>
                 </div>
+                {editingId && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-neon-amber uppercase mb-1">Alasan Koreksi Data *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Jelaskan alasan koreksi untuk jejak audit..."
+                      value={correctionReason}
+                      onChange={(e) => setCorrectionReason(e.target.value)}
+                      className="w-full px-3 py-2 text-xs"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-[11px] font-bold text-text-mid uppercase mb-1">Catatan (Opsional)</label>
                   <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 text-xs resize-none" />
+                </div>
+                <div className="p-3 rounded-xl border bg-bg-2/60 border-border-subtle space-y-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] text-text-mid font-semibold">Evaluasi Otomatis ({liveEval.standardsBasis}):</span>
+                    <StatusBadge size="sm" status={liveEval.overall} label={liveEval.overall} />
+                  </div>
+                  <p className="text-[11px] text-text-mid">{liveEval.evaluationReason}</p>
                 </div>
                 <div className="flex justify-end gap-2 pt-3 border-t border-border-subtle">
                   <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-xs text-text-mid hover:text-text-hi cursor-pointer">
                     Batal
                   </button>
-                  <button type="submit" disabled={isSaving} className="neon-btn-primary px-5 py-2 text-xs rounded-xl cursor-pointer">
+                  <button
+                    type="submit"
+                    disabled={isSaving || !areAllDomesticNumbersValid}
+                    className="neon-btn-primary px-5 py-2 text-xs rounded-xl cursor-pointer disabled:opacity-50"
+                  >
                     {isSaving ? 'Menyimpan...' : 'Simpan Data'}
                   </button>
                 </div>

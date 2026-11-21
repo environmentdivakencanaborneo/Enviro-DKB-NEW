@@ -1,6 +1,42 @@
 # Changelog — DEM (Diva Enviro Monitor)
 
-Seluruh perubahan utama hingga versi **3.0.0** pada proyek **DEM — Diva Enviro Monitor** (PT Diva Kencana Borneo).
+Seluruh perubahan utama hingga versi **3.1.0 (Remediasi Audit Menyeluruh P0/P1/P2)** pada proyek **DEM — Diva Enviro Monitor** (PT Diva Kencana Borneo).
+
+---
+
+## [3.1.0] — 2026-11-15 (Remediasi Audit Keamanan, Kepatuhan & Integritas Data)
+
+### 1. Prioritas P0 — Perbaikan Kritis Keamanan & Integritas Data
+- **[P0.1] Antitesis Coercion Nol & Evaluasi Kepatuhan 5-Status (`waterQualityEval.ts`, `MonitoringView.tsx`, `DomesticWastewaterView.tsx`, `DashboardView.tsx`, `ReportsView.tsx`, `evidenceCalc.ts`, `exportService.ts`)**:
+  - Mengganti seluruh `parseFloat(...) || 0` dengan `parseStrictNumber` (mengembalikan `null` untuk kosong/`NaN`/`Infinity`).
+  - Menerapkan kesimpulan eksplisit `MEMENUHI`, `TIDAK MEMENUHI`, `DATA TIDAK LENGKAP`, `BELUM DIEVALUASI`, dan `TIDAK BERLAKU`.
+  - Menghapus fallback regulasi keras dan mewajibkan kesesuaian satuan (`unitMap`).
+- **[P0.2] Baku Mutu Dinamis Berbasis Titik Penaatan, Tanggal & Verifikasi Resmi (`regulations.ts`, `StandardsConfigModal.tsx`, `StandardsMasterView.tsx`, `migrations.ts`)**:
+  - Menghapus nilai TSS 150 mg/L / 300 mg/L yang sebelumnya ditetapkan sepihak pada kode tanpa nomor SK terverifikasi (`STD-WW-PERTEK-2025-TSS` dibiarkan `maxLimit: null`, `verificationStatus: 'Perlu verifikasi'`, `effectiveStatus: 'MENUNGGU VERIFIKASI'`).
+  - Menambahkan lifecycle `DRAFT | MENUNGGU VERIFIKASI | BERLAKU | DIUBAH | DICABUT`, `locationCode`, `effectiveFrom`/`effectiveTo`, `applicable`, dan `revisionHistory` di `/standards/{id}`.
+- **[P0.3] Hardening Firebase Auth & Firestore Rules Revisi 06 (`authService.tsx`, `AuthView.tsx`, `permissionService.ts`, `firestore.rules`, `App.tsx`)**:
+  - Menegakkan gerbang ganda `emailVerified`, `isActiveApproved()` (`status === 'Active' && isApproved === true && isActive !== false && deleted !== true`), serta blokir akun `Suspended`/`Pending`/`Disabled`/`Rejected`/`Deleted`.
+  - Memisahkan akun *break-glass*, menolak *self-approval* & *self-escalation* pada `/users/{uid}` dan `/roles/{email}`, serta mengunci QR publik `/evidence_verify/{token}` dengan `allow list: if false`.
+- **[P0.4] Penguatan Audit Trail (`auditService.ts`, `dbService.ts`, `firestore.rules`)**:
+  - Mengembalikan `AuditWriteResult` eksplisit (`success`/`error`) dengan notifikasi peringatan bila audit gagal, serta mencatat `beforeData`, `afterData`, `correctionReason`, dan `module` ke `/audit_logs` (*immutable append-only* dengan `keys().hasOnly`).
+  - *Catatan*: Pencegahan bypass total oleh klien yang dimodifikasi tetap memerlukan implementasi Cloud Functions backend tepercaya.
+- **[P0.5] Penggantian `alert()` / `window.open()` dengan Toast & Safe UI (`MonitoringView.tsx`, `WasteB3View.tsx`, `RegulatoryWatchView.tsx`, `SettingsModals.tsx`)**: Mengganti panggilan `alert()` yang tersisa dengan `triggerToast()`.
+
+### 2. Prioritas P1 — Konsistensi Domain & Akurasi Perhitungan
+- **[P1.1] Masa Simpan Limbah B3 per Jenis & Ledger Historis (`wasteCatalog.ts`, `wasteLedger.ts`, `WasteB3View.tsx`, `dbService.ts`)**:
+  - Mengganti asumsi seragam 90 hari dengan katalog per jenis limbah (`90 / 180 / 365 hari` beserta flag `PERLU VERIFIKASI` sebelum cek Rintek TPS).
+  - Menambahkan filter `asOfDate` historis serta blokir stok negatif tanpa otorisasi `Superintendent+` dan alasan koreksi minimal 5 karakter.
+- **[P1.2] Integritas Perhitungan Emisi GRK (`ghgCalc.ts`, `GhgInventoryView.tsx`, `dbService.ts`, `exportService.ts`)**:
+  - Faktor emisi disaring ketat berdasarkan kategori, satuan, dan tahun berlaku (`effectiveYear <= reportingYear`).
+  - Faktor kosong menghasilkan `emissionsTco2e: null` dan `BELUM TERHITUNG` (bukan `0`), serta menyimpan snapshot faktor lengkap pada aktivitas sehingga pembaruan master tidak mengubah riwayat historis.
+- **[P1.3] Enkripsi Backup AES-256-GCM & Laporan Restore Non-Atomik (`collections.ts`, `backupService.ts`, `SettingsModals.tsx`)**:
+  - Menginventarisasi seluruh 32 koleksi di `BACKUP_INVENTORY`, mengenkripsi cadangan lokal & Drive dengan `AES-256-GCM` + `PBKDF2-SHA256` + `SHA-256`, mengecualikan koleksi sistem pada `RESTORE_EXCLUDED_COLLECTIONS`, dan menyajikan laporan gagal/parsial secara jujur untuk mode `merge` dan `replace`.
+- **[P1.4] Integritas Regulatory Watch & Validasi Kalender (`validation.ts`, `RegulatoryWatchView.tsx`, `regulations.ts`)**:
+  - Menghapus asumsi tanggal terbit/berlaku pada regulasi 2025–2026 yang belum terverifikasi (`MENUNGGU VERIFIKASI`, `issueDate: ''`), memisahkan tanggal penetapan/pengundangan/berlaku, serta menambahkan validator kalender ketat `isValidCalendarDate` dan anti-`NaN`/`Infinity`.
+
+### 3. Prioritas P2 & Pengujian Otomatis (`tests/*.test.ts`)
+- **[P2.1–P2.3] Isolasi Cache Lokal & Konsistensi UI (`googleSync.ts`, `authService.tsx`, `StatusBadge.tsx`, `PublicVerifyView.tsx`)**: Menambahkan namespace `uid` dan TTL 12 jam pada cache lokal, pembersihan menyeluruh saat logout, serta badge eksplisit untuk `Data Tidak Lengkap`, `Belum Dievaluasi`, `Perlu Verifikasi`, dan `Tidak Berlaku`.
+- **[Section 7] Penambahan 6 Suite Pengujian Otomatis (`tests/*.test.ts`)**: Pengujian unit & integrasi untuk `waterQualityEval`, `wasteLedger`, `ghgCalc`, `backupService` (AES-256-GCM + merge/replace/mid-failure), `validation`/`permissionService`, serta verifikasi invarian statis `firestore.rules`.
 
 ---
 

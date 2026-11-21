@@ -4,22 +4,25 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { 
-  EvidenceReport, 
-  DailyEvidenceSnapshot, 
-  WastewaterData, 
-  WastewaterPhoto 
+import {
+  EvidenceReport,
+  DailyEvidenceSnapshot,
+  WastewaterData,
+  WastewaterPhoto,
+  EnvironmentalStandard,
+  InternalThresholdsConfig,
 } from '../../types';
 import EvidenceShell from './EvidenceShell';
 import { formatDateLocalIndonesian } from '../../utils/dateUtils';
 import { buildDailyEvidence, DEBIT_STATUS_LABEL } from '../../utils/evidenceCalc';
 import { generateQrDataUrl } from '../../utils/qr';
 import { waterQualityService } from '../../services/dbService';
-import { 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle, 
-  Image as ImageIcon 
+import {
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Image as ImageIcon,
+  HelpCircle,
 } from 'lucide-react';
 
 interface DailyEvidenceDocumentProps {
@@ -28,6 +31,8 @@ interface DailyEvidenceDocumentProps {
   locationName?: string;
   locationCode?: string;
   preloadedPhoto?: WastewaterPhoto | null;
+  standards?: EnvironmentalStandard[];
+  internalThresholds?: InternalThresholdsConfig;
 }
 
 export default function DailyEvidenceDocument({
@@ -36,13 +41,15 @@ export default function DailyEvidenceDocument({
   locationName = 'KPL Tambang Blok Utara',
   locationCode = 'KPL-01',
   preloadedPhoto,
+  standards,
+  internalThresholds,
 }: DailyEvidenceDocumentProps) {
   const [photoData, setPhotoData] = useState<WastewaterPhoto | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
 
   // Use snapshot if document has been published (not Draft), otherwise compute live from currentRecord
   const isPublished = Boolean(report && report.status !== 'Draft');
-  
+
   const snapshot: DailyEvidenceSnapshot = isPublished && report?.snapshot
     ? (report.snapshot as DailyEvidenceSnapshot)
     : (() => {
@@ -51,6 +58,8 @@ export default function DailyEvidenceDocument({
           locationCode: rec.locationCode || locationCode,
           locationName: locationName,
           date: rec.date,
+          standards,
+          thresholds: internalThresholds,
         });
 
         return {
@@ -67,6 +76,8 @@ export default function DailyEvidenceDocument({
           params: evalRes.params,
           overall: evalRes.overall,
           failedParams: evalRes.failedParams,
+          incompleteParams: evalRes.incompleteParams,
+          unverifiedParams: evalRes.unverifiedParams,
           conclusionText: evalRes.conclusionText,
           standardsBasis: evalRes.standardsBasis,
           followUpAction: report?.followUpAction,
@@ -117,6 +128,8 @@ export default function DailyEvidenceDocument({
 
   const activePhoto = photoData;
   const isOverallPassed = snapshot.overall === 'MEMENUHI';
+  const isOverallFailed = snapshot.overall === 'TIDAK MEMENUHI';
+  const isOverallNotApplicable = snapshot.overall === 'TIDAK BERLAKU';
 
   return (
     <div className="evidence-print-root">
@@ -216,10 +229,22 @@ export default function DailyEvidenceDocument({
               {snapshot.params.map((p, idx) => {
                 const isFailed = p.status === 'tidak_memenuhi';
                 const isWarning = p.status === 'mendekati';
-                const isDebit = p.key === 'debit';
+                const isIncomplete = p.status === 'data_tidak_lengkap';
+                const isUnverified = p.status === 'belum_dievaluasi';
+                const isNotApplicable = p.status === 'tidak_berlaku';
+                const isMonitored = p.status === 'dipantau' || p.key === 'debit';
 
                 return (
-                  <tr key={p.key} className={isFailed ? 'bg-red-50/50' : ''}>
+                  <tr
+                    key={p.key}
+                    className={
+                      isFailed
+                        ? 'bg-red-50/50'
+                        : isIncomplete || isUnverified
+                        ? 'bg-amber-50/40'
+                        : ''
+                    }
+                  >
                     <td className="py-1.5 px-3 text-center border-r border-slate-200 font-mono text-slate-500">
                       {idx + 1}
                     </td>
@@ -236,13 +261,25 @@ export default function DailyEvidenceDocument({
                       {p.limitDisplay || '-'}
                     </td>
                     <td className="py-1.5 px-3 text-center">
-                      {isDebit ? (
-                        <span className="inline-block px-2 py-0.5 text-[9px] font-semibold rounded bg-slate-100 text-slate-700">
-                          {DEBIT_STATUS_LABEL}
-                        </span>
-                      ) : isFailed ? (
+                      {isFailed ? (
                         <span className="inline-block px-2 py-0.5 text-[9px] font-black rounded bg-red-100 text-red-800 border border-red-300">
                           TIDAK MEMENUHI
+                        </span>
+                      ) : isIncomplete ? (
+                        <span className="inline-block px-2 py-0.5 text-[9px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">
+                          DATA TIDAK LENGKAP
+                        </span>
+                      ) : isUnverified ? (
+                        <span className="inline-block px-2 py-0.5 text-[9px] font-bold rounded bg-amber-100 text-amber-900 border border-amber-300">
+                          BELUM DIEVALUASI
+                        </span>
+                      ) : isNotApplicable ? (
+                        <span className="inline-block px-2 py-0.5 text-[9px] font-semibold rounded bg-slate-100 text-slate-600 border border-slate-300">
+                          TIDAK BERLAKU
+                        </span>
+                      ) : isMonitored ? (
+                        <span className="inline-block px-2 py-0.5 text-[9px] font-semibold rounded bg-slate-100 text-slate-700">
+                          {DEBIT_STATUS_LABEL}
                         </span>
                       ) : (
                         <div className="inline-flex flex-col items-center">
@@ -340,27 +377,33 @@ export default function DailyEvidenceDocument({
           className={`border rounded p-3 ${
             isOverallPassed
               ? 'border-emerald-300 bg-emerald-50/40'
-              : 'border-red-300 bg-red-50/40'
+              : isOverallFailed
+              ? 'border-red-300 bg-red-50/40'
+              : isOverallNotApplicable
+              ? 'border-slate-300 bg-slate-50'
+              : 'border-amber-300 bg-amber-50/40'
           }`}
         >
           <div className="flex items-start gap-2.5">
             <div className="shrink-0 mt-0.5">
               {isOverallPassed ? (
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              ) : (
+              ) : isOverallFailed ? (
                 <XCircle className="w-5 h-5 text-red-600" />
+              ) : (
+                <HelpCircle className="w-5 h-5 text-amber-600" />
               )}
             </div>
             <div className="flex-1">
               <span className="font-extrabold text-[11px] uppercase tracking-wide block mb-0.5 text-slate-800">
-                D. KESIMPULAN KEPATUHAN HARIAN
+                D. KESIMPULAN KEPATUHAN HARIAN ({snapshot.overall})
               </span>
               <p className="text-[10.5px] leading-relaxed text-slate-800">
                 {snapshot.conclusionText}
               </p>
 
               {/* Tindak Lanjut bila TIDAK MEMENUHI */}
-              {!isOverallPassed && (
+              {isOverallFailed && (
                 <div className="mt-2.5 p-2 bg-white rounded border border-red-200">
                   <span className="font-bold text-[10px] text-red-700 uppercase flex items-center gap-1 mb-1">
                     <AlertCircle className="w-3.5 h-3.5" />
@@ -368,6 +411,21 @@ export default function DailyEvidenceDocument({
                   </span>
                   <p className="text-[10.5px] text-slate-800 font-medium">
                     {snapshot.followUpAction || 'Belum diisi. Wajib dilengkapi sebelum penerbitan dokumen.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Keterangan bila DATA TIDAK LENGKAP atau BELUM DIEVALUASI */}
+              {!isOverallPassed && !isOverallFailed && !isOverallNotApplicable && (
+                <div className="mt-2.5 p-2 bg-white rounded border border-amber-200">
+                  <span className="font-bold text-[10px] text-amber-800 uppercase flex items-center gap-1 mb-0.5">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Catatan Verifikasi / Kelengkapan:
+                  </span>
+                  <p className="text-[10px] text-slate-700">
+                    {snapshot.overall === 'DATA TIDAK LENGKAP'
+                      ? 'Lengkapi parameter pengujian dan pastikan satuan sesuai Master Baku Mutu sebelum menyimpulkan kepatuhan.'
+                      : 'Lakukan verifikasi nilai ambang batas pada Master Baku Mutu (SK Pertek resmi) agar evaluasi kepatuhan dapat ditetapkan.'}
                   </p>
                 </div>
               )}

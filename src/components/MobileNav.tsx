@@ -165,11 +165,6 @@ export default function MobileNav({
                                 : 'bg-bg-2/70 border-border-subtle hover:border-border-neon text-text-mid hover:text-text-hi'
                             }`}
                           >
-                            {tab.isNew && (
-                              <span className="absolute top-2 right-2 text-[8px] font-bold px-1.5 py-0.5 rounded bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/35 uppercase font-mono">
-                                BARU
-                              </span>
-                            )}
                             <Icon size={20} className={isActive ? 'text-neon-cyan' : 'text-text-mid'} />
                             <span className="text-[11px] font-semibold tracking-wide text-center leading-tight">
                               {tab.name}

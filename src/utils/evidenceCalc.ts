@@ -3,13 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { WastewaterData, EvidenceParamResult } from '../types';
-import { 
-  WASTEWATER_STANDARDS, 
-  WASTEWATER_BASIS_LABEL, 
-  WARNING_RATIO 
-} from '../data/regulations';
+import type {
+  ComplianceConclusion,
+  EnvironmentalStandard,
+  EvidenceParamEvalStatus,
+  EvidenceParamResult,
+  InternalThresholdsConfig,
+  MonthlyDayItem,
+  WastewaterData,
+} from '../types';
+import { INITIAL_STANDARDS_SEED, WASTEWATER_STANDARDS } from '../data/regulations';
 import { formatDateLocalIndonesian, getTimeMs } from './dateUtils';
+import {
+  DEFAULT_INTERNAL_THRESHOLDS_VALUE,
+  evaluateSampleCompliance,
+  formatLocaleNumberStrict,
+  parseStrictNumber,
+} from './waterQualityEval';
 
 export const DEBIT_STATUS_LABEL = 'DIPANTAU';
 
@@ -17,141 +27,123 @@ export interface DailyEvidenceCalcContext {
   locationCode?: string;
   locationName?: string;
   date?: string; // YYYY-MM-DD
+  standards?: EnvironmentalStandard[];
+  thresholds?: InternalThresholdsConfig;
 }
 
 export interface DailyEvidenceResult {
   params: EvidenceParamResult[];
-  overall: 'MEMENUHI' | 'TIDAK MEMENUHI';
+  overall: ComplianceConclusion;
   failedParams: string[];
+  incompleteParams: string[];
+  unverifiedParams: string[];
   conclusionText: string;
   standardsBasis: string;
 }
 
-/**
- * Format angka ke format bahasa Indonesia (desimal koma) dengan menjaga presisi input
- * tanpa membulatkan lebih kasar dari standar.
- */
-export function formatLocaleNumber(num: number, minDec = 1, maxDec = 3): string {
-  if (typeof num !== 'number' || isNaN(num)) return '-';
-  const str = String(num);
-  const rawDecimals = str.includes('.') ? str.split('.')[1].length : 0;
-  const targetDec = Math.max(minDec, Math.min(maxDec, rawDecimals));
-  return num.toLocaleString('id-ID', {
-    minimumFractionDigits: minDec,
-    maximumFractionDigits: targetDec,
-  });
+export function formatLocaleNumber(num: number | null | undefined, minDec = 1, maxDec = 3): string {
+  return formatLocaleNumberStrict(num, minDec, maxDec);
 }
 
 /**
- * Evaluasi satu parameter air limbah terhadap baku mutu dengan batasan inklusif.
- * - pH: 6.0 - 9.0 (inklusif). 9.0 = memenuhi, 9.01 = tidak_memenuhi.
- * - TSS: maks 300 mg/L. 300 = memenuhi, 301 = tidak_memenuhi. > 255 = mendekati.
- * - Fe: maks 7.0 mg/L. 7.0 = memenuhi, 7.01 = tidak_memenuhi. > 5.95 = mendekati.
- * - Mn: maks 4.0 mg/L. 4.0 = memenuhi, 4.01 = tidak_memenuhi. > 3.4 = mendekati.
- * - Debit: status 'dipantau', tidak diuji terhadap baku mutu.
+ * Evaluasi satu parameter air limbah melalui engine baku mutu dinamis.
  */
 export function evaluateEvidenceParam(
   key: string,
-  value: number
-): { status: 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau'; note?: string } {
-  if (key === 'debit') {
-    return { status: 'dipantau' };
+  value: unknown,
+  ctx?: {
+    standards?: EnvironmentalStandard[];
+    thresholds?: InternalThresholdsConfig;
+    locationCode?: string;
+    sampleDate?: string;
+    unitMap?: Record<string, string>;
   }
-
-  if (key === 'ph') {
-    if (value < 6.0 || value > 9.0) {
-      return { status: 'tidak_memenuhi' };
+): { status: EvidenceParamEvalStatus; note?: string; limitDisplay?: string; unit?: string } {
+  const standards =
+    ctx?.standards !== undefined
+      ? ctx.standards
+      : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+  const res = evaluateSampleCompliance(
+    'air_limbah',
+    {
+      [key]: value,
+      date: ctx?.sampleDate,
+      locationCode: ctx?.locationCode,
+    },
+    {
+      standards,
+      thresholds: ctx?.thresholds ?? DEFAULT_INTERNAL_THRESHOLDS_VALUE,
+      locationCode: ctx?.locationCode,
+      sampleDate: ctx?.sampleDate,
+      unitMap: ctx?.unitMap,
     }
-    if (value < 6.3 || value > 8.7) {
-      return { status: 'mendekati', note: 'mendekati batas' };
-    }
-    return { status: 'memenuhi' };
-  }
-
-  if (key === 'tss') {
-    if (value > 300) {
-      return { status: 'tidak_memenuhi' };
-    }
-    if (value > 300 * WARNING_RATIO) {
-      return { status: 'mendekati', note: 'mendekati batas' };
-    }
-    return { status: 'memenuhi' };
-  }
-
-  if (key === 'fe') {
-    if (value > 7.0) {
-      return { status: 'tidak_memenuhi' };
-    }
-    if (value > 7.0 * WARNING_RATIO) {
-      return { status: 'mendekati', note: 'mendekati batas' };
-    }
-    return { status: 'memenuhi' };
-  }
-
-  if (key === 'mn') {
-    if (value > 4.0) {
-      return { status: 'tidak_memenuhi' };
-    }
-    if (value > 4.0 * WARNING_RATIO) {
-      return { status: 'mendekati', note: 'mendekati batas' };
-    }
-    return { status: 'memenuhi' };
-  }
-
-  return { status: 'dipantau' };
+  );
+  const p = res.params[key];
+  return {
+    status: p?.status ?? 'belum_dievaluasi',
+    note: p?.note,
+    limitDisplay: p?.limitDisplay,
+    unit: p?.unit,
+  };
 }
 
 /**
- * Fungsi murni pembuat struktur evidence harian air limbah.
+ * Fungsi murni pembuat struktur evidence harian air limbah berbasis Master Baku Mutu dinamis.
  */
 export function buildDailyEvidence(
-  record: WastewaterData,
+  record: Partial<WastewaterData> & Record<string, any>,
   ctx?: DailyEvidenceCalcContext
 ): DailyEvidenceResult {
   const code = record.locationCode || ctx?.locationCode || 'KPL-01';
   const targetDate = record.date || ctx?.date || '';
-  const tanggalPanjang = formatDateLocalIndonesian(targetDate);
+  const tanggalPanjang = targetDate ? formatDateLocalIndonesian(targetDate) : '-';
+  const standards =
+    ctx?.standards !== undefined
+      ? ctx.standards
+      : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
 
-  const failedParams: string[] = [];
-
-  const params: EvidenceParamResult[] = WASTEWATER_STANDARDS.map((std) => {
-    const rawVal = Number((record as any)[std.key] ?? 0);
-    const evalResult = evaluateEvidenceParam(std.key, rawVal);
-
-    if (evalResult.status === 'tidak_memenuhi') {
-      failedParams.push(std.label);
-    }
-
-    const minDec = std.decimals?.min ?? 0;
-    const maxDec = std.decimals?.max ?? 3;
-    const displayVal = formatLocaleNumber(rawVal, minDec, maxDec);
-
-    return {
-      key: std.key,
-      label: std.label,
-      unit: std.unit,
-      value: rawVal,
-      display: displayVal,
-      limitDisplay: std.display,
-      status: evalResult.status,
-      note: evalResult.note,
-    };
+  const evalRes = evaluateSampleCompliance('air_limbah', record, {
+    standards,
+    thresholds: ctx?.thresholds ?? DEFAULT_INTERNAL_THRESHOLDS_VALUE,
+    locationCode: code,
+    sampleDate: targetDate,
+    standardId: record.standardId,
+    unitMap: record.unitMap,
   });
 
-  const overall: 'MEMENUHI' | 'TIDAK MEMENUHI' =
-    failedParams.length > 0 ? 'TIDAK MEMENUHI' : 'MEMENUHI';
+  const params: EvidenceParamResult[] = evalRes.paramList.map((p) => ({
+    key: p.key,
+    label: p.label,
+    unit: p.unit,
+    value: p.value,
+    display: p.display,
+    limitDisplay: p.limitDisplay,
+    status: p.status,
+    note: p.note,
+    basisRegulasi: p.standard?.basisRegulasi,
+  }));
 
-  const conclusionText =
-    overall === 'MEMENUHI'
-      ? `Hasil pemantauan air limbah pada titik ${code} tanggal ${tanggalPanjang} MEMENUHI BAKU MUTU sesuai ${WASTEWATER_BASIS_LABEL}.`
-      : `Hasil pemantauan air limbah pada titik ${code} tanggal ${tanggalPanjang} TIDAK MEMENUHI BAKU MUTU pada parameter: ${failedParams.join(', ')}.`;
+  let conclusionText = '';
+  if (evalRes.overall === 'MEMENUHI') {
+    conclusionText = `Hasil pemantauan air limbah pada titik ${code} tanggal ${tanggalPanjang} MEMENUHI BAKU MUTU sesuai ${evalRes.standardsBasis}.`;
+  } else if (evalRes.overall === 'TIDAK MEMENUHI') {
+    conclusionText = `Hasil pemantauan air limbah pada titik ${code} tanggal ${tanggalPanjang} TIDAK MEMENUHI BAKU MUTU pada parameter: ${evalRes.failedParams.join(', ')}.`;
+  } else if (evalRes.overall === 'DATA TIDAK LENGKAP') {
+    conclusionText = `Hasil pemantauan air limbah pada titik ${code} tanggal ${tanggalPanjang} DATA TIDAK LENGKAP (${evalRes.incompleteParams.join(', ')}).`;
+  } else if (evalRes.overall === 'TIDAK BERLAKU') {
+    conclusionText = `Baku mutu pada titik ${code} tanggal ${tanggalPanjang} bertanda TIDAK BERLAKU sesuai konfigurasi standar titik pemantauan.`;
+  } else {
+    conclusionText = `Hasil pemantauan air limbah pada titik ${code} tanggal ${tanggalPanjang} BELUM DIEVALUASI karena standar parameter belum diverifikasi/ditetapkan (${evalRes.unverifiedParams.join(', ') || 'standar aktif belum tersedia'}).`;
+  }
 
   return {
     params,
-    overall,
-    failedParams,
+    overall: evalRes.overall,
+    failedParams: evalRes.failedParams,
+    incompleteParams: evalRes.incompleteParams,
+    unverifiedParams: evalRes.unverifiedParams,
     conclusionText,
-    standardsBasis: WASTEWATER_BASIS_LABEL,
+    standardsBasis: evalRes.standardsBasis,
   };
 }
 
@@ -159,7 +151,6 @@ export function buildDailyEvidence(
  * Memilih catatan sumber harian untuk kombinasi (titik, tanggal):
  * - Hanya monitoringType === 'Harian'
  * - Bila ada lebih dari satu (data lama ganda), pilih yang createdAt terakhir.
- * - Mengembalikan catatan terpilih dan pesan peringatan bila ganda.
  */
 export function selectDailyRecord(
   records: WastewaterData[],
@@ -188,7 +179,6 @@ export function selectDailyRecord(
     return { selected: matching[0], count: 1, duplicateWarning: null };
   }
 
-  // Multiple records exist: pick latest by createdAt or array index
   const sorted = [...matching].sort((a, b) => {
     const tA = getTimeMs(a.createdAt);
     const tB = getTimeMs(b.createdAt);
@@ -209,52 +199,88 @@ export interface MonthlyDayEvidence {
   record?: WastewaterData;
   dailyEvidence?: ReturnType<typeof buildDailyEvidence>;
   duplicateCount: number;
-  status: 'memenuhi' | 'tidak_memenuhi' | 'tanpa_data';
+  status: MonthlyDayItem['status'];
 }
 
 export interface MonthlyRecapResult {
   daysInMonth: number;
   days: MonthlyDayEvidence[];
-  stats: Record<'ph' | 'tss' | 'debit' | 'fe' | 'mn', {
-    min: number | null;
-    avg: number | null;
-    max: number | null;
-    status: 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau';
-    exceedDays: number;
-  }>;
+  stats: Record<
+    'ph' | 'tss' | 'debit' | 'fe' | 'mn',
+    {
+      min: number | null;
+      avg: number | null;
+      max: number | null;
+      status: EvidenceParamEvalStatus;
+      exceedDays: number;
+    }
+  >;
   samplingDays: number;
   passDays: number;
   failDays: number;
+  incompleteDays: number;
+  unevaluatedDays: number;
+  notApplicableDays: number;
   missingDays: string[];
-  compliancePct: number | null; // passDays / samplingDays * 100, 1 desimal; null bila samplingDays == 0
-  completenessPct: number; // samplingDays / daysInMonth * 100
-  overall: 'MEMENUHI' | 'TIDAK MEMENUHI' | 'BELUM ADA DATA';
+  compliancePct: number | null;
+  completenessPct: number;
+  overall: ComplianceConclusion | 'BELUM ADA DATA';
   failedParamKeys: string[];
   failedParamLabels: string[];
+  standardsBasis: string;
   conclusionText: string;
 }
 
 const INDO_MONTH_NAMES = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
 ];
 
+function conclusionToMonthlyDayStatus(overall: ComplianceConclusion): MonthlyDayItem['status'] {
+  if (overall === 'MEMENUHI') return 'memenuhi';
+  if (overall === 'TIDAK MEMENUHI') return 'tidak_memenuhi';
+  if (overall === 'DATA TIDAK LENGKAP') return 'data_tidak_lengkap';
+  if (overall === 'TIDAK BERLAKU') return 'tidak_berlaku';
+  return 'belum_dievaluasi';
+}
+
 /**
- * Fungsi murni pembuat struktur evidence bulanan (rekap) pemantauan air limbah.
+ * Fungsi murni pembuat struktur evidence bulanan (rekap) pemantauan air limbah
+ * menggunakan Master Baku Mutu dinamis (termasuk perubahan batas antar periode/titik).
  */
 export function buildMonthlyRecap(
   records: WastewaterData[],
   locationCode: string,
   year: number,
-  month: number
+  month: number,
+  ctx?: {
+    standards?: EnvironmentalStandard[];
+    thresholds?: InternalThresholdsConfig;
+  }
 ): MonthlyRecapResult {
   const daysInMonth = new Date(year, month, 0).getDate();
   const monthPad = String(month).padStart(2, '0');
   const monthName = INDO_MONTH_NAMES[month - 1] || `Bulan ${month}`;
   const periodLabel = `${monthName} ${year}`;
+  const standards =
+    ctx?.standards !== undefined
+      ? ctx.standards
+      : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
+  const thresholds = ctx?.thresholds ?? DEFAULT_INTERNAL_THRESHOLDS_VALUE;
 
   const days: MonthlyDayEvidence[] = [];
   const missingDays: string[] = [];
+  const basisUsed = new Set<string>();
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dayPad = String(d).padStart(2, '0');
@@ -263,14 +289,22 @@ export function buildMonthlyRecap(
     const { selected, count } = selectDailyRecord(records, locationCode, dateStr);
 
     if (selected) {
-      const dailyEvidence = buildDailyEvidence(selected, { locationCode, date: dateStr });
+      const dailyEvidence = buildDailyEvidence(selected, {
+        locationCode,
+        date: dateStr,
+        standards,
+        thresholds,
+      });
+      if (dailyEvidence.standardsBasis) {
+        basisUsed.add(dailyEvidence.standardsBasis);
+      }
       days.push({
         date: dateStr,
         dayNumber: d,
         record: selected,
         dailyEvidence,
         duplicateCount: count,
-        status: dailyEvidence.overall === 'MEMENUHI' ? 'memenuhi' : 'tidak_memenuhi',
+        status: conclusionToMonthlyDayStatus(dailyEvidence.overall),
       });
     } else {
       missingDays.push(dateStr);
@@ -286,14 +320,15 @@ export function buildMonthlyRecap(
   const samplingDays = days.filter((d) => d.record != null).length;
   const passDays = days.filter((d) => d.status === 'memenuhi').length;
   const failDays = days.filter((d) => d.status === 'tidak_memenuhi').length;
+  const incompleteDays = days.filter((d) => d.status === 'data_tidak_lengkap').length;
+  const unevaluatedDays = days.filter((d) => d.status === 'belum_dievaluasi').length;
+  const notApplicableDays = days.filter((d) => d.status === 'tidak_berlaku').length;
 
-  const compliancePct = samplingDays === 0
-    ? null
-    : Math.round((passDays / samplingDays) * 1000) / 10;
+  const compliancePct =
+    samplingDays === 0 ? null : Math.round((passDays / samplingDays) * 1000) / 10;
 
   const completenessPct = Math.round((samplingDays / daysInMonth) * 1000) / 10;
 
-  // Stats per parameter: 'ph' | 'tss' | 'debit' | 'fe' | 'mn'
   const paramKeys: ('ph' | 'tss' | 'debit' | 'fe' | 'mn')[] = ['ph', 'tss', 'debit', 'fe', 'mn'];
   const failedParamKeys: string[] = [];
   const failedParamLabels: string[] = [];
@@ -301,87 +336,125 @@ export function buildMonthlyRecap(
   const stats = {} as MonthlyRecapResult['stats'];
 
   for (const key of paramKeys) {
-    const std = WASTEWATER_STANDARDS.find((s) => s.key === key);
+    const stdMeta = WASTEWATER_STANDARDS.find((s) => s.key === key);
     const validVals: number[] = [];
     let exceedDays = 0;
     let hasMendekati = false;
+    let hasIncomplete = false;
+    let hasUnverified = false;
+    let hasNotApplicable = false;
+    let evaluatedPassCount = 0;
 
     for (const d of days) {
-      if (d.record && typeof (d.record as any)[key] === 'number') {
-        const val = Number((d.record as any)[key]);
-        validVals.push(val);
+      if (!d.record || !d.dailyEvidence) continue;
+      const pDetail = d.dailyEvidence.params.find((p) => p.key === key);
+      const parsed = parseStrictNumber((d.record as any)[key]);
+      if (parsed !== null) {
+        validVals.push(parsed);
+      }
 
-        if (key !== 'debit') {
-          const evalRes = evaluateEvidenceParam(key, val);
-          if (evalRes.status === 'tidak_memenuhi') {
-            exceedDays++;
-          } else if (evalRes.status === 'mendekati') {
-            hasMendekati = true;
-          }
-        }
+      if (!pDetail) {
+        hasUnverified = true;
+        continue;
+      }
+
+      if (pDetail.status === 'tidak_memenuhi') {
+        exceedDays++;
+      } else if (pDetail.status === 'mendekati') {
+        hasMendekati = true;
+        evaluatedPassCount++;
+      } else if (pDetail.status === 'memenuhi') {
+        evaluatedPassCount++;
+      } else if (pDetail.status === 'data_tidak_lengkap') {
+        hasIncomplete = true;
+      } else if (pDetail.status === 'belum_dievaluasi') {
+        hasUnverified = true;
+      } else if (pDetail.status === 'tidak_berlaku') {
+        hasNotApplicable = true;
       }
     }
 
-    if (validVals.length === 0) {
-      stats[key] = {
-        min: null,
-        avg: null,
-        max: null,
-        status: key === 'debit' ? 'dipantau' : 'memenuhi',
-        exceedDays: 0,
-      };
-    } else {
-      const min = Math.min(...validVals);
-      const max = Math.max(...validVals);
-      const sum = validVals.reduce((acc, curr) => acc + curr, 0);
-      const avg = sum / validVals.length;
+    const min = validVals.length > 0 ? Math.min(...validVals) : null;
+    const max = validVals.length > 0 ? Math.max(...validVals) : null;
+    const avg =
+      validVals.length > 0
+        ? validVals.reduce((acc, curr) => acc + curr, 0) / validVals.length
+        : null;
 
-      let paramStatus: 'memenuhi' | 'mendekati' | 'tidak_memenuhi' | 'dipantau' = 'memenuhi';
-      if (key === 'debit') {
-        paramStatus = 'dipantau';
-      } else if (exceedDays > 0) {
-        paramStatus = 'tidak_memenuhi';
-        failedParamKeys.push(key);
-        if (std) failedParamLabels.push(std.label);
-      } else if (hasMendekati) {
-        paramStatus = 'mendekati';
-      }
-
-      stats[key] = {
-        min,
-        avg,
-        max,
-        status: paramStatus,
-        exceedDays,
-      };
+    let paramStatus: EvidenceParamEvalStatus = 'belum_dievaluasi';
+    if (samplingDays === 0) {
+      paramStatus = key === 'debit' ? 'dipantau' : 'belum_dievaluasi';
+    } else if (exceedDays > 0) {
+      paramStatus = 'tidak_memenuhi';
+      failedParamKeys.push(key);
+      if (stdMeta) failedParamLabels.push(stdMeta.label);
+    } else if (hasIncomplete) {
+      paramStatus = 'data_tidak_lengkap';
+    } else if (hasUnverified) {
+      paramStatus = 'belum_dievaluasi';
+    } else if (hasMendekati) {
+      paramStatus = 'mendekati';
+    } else if (evaluatedPassCount > 0) {
+      paramStatus = 'memenuhi';
+    } else if (hasNotApplicable) {
+      paramStatus = 'tidak_berlaku';
+    } else if (key === 'debit') {
+      paramStatus = 'dipantau';
     }
+
+    stats[key] = {
+      min,
+      avg,
+      max,
+      status: paramStatus,
+      exceedDays,
+    };
   }
 
-  let overall: 'MEMENUHI' | 'TIDAK MEMENUHI' | 'BELUM ADA DATA' = 'BELUM ADA DATA';
+  let overall: MonthlyRecapResult['overall'] = 'BELUM ADA DATA';
   if (samplingDays === 0) {
     overall = 'BELUM ADA DATA';
   } else if (failDays > 0) {
     overall = 'TIDAK MEMENUHI';
-  } else {
+  } else if (incompleteDays > 0) {
+    overall = 'DATA TIDAK LENGKAP';
+  } else if (unevaluatedDays > 0) {
+    overall = 'BELUM DIEVALUASI';
+  } else if (passDays > 0) {
     overall = 'MEMENUHI';
+  } else if (notApplicableDays > 0) {
+    overall = 'TIDAK BERLAKU';
   }
 
-  // Generate conclusionText
+  const standardsBasis =
+    basisUsed.size > 0
+      ? Array.from(basisUsed).join(' | ')
+      : 'Belum ada standar baku mutu terverifikasi yang berlaku';
+
   let conclusionText = '';
   if (overall === 'BELUM ADA DATA') {
     conclusionText = `Belum terdapat data pemantauan air limbah pada titik ${locationCode} selama bulan ${periodLabel}.`;
   } else if (overall === 'MEMENUHI') {
-    conclusionText = `Rekapitulasi hasil pemantauan air limbah pada titik ${locationCode} selama bulan ${periodLabel} MEMENUHI BAKU MUTU sesuai ${WASTEWATER_BASIS_LABEL}.`;
-  } else {
-    const paramsListStr = failedParamLabels.length > 0 ? failedParamLabels.join(', ') : 'parameter uji';
+    conclusionText = `Rekapitulasi hasil pemantauan air limbah pada titik ${locationCode} selama bulan ${periodLabel} MEMENUHI BAKU MUTU sesuai ${standardsBasis}.`;
+  } else if (overall === 'TIDAK MEMENUHI') {
+    const paramsListStr =
+      failedParamLabels.length > 0 ? failedParamLabels.join(', ') : 'parameter uji';
     conclusionText = `Rekapitulasi hasil pemantauan air limbah pada titik ${locationCode} selama bulan ${periodLabel} TIDAK MEMENUHI BAKU MUTU pada ${failDays} dari ${samplingDays} hari sampling (parameter: ${paramsListStr}).`;
+  } else if (overall === 'DATA TIDAK LENGKAP') {
+    conclusionText = `Rekapitulasi hasil pemantauan air limbah pada titik ${locationCode} selama bulan ${periodLabel} berstatus DATA TIDAK LENGKAP pada ${incompleteDays} dari ${samplingDays} hari sampling.`;
+  } else if (overall === 'TIDAK BERLAKU') {
+    conclusionText = `Seluruh parameter pada titik ${locationCode} bulan ${periodLabel} bertanda TIDAK BERLAKU sesuai konfigurasi baku mutu.`;
+  } else {
+    conclusionText = `Rekapitulasi hasil pemantauan air limbah pada titik ${locationCode} selama bulan ${periodLabel} BELUM DIEVALUASI (${unevaluatedDays} dari ${samplingDays} hari menggunakan standar yang belum diverifikasi/ditetapkan).`;
   }
 
   if (missingDays.length > 0 && samplingDays > 0) {
-    const missingDaysFormatted = missingDays.map((md) => {
-      const dNum = parseInt(md.split('-')[2], 10);
-      return `${dNum} ${monthName}`;
-    }).join(', ');
+    const missingDaysFormatted = missingDays
+      .map((md) => {
+        const dNum = parseInt(md.split('-')[2], 10);
+        return `${dNum} ${monthName}`;
+      })
+      .join(', ');
     conclusionText += ` Tidak terdapat data pemantauan pada ${missingDays.length} hari: ${missingDaysFormatted}.`;
   }
 
@@ -392,12 +465,16 @@ export function buildMonthlyRecap(
     samplingDays,
     passDays,
     failDays,
+    incompleteDays,
+    unevaluatedDays,
+    notApplicableDays,
     missingDays,
     compliancePct,
     completenessPct,
     overall,
     failedParamKeys,
     failedParamLabels,
+    standardsBasis,
     conclusionText,
   };
 }

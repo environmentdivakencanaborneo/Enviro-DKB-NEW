@@ -4,11 +4,11 @@
  */
 
 import { auth } from '../utils/firebaseAuth';
-import { 
-  Role, 
-  DEFAULT_ROLE, 
-  normalizeRole, 
-  atLeast 
+import {
+  Role,
+  DEFAULT_ROLE,
+  normalizeRole,
+  atLeast,
 } from '../utils/roles';
 
 export type { Role };
@@ -33,16 +33,30 @@ export interface UserProfileLike {
   deleted?: boolean;
 }
 
+const BLOCKED_USER_STATUSES = new Set([
+  'Disabled',
+  'Deleted',
+  'Rejected',
+  'Suspended',
+  'Pending',
+]);
+
+/**
+ * Memastikan pengguna aktif DAN telah disetujui secara sah.
+ * Menolak kondisi OR yang dapat meloloskan status Active tanpa isApproved == true,
+ * serta menolak status Pending, Rejected, Suspended, Disabled, atau Deleted.
+ */
 export function isActiveApproved(profile: UserProfileLike | null | undefined): boolean {
   if (!profile) return false;
-  const blockedStatuses = ['Disabled', 'Deleted', 'Rejected', 'Pending'];
-  if (profile.status && blockedStatuses.includes(profile.status)) {
+  if (profile.status && BLOCKED_USER_STATUSES.has(profile.status)) {
     return false;
   }
-  const isStatusActiveOrApproved = (profile.status === 'Active' || profile.isApproved === true);
-  const isNotDisabled = profile.isActive !== false;
-  const isNotDeleted = profile.deleted !== true;
-  return isStatusActiveOrApproved && isNotDisabled && isNotDeleted;
+  return (
+    profile.status === 'Active' &&
+    profile.isApproved === true &&
+    profile.isActive !== false &&
+    profile.deleted !== true
+  );
 }
 
 export function effectiveRole(profile: UserProfileLike | null | undefined): Role {
@@ -82,19 +96,26 @@ export function canApprove(profile: UserProfileLike | null | undefined): boolean
   return atLeast(effectiveRole(profile), 'Environment Superintendent');
 }
 
-
 export function isSuperintendent(profile: UserProfileLike | null | undefined): boolean {
+  if (!isActiveApproved(profile)) return false;
   return atLeast(effectiveRole(profile), 'Environment Superintendent');
 }
 
 export function isAdmin(profile: UserProfileLike | null | undefined): boolean {
+  if (!isActiveApproved(profile)) return false;
   return atLeast(effectiveRole(profile), 'Environment Manager');
+}
+
+export function isStrictAdmin(profile: UserProfileLike | null | undefined): boolean {
+  if (!isActiveApproved(profile)) return false;
+  return effectiveRole(profile) === 'Admin';
 }
 
 export const MODULE_MIN_ROLE: Record<string, Role> = {
   registration_approval: 'Environment Manager',
   user_management: 'Environment Manager',
   role_management: 'Admin',
+  backup_restore: 'Admin',
   standards_master: 'Environment Superintendent',
   executive: 'Environment Superintendent',
   proper_rkab: 'Environment Superintendent',
@@ -111,7 +132,7 @@ export const MODULE_MIN_ROLE: Record<string, Role> = {
   rainfall: 'Viewer',
   evidence: 'Viewer',
   reclamation: 'Viewer',
-  reclamation_guarantee: 'Viewer',
+  reclamation_guarantee: 'Environment Superintendent',
   topsoil_erosion: 'Viewer',
   biodiversity: 'Viewer',
   nursery: 'Viewer',
@@ -126,7 +147,7 @@ export const MODULE_MIN_ROLE: Record<string, Role> = {
   findings: 'Viewer',
   incidents: 'Viewer',
   notifications: 'Viewer',
-  reports: 'Viewer'
+  reports: 'Viewer',
 };
 
 export const AUDITOR_READONLY_MODULES = new Set<string>([
@@ -135,9 +156,13 @@ export const AUDITOR_READONLY_MODULES = new Set<string>([
   'regulatory_watch',
   'proper_rkab',
   'costs',
+  'reclamation_guarantee',
 ]);
 
-export function canAccessModule(profile: UserProfileLike | null | undefined, moduleKey: string): boolean {
+export function canAccessModule(
+  profile: UserProfileLike | null | undefined,
+  moduleKey: string
+): boolean {
   if (!isActiveApproved(profile)) {
     return false;
   }
@@ -145,7 +170,6 @@ export function canAccessModule(profile: UserProfileLike | null | undefined, mod
   if (role === 'Auditor' && AUDITOR_READONLY_MODULES.has(moduleKey)) {
     return true;
   }
-  const requiredRole = MODULE_MIN_ROLE[moduleKey] ?? 'Admin'; // Fail-closed for unregistered modules
+  const requiredRole = MODULE_MIN_ROLE[moduleKey] ?? 'Admin';
   return atLeast(role, requiredRole);
 }
-

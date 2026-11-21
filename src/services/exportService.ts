@@ -27,11 +27,15 @@ import {
   TopsoilErosionData,
   BiodiversityData,
   IadlRiskData,
-  ProperRkabData
+  ProperRkabData,
+  DomesticWastewaterData,
+  GhgActivityData
 } from '../types';
 import { formatWasteSource } from '../constants/wasteSources';
 import { todayLocalISO } from '../utils/dateUtils';
 import { formatConservationStatus } from '../data/regulations';
+import { parseStrictNumber } from '../utils/waterQualityEval';
+import type { ReconciliationRow } from '../utils/roleReconciliation';
 
 // Helper format angka rupiah
 function formatIDR(num: number): string {
@@ -42,6 +46,11 @@ function formatIDR(num: number): string {
   }).format(num);
 }
 
+function formatExcelNum(val: unknown): number | string {
+  const parsed = parseStrictNumber(val);
+  return parsed !== null ? parsed : '-';
+}
+
 // ─── Mapper per koleksi ke format baris Excel ───────────────────────────────
 
 function mapWastewater(data: WastewaterData[]) {
@@ -50,12 +59,14 @@ function mapWastewater(data: WastewaterData[]) {
     'Tanggal': d.date,
     'Lokasi': d.location,
     'Petugas': d.officer,
-    'pH': d.ph,
-    'TSS (mg/L)': d.tss,
-    'Debit (m³/s)': d.debit,
-    'Fe (mg/L)': d.fe,
-    'Mn (mg/L)': d.mn,
-    'Status': d.status,
+    'pH': formatExcelNum(d.ph),
+    'TSS (mg/L)': formatExcelNum(d.tss),
+    'Debit (m³/s)': formatExcelNum(d.debit),
+    'Fe (mg/L)': formatExcelNum(d.fe),
+    'Mn (mg/L)': formatExcelNum(d.mn),
+    'Status': d.evaluationStatus || d.status,
+    'Dasar Baku Mutu': d.standardBasis || '-',
+    'Catatan Evaluasi': d.evaluationReason || '-',
   }));
 }
 
@@ -67,14 +78,53 @@ function mapSurfaceWater(data: SurfaceWaterData[]) {
     'Kelas Air': d.kelasAir || 'II',
     'Petugas': d.officer,
     'Tipe Pemantauan': d.monitoringType || 'Bulanan',
-    'pH': d.ph,
-    'TSS (mg/L)': d.tss,
-    'DO (mg/L)': d.doVal,
-    'BOD (mg/L)': d.bod,
-    'COD (mg/L)': d.cod,
-    'Fe (mg/L)': d.fe,
-    'Mn (mg/L)': d.mn,
-    'Status': d.status,
+    'pH': formatExcelNum(d.ph),
+    'TSS (mg/L)': formatExcelNum(d.tss),
+    'DO (mg/L)': formatExcelNum(d.doVal),
+    'BOD (mg/L)': formatExcelNum(d.bod),
+    'COD (mg/L)': formatExcelNum(d.cod),
+    'Fe (mg/L)': formatExcelNum(d.fe),
+    'Mn (mg/L)': formatExcelNum(d.mn),
+    'Status': d.evaluationStatus || d.status,
+    'Dasar Baku Mutu': d.standardBasis || '-',
+    'Catatan Evaluasi': d.evaluationReason || '-',
+  }));
+}
+
+function mapDomesticWastewater(data: DomesticWastewaterData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Tanggal': d.date,
+    'Fasilitas IPAL': d.facilityName,
+    'pH': formatExcelNum(d.ph),
+    'BOD (mg/L)': formatExcelNum(d.bod),
+    'COD (mg/L)': formatExcelNum(d.cod),
+    'TSS (mg/L)': formatExcelNum(d.tss),
+    'Minyak & Lemak (mg/L)': formatExcelNum(d.oilGrease),
+    'Amonia (mg/L)': formatExcelNum(d.ammonia),
+    'Total Coliform (MPN/100mL)': formatExcelNum(d.totalColiform),
+    'Debit (m³/hari)': formatExcelNum(d.debitM3Day),
+    'Status': d.evaluationStatus || d.complianceStatus,
+    'Catatan Evaluasi': d.evaluationReason || '-',
+    'Petugas': d.officer,
+  }));
+}
+
+function mapGhgActivities(data: GhgActivityData[]) {
+  return data.map(d => ({
+    'ID': d.id,
+    'Tanggal': d.date,
+    'Tahun Pelaporan': d.reportingYear,
+    'Kategori': d.activityCategory,
+    'Lokasi Sumber': d.sourceLocation,
+    'Kuantitas': formatExcelNum(d.quantity),
+    'Satuan': d.unit,
+    'Faktor Emisi': d.factorNameSnapshot || '-',
+    'Cakupan Gas': d.gasScopeSnapshot || '-',
+    'Status Perhitungan': d.calculationStatus || (d.emissionsTco2e != null ? 'TERHITUNG' : 'BELUM TERHITUNG'),
+    'Emisi (tCO2e)': d.emissionsTco2e != null ? d.emissionsTco2e : 'BELUM TERHITUNG',
+    'Sumber Faktor': d.referenceSourceSnapshot || '-',
+    'Petugas': d.officer,
   }));
 }
 
@@ -469,6 +519,8 @@ export interface ExportPayload {
   biodiversity?: BiodiversityData[];
   iadlRisks?: IadlRiskData[];
   properRkab?: ProperRkabData[];
+  domesticWastewater?: DomesticWastewaterData[];
+  ghgActivities?: GhgActivityData[];
 }
 
 export function exportAllDataToXLSX(payload: ExportPayload, companyName?: string): void {
@@ -478,13 +530,15 @@ export function exportAllDataToXLSX(payload: ExportPayload, companyName?: string
   wb.created = new Date();
   const exportDate = new Date().toLocaleString('id-ID');
 
-  // Definisi semua sheet (23 sheet data + Ringkasan)
+  // Definisi semua sheet data + Ringkasan
   const sheets: Array<{ name: string; rows: Record<string, any>[] }> = [
     { name: 'Kualitas Air Limbah',      rows: mapWastewater(payload.wastewater) },
     { name: 'Kualitas Air Permukaan',   rows: mapSurfaceWater(payload.surfaceWater || []) },
+    { name: 'Air Limbah Domestik',      rows: mapDomesticWastewater(payload.domesticWastewater || []) },
     { name: 'Curah Hujan',              rows: mapRainfall(payload.rainfall) },
     { name: 'Treatment AAT (AMD)',      rows: mapAmdTreatment(payload.amdTreatments || []) },
     { name: 'Udara, Emisi & Bising',    rows: mapAirEmission(payload.airEmissions || []) },
+    { name: 'Inventarisasi GRK',        rows: mapGhgActivities(payload.ghgActivities || []) },
     { name: 'Nursery & Bibit',          rows: mapNursery(payload.nursery) },
     { name: 'Pengeluaran Bibit',        rows: mapNurseryStockOut(payload.nurseryStockOut || []) },
     { name: 'Rencana Reklamasi',        rows: mapReclamationPlans(payload.reclamationPlans) },
@@ -642,34 +696,56 @@ export function exportMonthlyWastewaterRecapToXLSX(
   headerRow.height = 26;
 
   days.forEach((d) => {
-    const isNoData = d.status === 'tanpa_data' || d.status === 'Tidak ada data';
-    const statusLabel = isNoData
-      ? 'Tidak ada data'
-      : d.status === 'memenuhi'
-      ? 'MEMENUHI'
-      : 'TIDAK MEMENUHI';
+    const rawStatus = d.status;
+    const isNoData = rawStatus === 'tanpa_data' || rawStatus === 'Tidak ada data';
+    let statusLabel = 'BELUM DIEVALUASI';
+    if (isNoData) {
+      statusLabel = 'Tidak ada data';
+    } else if (rawStatus === 'memenuhi' || rawStatus === 'MEMENUHI') {
+      statusLabel = 'MEMENUHI';
+    } else if (rawStatus === 'tidak_memenuhi' || rawStatus === 'TIDAK MEMENUHI') {
+      statusLabel = 'TIDAK MEMENUHI';
+    } else if (rawStatus === 'data_tidak_lengkap' || rawStatus === 'DATA TIDAK LENGKAP') {
+      statusLabel = 'DATA TIDAK LENGKAP';
+    } else if (rawStatus === 'belum_dievaluasi' || rawStatus === 'BELUM DIEVALUASI') {
+      statusLabel = 'BELUM DIEVALUASI';
+    } else if (rawStatus === 'tidak_berlaku' || rawStatus === 'TIDAK BERLAKU') {
+      statusLabel = 'TIDAK BERLAKU';
+    }
+
+    const phNum = parseStrictNumber(d.ph);
+    const tssNum = parseStrictNumber(d.tss);
+    const debitNum = parseStrictNumber(d.debit);
+    const feNum = parseStrictNumber(d.fe);
+    const mnNum = parseStrictNumber(d.mn);
 
     const row = ws.addRow({
       date: d.date,
       time: d.sampleTime ? `${d.sampleTime} WITA` : '-',
       officer: d.officer || '-',
       weather: d.weather || '-',
-      ph: d.ph != null ? Number(d.ph) : null,
-      tss: d.tss != null ? Number(d.tss) : null,
-      debit: d.debit != null ? Number(d.debit) : null,
-      fe: d.fe != null ? Number(d.fe) : null,
-      mn: d.mn != null ? Number(d.mn) : null,
+      ph: phNum,
+      tss: tssNum,
+      debit: debitNum,
+      fe: feNum,
+      mn: mnNum,
       status: statusLabel,
       docNo: d.dailyDocumentNo || '-',
     });
 
-    if (isNoData) {
+    if (isNoData || statusLabel === 'TIDAK BERLAKU') {
       row.font = { italic: true, color: { argb: 'FF9CA3AF' } };
     } else if (statusLabel === 'TIDAK MEMENUHI') {
       row.fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FFFEE2E2' }, // Red-100
+      };
+    } else if (statusLabel === 'DATA TIDAK LENGKAP' || statusLabel === 'BELUM DIEVALUASI') {
+      row.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFEF3C7' }, // Amber-100
       };
     }
   });
@@ -702,6 +778,71 @@ export function exportMonthlyWastewaterRecapToXLSX(
   addSummaryRow('Maksimum Bulan Ini', 'max');
 
   const fileName = `Rekap_Evidence_AirLimbah_${locationCode}_${period}.xlsx`;
+  wb.xlsx.writeBuffer().then((buffer) => {
+    triggerDownload(buffer, fileName);
+  });
+}
+
+/**
+ * Export tabel Rekonsiliasi Peran (/users vs /roles) ke XLSX (K-03).
+ */
+export function exportRoleReconciliationToXLSX(rows: ReconciliationRow[]): void {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Rekonsiliasi Peran');
+
+  ws.columns = [
+    { header: 'Nama', key: 'fullName', width: 26 },
+    { header: 'Email', key: 'email', width: 32 },
+    { header: 'Status Akun', key: 'status', width: 18 },
+    { header: 'users.role', key: 'usersRole', width: 24 },
+    { header: 'roles.level', key: 'rolesLevel', width: 24 },
+    { header: 'Kategori Temuan', key: 'findingLabel', width: 46 },
+    { header: 'Prioritas', key: 'severity', width: 14 },
+  ];
+
+  const headerRow = ws.getRow(1);
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF1E4D2B' },
+  };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+  headerRow.height = 24;
+
+  if (!rows || rows.length === 0) {
+    ws.addRow({
+      fullName: 'Tidak ada data rekonsiliasi.',
+    });
+  } else {
+    rows.forEach((r) => {
+      const added = ws.addRow({
+        fullName: r.fullName || '-',
+        email: r.email || '-',
+        status: r.status || '-',
+        usersRole: r.usersRole ?? '(kosong)',
+        rolesLevel: r.rolesLevel ?? '(tidak ada)',
+        findingLabel: r.findingLabel,
+        severity: r.severity.toUpperCase(),
+      });
+
+      if (r.findingCode === 'C_HIGH_RISK') {
+        added.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFEE2E2' },
+        };
+      } else if (r.findingCode === 'A_ACTIVE_NO_ROLE' || r.findingCode === 'B_ROLE_MISMATCH') {
+        added.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFEF3C7' },
+        };
+      }
+    });
+  }
+
+  const fileName = `Rekonsiliasi_Peran_${todayLocalISO()}.xlsx`;
   wb.xlsx.writeBuffer().then((buffer) => {
     triggerDownload(buffer, fileName);
   });
