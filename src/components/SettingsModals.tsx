@@ -33,6 +33,7 @@ import {
   BackupStatus,
   DriveBackupFile,
   BackupPreviewSummary,
+  RestoreDryRunReport,
   RestoreExecutionReport,
   decryptAndVerifyBackup,
 } from '../services/backupService';
@@ -73,7 +74,7 @@ export default function SettingsModals({
   onLogout,
   onBackupStatusChange
 }: SettingsModalsProps) {
-  const { updateUserProfile, token: authServiceToken, loginWithGoogle, logout: authLogout, profile } = useAuth();
+  const { updateUserProfile, token: authServiceToken, connectGoogleDrive, logout: authLogout, profile } = useAuth();
   const canManageBackups = canAccessModule(profile, 'backup_restore');
   const canManageRoles = canAccessModule(profile, 'role_management');
   const isStrictAdminUser = isStrictAdmin(profile);
@@ -93,9 +94,12 @@ export default function SettingsModals({
   const [backupFiles, setBackupFiles] = useState<DriveBackupFile[]>([]);
   const [customFileName, setCustomFileName] = useState('');
   const [backupPassphrase, setBackupPassphrase] = useState('');
+  const [includePhotos, setIncludePhotos] = useState(false);
   const [isLoadingBackups, setIsLoadingBackups] = useState(false);
   const [isExportingLocal, setIsExportingLocal] = useState(false);
   const [backupActionStatus, setBackupActionStatus] = useState<BackupStatus>({ status: 'idle', lastSynced: null });
+  const [isRegeneratingVerify, setIsRegeneratingVerify] = useState(false);
+  const [verifyRegenStatus, setVerifyRegenStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   // Preview + Restore Flow state
   const [selectedSourceLabel, setSelectedSourceLabel] = useState<string | null>(null);
@@ -105,6 +109,8 @@ export default function SettingsModals({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [restoreMode, setRestoreMode] = useState<'merge' | 'replace'>('merge');
   const [replaceConfirmed, setReplaceConfirmed] = useState(false);
+  const [dryRunReport, setDryRunReport] = useState<RestoreDryRunReport | null>(null);
+  const [isRunningDryRun, setIsRunningDryRun] = useState(false);
   const [restoreProgress, setRestoreProgress] = useState<string | null>(null);
   const [restoreReport, setRestoreReport] = useState<RestoreExecutionReport | null>(null);
 
@@ -142,7 +148,7 @@ export default function SettingsModals({
     setIsGAuthLoading(true);
     setAuthError(null);
     try {
-      await loginWithGoogle();
+      await connectGoogleDrive();
       onRefresh();
     } catch (err: any) {
       setAuthError(err?.message || 'Akses ditolak / Gagal menghubungkan ke akun Google.');
@@ -174,13 +180,23 @@ export default function SettingsModals({
     }
 
     setIsExportingLocal(true);
-    setBackupActionStatus({ status: 'syncing', lastSynced: null, message: 'Mengenkripsi snapshot 32 koleksi...' });
+    setBackupActionStatus({
+      status: 'syncing',
+      lastSynced: null,
+      message: `Mengenkripsi snapshot ${BACKUP_INVENTORY.length} koleksi${includePhotos ? ' (termasuk foto sampling)' : ''}...`,
+    });
     try {
-      const res = await backupService.exportEncryptedToLocalFile(backupPassphrase, customFileName);
+      const res = await backupService.exportEncryptedToLocalFile(backupPassphrase, customFileName, {
+        includePhotos,
+      });
       setBackupActionStatus({
         status: 'synced',
         lastSynced: new Date().toLocaleTimeString('id-ID'),
-        message: `Berkas terenkripsi "${res.fileName}" (${(res.sizeBytes / 1024).toFixed(1)} KB) berhasil diunduh.`,
+        isPartial: res.isPartial,
+        failedCollections: res.failedCollections,
+        message: res.isPartial
+          ? `BACKUP PARSIAL "${res.fileName}" (${(res.sizeBytes / 1024).toFixed(1)} KB, ${res.totalDocs} dok) diunduh. Koleksi gagal dibaca (${res.failedCollections.length}): ${res.failedCollections.map((f) => f.collection).join(', ')}.`
+          : `Berkas terenkripsi "${res.fileName}" (${(res.sizeBytes / 1024).toFixed(1)} KB, ${res.totalDocs} dok) berhasil diunduh.`,
       });
       setCustomFileName('');
     } catch (err: any) {
@@ -217,16 +233,36 @@ export default function SettingsModals({
         (status) => {
           setBackupActionStatus(status);
           onBackupStatusChange?.(status);
-        }
+        },
+        { includePhotos }
       );
       if (success) {
         setCustomFileName('');
-        onBackupStatusChange?.({ status: 'synced', lastSynced: new Date().toISOString() });
         const files = await backupService.getBackupsFromGoogleDrive(authServiceToken);
         setBackupFiles(files);
       }
     } catch (err: any) {
       setBackupActionStatus({ status: 'error', lastSynced: null, message: err?.message || 'Kesalahan proses cadangan.' });
+    }
+  };
+
+  const handleRegenerateVerifyDocs = async () => {
+    if (!isStrictAdminUser) return;
+    setIsRegeneratingVerify(true);
+    setVerifyRegenStatus(null);
+    try {
+      const res = await backupService.regenerateVerifyDocs();
+      setVerifyRegenStatus({
+        type: 'success',
+        msg: `Regenerasi QR selesai: ${res.updated} token diperbarui, ${res.skipped} dilewati dari ${res.processed} laporan evidence.`,
+      });
+    } catch (err: any) {
+      setVerifyRegenStatus({
+        type: 'error',
+        msg: err?.message || 'Gagal meregenerasi dokumen verifikasi QR publik.',
+      });
+    } finally {
+      setIsRegeneratingVerify(false);
     }
   };
 
@@ -273,6 +309,7 @@ export default function SettingsModals({
   const setRestoreErrorReset = () => {
     setPreviewError(null);
     setPreviewSummary(null);
+    setDryRunReport(null);
     setRestoreReport(null);
     setReplaceConfirmed(false);
     setRestorePassphrase('');
@@ -281,6 +318,7 @@ export default function SettingsModals({
   const handleDecryptPreview = async () => {
     if (!rawBackupObj) return;
     setPreviewError(null);
+    setDryRunReport(null);
     try {
       const summary = await decryptAndVerifyBackup(rawBackupObj, restorePassphrase);
       setPreviewSummary(summary);
@@ -290,8 +328,30 @@ export default function SettingsModals({
     }
   };
 
+  const handleRunDryRun = async () => {
+    if (!previewSummary || !canManageBackups) return;
+    setIsRunningDryRun(true);
+    setPreviewError(null);
+    try {
+      const report = await backupService.dryRunRestore(previewSummary.payload, {
+        mode: restoreMode,
+        isStrictAdmin: isStrictAdminUser,
+      });
+      setDryRunReport(report);
+    } catch (err: any) {
+      setPreviewError(err?.message || 'Gagal menjalankan simulasi dry-run.');
+      setDryRunReport(null);
+    } finally {
+      setIsRunningDryRun(false);
+    }
+  };
+
   const handleExecuteRestore = async () => {
     if (!previewSummary || !canManageBackups) return;
+    if (!dryRunReport || dryRunReport.mode !== restoreMode) {
+      setPreviewError('Jalankan Simulasi (Dry-Run) pada berkas & mode ini terlebih dahulu sebelum mengeksekusi Restore.');
+      return;
+    }
     if (restoreMode === 'replace' && !replaceConfirmed) {
       setPreviewError('Centang konfirmasi penghapusan/penggantian penuh untuk mode Replace.');
       return;
@@ -303,6 +363,7 @@ export default function SettingsModals({
       const report = await backupService.restoreBackupToFirestore(previewSummary.payload, {
         mode: restoreMode,
         adminConfirmedReplace: restoreMode === 'replace' ? replaceConfirmed : false,
+        isStrictAdmin: isStrictAdminUser,
       });
       setRestoreReport(report);
       setRestoreProgress(null);
@@ -402,6 +463,7 @@ export default function SettingsModals({
         beforeData: { role: oldRole },
         afterData: { role: newRole },
         status: 'SUCCESS',
+        source: 'client',
       });
 
       await batch.commit();
@@ -651,6 +713,20 @@ export default function SettingsModals({
                       />
                     </div>
 
+                    <label className="flex items-start gap-2 p-2.5 rounded-xl bg-bg-0/60 border border-border-subtle cursor-pointer text-[11px]">
+                      <input
+                        id="backup-include-photos-checkbox"
+                        type="checkbox"
+                        checked={includePhotos}
+                        onChange={(e) => setIncludePhotos(e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-semibold text-text-hi block">Sertakan foto sampling (wastewater_photos)</span>
+                        <span className="text-[10px] text-text-low block">Default tidak dicentang karena ukuran berkas gambar besar.</span>
+                      </div>
+                    </label>
+
                     <div className="grid grid-cols-1 gap-2">
                       <button
                         id="export-local-encrypted-btn"
@@ -687,13 +763,40 @@ export default function SettingsModals({
                     </div>
 
                     {backupActionStatus.message && (
-                      <p className={`p-2 rounded-lg text-[10px] font-mono leading-relaxed border ${
+                      <div className={`p-2.5 rounded-lg text-[10px] font-mono leading-relaxed border space-y-1 ${
                         backupActionStatus.status === 'error' ? 'bg-neon-red/10 border-neon-red/35 text-neon-red' :
+                        backupActionStatus.isPartial ? 'bg-neon-amber/10 border-neon-amber/40 text-neon-amber' :
                         backupActionStatus.status === 'synced' ? 'bg-neon-green/10 border-neon-green/35 text-neon-green' :
                         'bg-bg-0/60 border-border-subtle text-text-mid'
                       }`}>
-                        {backupActionStatus.message}
-                      </p>
+                        {backupActionStatus.isPartial && (
+                          <div className="flex items-center gap-1.5 font-bold uppercase">
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                            <span>BACKUP PARSIAL — Sebagian Koleksi Gagal Dibaca</span>
+                          </div>
+                        )}
+                        <p>{backupActionStatus.message}</p>
+                      </div>
+                    )}
+
+                    {isStrictAdminUser && (
+                      <div className="pt-3 border-t border-border-subtle space-y-2">
+                        <button
+                          id="regenerate-verify-docs-btn"
+                          type="button"
+                          onClick={handleRegenerateVerifyDocs}
+                          disabled={isRegeneratingVerify}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-bg-0/80 hover:border-neon-cyan border border-border-subtle text-text-hi rounded-xl text-[11px] font-semibold cursor-pointer disabled:opacity-50"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 text-neon-cyan ${isRegeneratingVerify ? 'animate-spin' : ''}`} />
+                          {isRegeneratingVerify ? 'Meregenerasi Token QR...' : 'Regenerasi Token QR Publik (evidence_verify)'}
+                        </button>
+                        {verifyRegenStatus && (
+                          <p className={`p-2 rounded-lg text-[10px] font-mono border ${verifyRegenStatus.type === 'success' ? 'bg-neon-green/10 border-neon-green/35 text-neon-green' : 'bg-neon-red/10 border-neon-red/35 text-neon-red'}`}>
+                            {verifyRegenStatus.msg}
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     {/* Export Workbook Excel */}
@@ -876,6 +979,18 @@ export default function SettingsModals({
                   </div>
                 </div>
 
+                {previewSummary.failedCollections.length > 0 && (
+                  <div className="p-3 rounded-xl bg-neon-amber/10 border border-neon-amber/40 text-neon-amber text-[11px] space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold uppercase">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span>Peringatan: Berkas ini adalah BACKUP PARSIAL</span>
+                    </div>
+                    <p className="font-mono text-[10px]">
+                      Koleksi yang gagal terbaca saat backup ({previewSummary.failedCollections.length}): {previewSummary.failedCollections.map((f) => `${f.collection} (${f.error})`).join('; ')}
+                    </p>
+                  </div>
+                )}
+
                 {/* Per-collection preview counts */}
                 <div className="max-h-40 overflow-y-auto rounded-xl border border-border-subtle bg-bg-0/60 p-2 grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[10.5px]">
                   {previewSummary.collections.map((c) => (
@@ -895,7 +1010,7 @@ export default function SettingsModals({
                         <input
                           type="radio"
                           checked={restoreMode === 'merge'}
-                          onChange={() => { setRestoreMode('merge'); setReplaceConfirmed(false); }}
+                          onChange={() => { setRestoreMode('merge'); setReplaceConfirmed(false); setDryRunReport(null); }}
                         />
                         Merge / Gabung (Aman)
                       </div>
@@ -908,7 +1023,7 @@ export default function SettingsModals({
                         <input
                           type="radio"
                           checked={restoreMode === 'replace'}
-                          onChange={() => setRestoreMode('replace')}
+                          onChange={() => { setRestoreMode('replace'); setDryRunReport(null); }}
                         />
                         Replace Penuh (Destruktif)
                       </div>
@@ -935,6 +1050,61 @@ export default function SettingsModals({
                   )}
                 </div>
 
+                {/* Simulasi Dry-Run Wajib */}
+                <div className="p-3 rounded-2xl border border-border-neon bg-bg-1/50 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <p className="font-bold text-text-hi text-xs">Simulasi Pemulihan (Dry-Run Wajib)</p>
+                      <p className="text-[10px] text-text-low">
+                        Menghitung dokumen baru, ditimpa, dihapus, dan validasi Zod tanpa menulis ke database.
+                      </p>
+                    </div>
+                    <button
+                      id="run-dry-run-btn"
+                      type="button"
+                      disabled={isRunningDryRun || !!restoreProgress}
+                      onClick={handleRunDryRun}
+                      className="px-3.5 py-2 bg-neon-cyan/15 hover:bg-neon-cyan/25 border border-neon-cyan/45 text-neon-cyan rounded-xl font-bold text-[11px] cursor-pointer disabled:opacity-50"
+                    >
+                      {isRunningDryRun ? 'Menjalankan Simulasi...' : dryRunReport && dryRunReport.mode === restoreMode ? 'Ulangi Simulasi' : 'Jalankan Simulasi (Dry-Run)'}
+                    </button>
+                  </div>
+
+                  {dryRunReport && dryRunReport.mode === restoreMode && (
+                    <div className="space-y-2 pt-1">
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono text-[10.5px]">
+                        <div className="p-2 rounded-lg bg-bg-0/70 border border-border-subtle">Baru: <strong className="text-neon-green">{dryRunReport.totalNew}</strong></div>
+                        <div className="p-2 rounded-lg bg-bg-0/70 border border-border-subtle">Ditimpa: <strong className="text-neon-cyan">{dryRunReport.totalOverwritten}</strong></div>
+                        <div className="p-2 rounded-lg bg-bg-0/70 border border-border-subtle">Dihapus: <strong className="text-neon-amber">{dryRunReport.totalDeleted}</strong></div>
+                        <div className="p-2 rounded-lg bg-bg-0/70 border border-border-subtle">Dilewati: <strong className="text-text-hi">{dryRunReport.totalSkipped}</strong></div>
+                        <div className="p-2 rounded-lg bg-bg-0/70 border border-border-subtle">Gagal Zod: <strong className="text-neon-red">{dryRunReport.totalValidationFailed}</strong></div>
+                      </div>
+                      <div className="max-h-36 overflow-y-auto rounded-xl border border-border-subtle bg-bg-0/60 p-2 space-y-1 text-[10px] font-mono">
+                        {dryRunReport.collections
+                          .filter((c) => c.newDocs > 0 || c.overwrittenDocs > 0 || c.deletedDocs > 0 || c.skippedDocs > 0 || c.validationFailedDocs > 0)
+                          .map((c) => (
+                            <div key={c.collection} className="flex items-center justify-between px-2 py-1 rounded bg-bg-1/40">
+                              <span className="text-text-hi font-semibold">{c.collection}</span>
+                              <span className="text-text-mid tabular-nums">
+                                +{c.newDocs} baru · ~{c.overwrittenDocs} timpa · -{c.deletedDocs} hapus · {c.validationFailedDocs} gagal Zod
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                      {dryRunReport.errors.length > 0 && (
+                        <div className="max-h-24 overflow-y-auto p-2 rounded-lg bg-neon-amber/10 border border-neon-amber/35 text-[10px] font-mono text-neon-amber space-y-0.5">
+                          {dryRunReport.errors.slice(0, 15).map((e, i) => (
+                            <div key={i}>{e}</div>
+                          ))}
+                          {dryRunReport.errors.length > 15 && (
+                            <div>... dan {dryRunReport.errors.length - 15} catatan validasi lainnya</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-3 pt-1">
                   <button
                     type="button"
@@ -947,7 +1117,12 @@ export default function SettingsModals({
                   <button
                     id="restore-submit-btn"
                     type="button"
-                    disabled={!!restoreProgress || (restoreMode === 'replace' && !replaceConfirmed)}
+                    disabled={
+                      !!restoreProgress ||
+                      !dryRunReport ||
+                      dryRunReport.mode !== restoreMode ||
+                      (restoreMode === 'replace' && !replaceConfirmed)
+                    }
                     onClick={handleExecuteRestore}
                     className={`${restoreMode === 'replace' ? 'neon-btn-danger' : 'neon-btn-primary'} flex-1 py-2.5 rounded-xl font-bold text-xs cursor-pointer disabled:opacity-50`}
                   >
@@ -959,22 +1134,33 @@ export default function SettingsModals({
 
             {restoreReport && (
               <div className="space-y-4 text-xs">
-                <div className={`p-4 rounded-2xl border space-y-2 ${restoreReport.failedCount === 0 ? 'bg-neon-green/10 border-neon-green/35' : 'bg-neon-amber/10 border-neon-amber/35'}`}>
+                <div className={`p-4 rounded-2xl border space-y-2 ${restoreReport.failedCount === 0 && (restoreReport.validationFailedCount ?? 0) === 0 ? 'bg-neon-green/10 border-neon-green/35' : 'bg-neon-amber/10 border-neon-amber/35'}`}>
                   <div className="flex items-center gap-2 font-bold text-text-hi">
                     <CheckCircle2 className="w-4 h-4 text-neon-green" />
                     Laporan Hasil Pemulihan ({restoreReport.mode.toUpperCase()})
                   </div>
                   <p className="text-[11px] text-text-mid">{restoreReport.atomicityNote}</p>
-                  <div className="grid grid-cols-4 gap-2 pt-1 font-mono text-[11px]">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1 font-mono text-[11px]">
                     <div className="p-2 rounded bg-bg-0/60">Ditulis: <strong className="text-neon-green">{restoreReport.successCount}</strong></div>
                     <div className="p-2 rounded bg-bg-0/60">Dihapus: <strong className="text-neon-amber">{restoreReport.deletedCount}</strong></div>
                     <div className="p-2 rounded bg-bg-0/60">Gagal: <strong className="text-neon-red">{restoreReport.failedCount}</strong></div>
                     <div className="p-2 rounded bg-bg-0/60">Dilewati: <strong className="text-text-hi">{restoreReport.skippedCount}</strong></div>
+                    <div className="p-2 rounded bg-bg-0/60">Gagal Zod: <strong className="text-neon-amber">{restoreReport.validationFailedCount ?? 0}</strong></div>
                   </div>
                   {restoreReport.unprocessedCollections.length > 0 && (
                     <p className="text-[11px] text-neon-red font-mono">
                       Koleksi gagal/tidak lengkap: {restoreReport.unprocessedCollections.join(', ')}
                     </p>
+                  )}
+                  {restoreReport.errors.length > 0 && (
+                    <div className="max-h-28 overflow-y-auto p-2 rounded-lg bg-bg-0/60 border border-border-subtle text-[10px] font-mono text-neon-amber space-y-0.5">
+                      {restoreReport.errors.slice(0, 20).map((errMsg, idx) => (
+                        <div key={idx}>{errMsg}</div>
+                      ))}
+                      {restoreReport.errors.length > 20 && (
+                        <div>... dan {restoreReport.errors.length - 20} catatan lainnya</div>
+                      )}
+                    </div>
                   )}
                 </div>
                 <button

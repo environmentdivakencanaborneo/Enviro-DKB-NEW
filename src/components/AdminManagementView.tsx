@@ -425,6 +425,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
         },
         correctionReason: check.reason.slice(0, 400),
         status: 'SUCCESS',
+        source: 'client',
       });
 
       await batch.commit();
@@ -540,6 +541,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
         beforeData: { status: approveUserTarget.status || 'Pending', role: approveUserTarget.role || 'Viewer' },
         afterData: { status: 'Active', role: selectedApproveRole },
         status: 'SUCCESS',
+        source: 'client',
       });
 
       await batch.commit();
@@ -628,6 +630,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
         action: 'update',
         details: `DISABLE_USER: ${u.email} disabled by ${currentUser.email}`.slice(0, 995),
         status: 'SUCCESS',
+        source: 'client',
       });
       await batch.commit();
       triggerToast(`Pengguna ${u.email} berhasil dinonaktifkan.`);
@@ -762,6 +765,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
         action: 'delete',
         details: `DELETE_USER (soft delete): ${u.email} deleted by ${currentUser.email}`.slice(0, 995),
         status: 'SUCCESS',
+        source: 'client',
       });
       await batch.commit();
       triggerToast(`Pengguna ${u.email} berhasil dihapus.`);
@@ -836,6 +840,7 @@ export default function AdminManagementView({ initialTab = 'approval' }: AdminMa
         beforeData: { role: oldAuthRole },
         afterData: { role: selectedNewRole },
         status: 'SUCCESS',
+        source: 'client',
       });
       await batch.commit();
       triggerToast(`Peran pengguna ${editRoleTarget.email} berhasil diubah ke ${selectedNewRole}.`);

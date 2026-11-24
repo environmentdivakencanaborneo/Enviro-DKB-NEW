@@ -16,9 +16,12 @@ import {
   updateDoc,
   where,
   documentId,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../utils/firebaseAuth';
+import { httpsCallable } from 'firebase/functions';
+import { db, auth, functions, handleFirestoreError, OperationType } from '../utils/firebaseAuth';
+import { getCachedFeatureFlags } from './featureFlagService';
 import { 
   WastewaterData,
   WastewaterPhoto,
@@ -53,7 +56,8 @@ import {
   ExternalSupervisionData,
   DomesticWastewaterData,
   GhgEmissionFactorData,
-  GhgActivityData
+  GhgActivityData,
+  EvaluationHistoryEntry
 } from '../types';
 import { 
   WastewaterSchema,
@@ -97,7 +101,7 @@ import {
   REGULATORY_WATCH_SEED_15,
   isProtectedConservationStatus,
 } from '../data/regulations';
-import { evaluateSampleCompliance } from '../utils/waterQualityEval';
+import { evaluateSampleCompliance, ReEvaluationPreviewItem } from '../utils/waterQualityEval';
 import { getOfflineCache, setOfflineCache } from '../utils/googleSync';
 import { getTimeMs, compareLatestFirst } from '../utils/dateUtils';
 import { buildWasteLedger, simulateOutflowValidation } from '../utils/wasteLedger';
@@ -192,6 +196,26 @@ function stripUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
   return result;
 }
 
+const SERVER_EVAL_OWNED_FIELDS = [
+  'status',
+  'complianceStatus',
+  'evaluationStatus',
+  'evaluationReason',
+  'standardBasis',
+  'standardId',
+  'standardSnapshot',
+  'serverEvaluatedAt',
+  'evaluationHistory',
+] as const;
+
+function stripServerEvalFields<T extends Record<string, any>>(obj: T): Partial<T> {
+  const result: any = { ...obj };
+  for (const key of SERVER_EVAL_OWNED_FIELDS) {
+    delete result[key];
+  }
+  return result;
+}
+
 // 1. Wastewater (Water Quality) Operations
 export const waterQualityService = {
   subscribe: (callback: (data: WastewaterData[]) => void) => {
@@ -257,24 +281,36 @@ export const waterQualityService = {
     const id = `WW-${crypto.randomUUID()}`;
     const hasPhoto = Boolean(photo && photo.dataUrl);
     
-    const newItem: WastewaterData = {
-      ...item,
-      id,
-      status,
-      evaluationStatus: evalRes.overall,
-      evaluationReason: evalRes.evaluationReason,
-      standardBasis: evalRes.standardsBasis,
-      hasPhoto,
-      standardId: evalCtx.standardId,
-      standardSnapshot: evalCtx.standardSnapshot,
-    };
+    const serverEvalActive = getCachedFeatureFlags().serverEvaluation;
+    const newItem: WastewaterData = serverEvalActive
+      ? {
+          ...item,
+          id,
+          hasPhoto,
+        }
+      : {
+          ...item,
+          id,
+          status,
+          evaluationStatus: evalRes.overall,
+          evaluationReason: evalRes.evaluationReason,
+          standardBasis: evalRes.standardsBasis,
+          hasPhoto,
+          standardId: evalCtx.standardId,
+          standardSnapshot: evalCtx.standardSnapshot,
+        };
 
     const parseResult = WastewaterSchema.safeParse(newItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'wastewater', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    const writePayload = serverEvalActive
+      ? stripUndefined(stripServerEvalFields({ ...newItem, ...trailCreate() }))
+      : stripUndefined({ ...newItem, ...trailCreate() });
+
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'wastewater', id), writePayload);
 
     // Store sampling photo separately in 'wastewater_photos'
     if (photo && photo.dataUrl) {
@@ -290,34 +326,41 @@ export const waterQualityService = {
         createdBy: auth.currentUser?.email || item.officer,
         createdAt: serverTimestamp(),
       };
-      await setDoc(doc(db, 'wastewater_photos', id), photoDoc);
+      batch.set(doc(db, 'wastewater_photos', id), photoDoc);
     }
 
-    // Audit Log
-    await auditService.createLog({
+    auditService.addToBatch(batch, {
       collection: 'wastewater',
       module: 'monitoring',
       recordId: id,
       action: 'insert',
-      details: `Menambah data kualitas air limbah di lokasi ${item.location} (${item.locationCode || 'N/A'}) dengan kesimpulan ${evalRes.overall}${hasPhoto ? ' + Foto Evidence' : ''}`,
+      details: serverEvalActive
+        ? `Menambah data kualitas air limbah di lokasi ${item.location} (${item.locationCode || 'N/A'}) — Menunggu evaluasi server${hasPhoto ? ' + Foto Evidence' : ''}`
+        : `Menambah data kualitas air limbah di lokasi ${item.location} (${item.locationCode || 'N/A'}) dengan kesimpulan ${evalRes.overall}${hasPhoto ? ' + Foto Evidence' : ''}`,
       afterData: newItem as Record<string, any>,
     });
 
-    // Check if limits exceeded to trigger a system-wide alert
-    if (status === 'Exceeded') {
-      await notificationService.add({
-        type: 'Critical',
-        category: 'Wastewater',
-        title: 'Baku Mutu Terlampaui!',
-        message: `Pengujian di ${item.location} melampaui batas regulasi (${evalRes.failedParams.join(', ')}): pH: ${item.ph}, TSS: ${item.tss} mg/L. Segera lakukan tindakan pengendalian.`
-      });
-    } else if (status === 'Warning') {
-      await notificationService.add({
-        type: 'Warning',
-        category: 'Wastewater',
-        title: 'Mendekati Baku Mutu',
-        message: `Pengujian di ${item.location} mendekati parameter kritis (${evalRes.warningParams.join(', ')}): pH: ${item.ph}, TSS: ${item.tss} mg/L.`
-      });
+    await batch.commit();
+
+    // Check if limits exceeded to trigger a system-wide alert (best-effort)
+    try {
+      if (status === 'Exceeded') {
+        await notificationService.add({
+          type: 'Critical',
+          category: 'Wastewater',
+          title: 'Baku Mutu Terlampaui!',
+          message: `Pengujian di ${item.location} melampaui batas regulasi (${evalRes.failedParams.join(', ')}): pH: ${item.ph ?? '-'}, TSS: ${item.tss ?? '-'} mg/L. Segera lakukan tindakan pengendalian.`
+        });
+      } else if (status === 'Warning') {
+        await notificationService.add({
+          type: 'Warning',
+          category: 'Wastewater',
+          title: 'Mendekati Baku Mutu',
+          message: `Pengujian di ${item.location} mendekati parameter kritis (${evalRes.warningParams.join(', ')}): pH: ${item.ph ?? '-'}, TSS: ${item.tss ?? '-'} mg/L.`
+        });
+      }
+    } catch {
+      // non-fatal alert
     }
 
     return newItem;
@@ -331,9 +374,20 @@ export const waterQualityService = {
     }
     const oldData = snap.data() as WastewaterData;
 
-    await deleteDoc(docRef);
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
+      collection: 'wastewater',
+      module: 'monitoring',
+      recordId: id,
+      action: 'delete',
+      details: `Menghapus kualitas air limbah di lokasi ${oldData.location || '-'}, tgl: ${oldData.date || '-'}, pH: ${oldData.ph ?? '-'}, TSS: ${oldData.tss ?? '-'}`,
+      beforeData: oldData as Record<string, any>,
+      correctionReason: reason || null,
+    });
+    await batch.commit();
 
-    // Delete photo from separate collection if exists
+    // Delete photo from separate collection if exists (best-effort)
     try {
       await deleteDoc(doc(db, 'wastewater_photos', id));
     } catch {
@@ -344,17 +398,6 @@ export const waterQualityService = {
     const docs = getOfflineCache<WastewaterData[]>('wastewater', []);
     const updated = docs.filter(x => x.id !== id);
     setOfflineCache('wastewater', updated);
-
-    // Audit Log
-    await auditService.createLog({
-      collection: 'wastewater',
-      module: 'monitoring',
-      recordId: id,
-      action: 'delete',
-      details: `Menghapus kualitas air limbah di lokasi ${oldData.location || '-'}, tgl: ${oldData.date || '-'}, pH: ${oldData.ph ?? '-'}, TSS: ${oldData.tss ?? '-'}`,
-      beforeData: oldData as Record<string, any>,
-      correctionReason: reason || null,
-    });
   },
 
   update: async (
@@ -388,14 +431,12 @@ export const waterQualityService = {
       }
     }
 
+    const batch = writeBatch(db);
     let hasPhoto = oldData.hasPhoto ?? false;
+    let shouldDeletePhoto = false;
     if (photo !== undefined) {
       if (photo === null) {
-        try {
-          await deleteDoc(doc(db, 'wastewater_photos', id));
-        } catch {
-          // ignore
-        }
+        shouldDeletePhoto = true;
         hasPhoto = false;
       } else if (photo.dataUrl) {
         const photoDoc: WastewaterPhoto = {
@@ -410,7 +451,7 @@ export const waterQualityService = {
           createdBy: auth.currentUser?.email || item.officer || oldData.officer,
           createdAt: serverTimestamp(),
         };
-        await setDoc(doc(db, 'wastewater_photos', id), photoDoc);
+        batch.set(doc(db, 'wastewater_photos', id), photoDoc);
         hasPhoto = true;
       }
     }
@@ -427,38 +468,57 @@ export const waterQualityService = {
       sampleDate: merged.date,
       unitMap: merged.unitMap,
     });
-    const updatedItem: WastewaterData = {
-      ...merged,
-      status: evalRes.legacyStatus,
-      evaluationStatus: evalRes.overall,
-      evaluationReason: evalRes.evaluationReason,
-      standardBasis: evalRes.standardsBasis,
-      standardId: evalCtx.standardId,
-      standardSnapshot: evalCtx.standardSnapshot,
-    };
+    const serverEvalActive = getCachedFeatureFlags().serverEvaluation;
+    const updatedItem: WastewaterData = serverEvalActive
+      ? {
+          ...merged,
+        }
+      : {
+          ...merged,
+          status: evalRes.legacyStatus,
+          evaluationStatus: evalRes.overall,
+          evaluationReason: evalRes.evaluationReason,
+          standardBasis: evalRes.standardsBasis,
+          standardId: evalCtx.standardId,
+          standardSnapshot: evalCtx.standardSnapshot,
+        };
 
     const parseResult = WastewaterSchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
+    const updatePayload = serverEvalActive
+      ? stripUndefined(stripServerEvalFields({ ...updatedItem, ...trailUpdate() }))
+      : stripUndefined({ ...updatedItem, ...trailUpdate() });
+
+    batch.update(docRef, updatePayload as any);
+    auditService.addToBatch(batch, {
+      collection: 'wastewater',
+      module: 'monitoring',
+      recordId: id,
+      action: 'update',
+      details: serverEvalActive
+        ? `Mengubah data kualitas air limbah di lokasi ${updatedItem.location} (Evaluasi ulang server)`
+        : `Mengubah data kualitas air limbah di lokasi ${updatedItem.location} (${evalRes.overall})`,
+      beforeData: oldData as Record<string, any>,
+      afterData: (serverEvalActive ? stripServerEvalFields(updatedItem) : updatedItem) as Record<string, any>,
+      correctionReason: item.correctionReason || null,
+    });
+    await batch.commit();
+
+    if (shouldDeletePhoto) {
+      try {
+        await deleteDoc(doc(db, 'wastewater_photos', id));
+      } catch {
+        // ignore if photo deletion requires higher privilege or doc missing
+      }
+    }
 
     // Update offline cache
     const docs = getOfflineCache<WastewaterData[]>('wastewater', []);
     const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
     setOfflineCache('wastewater', updatedDocs);
-
-    await auditService.createLog({
-      collection: 'wastewater',
-      module: 'monitoring',
-      recordId: id,
-      action: 'update',
-      details: `Mengubah data kualitas air limbah di lokasi ${updatedItem.location} (${evalRes.overall})`,
-      beforeData: oldData as Record<string, any>,
-      afterData: updatedItem as Record<string, any>,
-      correctionReason: item.correctionReason || null,
-    });
   }
 };
 
@@ -495,49 +555,66 @@ export const surfaceWaterService = {
     const status = evalRes.legacyStatus;
     const id = `SW-${crypto.randomUUID()}`;
     
-    const newItem: SurfaceWaterData = {
-      ...item,
-      id,
-      kelasAir,
-      status,
-      evaluationStatus: evalRes.overall,
-      evaluationReason: evalRes.evaluationReason,
-      standardBasis: evalRes.standardsBasis,
-      standardId: evalCtx.standardId,
-      standardSnapshot: evalCtx.standardSnapshot,
-    };
+    const serverEvalActive = getCachedFeatureFlags().serverEvaluation;
+    const newItem: SurfaceWaterData = serverEvalActive
+      ? {
+          ...item,
+          id,
+          kelasAir,
+        }
+      : {
+          ...item,
+          id,
+          kelasAir,
+          status,
+          evaluationStatus: evalRes.overall,
+          evaluationReason: evalRes.evaluationReason,
+          standardBasis: evalRes.standardsBasis,
+          standardId: evalCtx.standardId,
+          standardSnapshot: evalCtx.standardSnapshot,
+        };
 
     const parseResult = SurfaceWaterSchema.safeParse(newItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'surfacewater', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    const writePayload = serverEvalActive
+      ? stripUndefined(stripServerEvalFields({ ...newItem, ...trailCreate() }))
+      : stripUndefined({ ...newItem, ...trailCreate() });
 
-    // Audit Log
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'surfacewater', id), writePayload);
+    auditService.addToBatch(batch, {
       collection: 'surfacewater',
       module: 'monitoring',
       recordId: id,
       action: 'insert',
-      details: `Menambah data kualitas air permukaan di lokasi ${item.location} (Kelas ${kelasAir}) dengan kesimpulan ${evalRes.overall}`,
+      details: serverEvalActive
+        ? `Menambah data kualitas air permukaan di lokasi ${item.location} (Kelas ${kelasAir}) — Menunggu evaluasi server`
+        : `Menambah data kualitas air permukaan di lokasi ${item.location} (Kelas ${kelasAir}) dengan kesimpulan ${evalRes.overall}`,
       afterData: newItem as Record<string, any>,
     });
+    await batch.commit();
 
-    if (status === 'Exceeded') {
-      await notificationService.add({
-        type: 'Critical',
-        category: 'SurfaceWater',
-        title: 'Baku Mutu Air Permukaan Terlampaui!',
-        message: `Pengujian di ${item.location} melampaui batas regulasi PP No. 22 Tahun 2021 Lampiran VI Kelas ${kelasAir} (${evalRes.failedParams.join(', ')}).`
-      });
-    } else if (status === 'Warning') {
-      await notificationService.add({
-        type: 'Warning',
-        category: 'SurfaceWater',
-        title: 'Air Permukaan Mendekati Baku Mutu',
-        message: `Pengujian di ${item.location} mendekati parameter kritis Kelas ${kelasAir} (${evalRes.warningParams.join(', ')}).`
-      });
+    try {
+      if (status === 'Exceeded') {
+        await notificationService.add({
+          type: 'Critical',
+          category: 'SurfaceWater',
+          title: 'Baku Mutu Air Permukaan Terlampaui!',
+          message: `Pengujian di ${item.location} melampaui batas regulasi PP No. 22 Tahun 2021 Lampiran VI Kelas ${kelasAir} (${evalRes.failedParams.join(', ')}).`
+        });
+      } else if (status === 'Warning') {
+        await notificationService.add({
+          type: 'Warning',
+          category: 'SurfaceWater',
+          title: 'Air Permukaan Mendekati Baku Mutu',
+          message: `Pengujian di ${item.location} mendekati parameter kritis Kelas ${kelasAir} (${evalRes.warningParams.join(', ')}).`
+        });
+      }
+    } catch {
+      // non-fatal alert
     }
 
     return newItem;
@@ -551,15 +628,9 @@ export const surfaceWaterService = {
     }
     const oldData = snap.data() as SurfaceWaterData;
 
-    await deleteDoc(docRef);
-
-    // Update offline cache
-    const docs = getOfflineCache<SurfaceWaterData[]>('surfacewater', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('surfacewater', updated);
-
-    // Audit Log
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'surfacewater',
       module: 'monitoring',
       recordId: id,
@@ -568,6 +639,12 @@ export const surfaceWaterService = {
       beforeData: oldData as Record<string, any>,
       correctionReason: reason || null,
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<SurfaceWaterData[]>('surfacewater', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('surfacewater', updated);
   },
 
   update: async (id: string, item: Partial<SurfaceWaterData>): Promise<void> => {
@@ -588,39 +665,52 @@ export const surfaceWaterService = {
       kelasAir,
       unitMap: merged.unitMap,
     });
-    const updatedItem: SurfaceWaterData = {
-      ...merged,
-      kelasAir,
-      status: evalRes.legacyStatus,
-      evaluationStatus: evalRes.overall,
-      evaluationReason: evalRes.evaluationReason,
-      standardBasis: evalRes.standardsBasis,
-      standardId: evalCtx.standardId,
-      standardSnapshot: evalCtx.standardSnapshot,
-    };
+    const serverEvalActive = getCachedFeatureFlags().serverEvaluation;
+    const updatedItem: SurfaceWaterData = serverEvalActive
+      ? {
+          ...merged,
+          kelasAir,
+        }
+      : {
+          ...merged,
+          kelasAir,
+          status: evalRes.legacyStatus,
+          evaluationStatus: evalRes.overall,
+          evaluationReason: evalRes.evaluationReason,
+          standardBasis: evalRes.standardsBasis,
+          standardId: evalCtx.standardId,
+          standardSnapshot: evalCtx.standardSnapshot,
+        };
 
     const parseResult = SurfaceWaterSchema.safeParse(updatedItem);
     if (!parseResult.success) {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
+    const updatePayload = serverEvalActive
+      ? stripUndefined(stripServerEvalFields({ ...updatedItem, ...trailUpdate() }))
+      : stripUndefined({ ...updatedItem, ...trailUpdate() });
+
+    const batch = writeBatch(db);
+    batch.update(docRef, updatePayload as any);
+    auditService.addToBatch(batch, {
+      collection: 'surfacewater',
+      module: 'monitoring',
+      recordId: id,
+      action: 'update',
+      details: serverEvalActive
+        ? `Mengubah data kualitas air permukaan di lokasi ${updatedItem.location} (Evaluasi ulang server)`
+        : `Mengubah data kualitas air permukaan di lokasi ${updatedItem.location} (${evalRes.overall})`,
+      beforeData: oldData as Record<string, any>,
+      afterData: (serverEvalActive ? stripServerEvalFields(updatedItem) : updatedItem) as Record<string, any>,
+      correctionReason: item.correctionReason || null,
+    });
+    await batch.commit();
 
     // Update offline cache
     const docs = getOfflineCache<SurfaceWaterData[]>('surfacewater', []);
     const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
     setOfflineCache('surfacewater', updatedDocs);
-
-    await auditService.createLog({
-      collection: 'surfacewater',
-      module: 'monitoring',
-      recordId: id,
-      action: 'update',
-      details: `Mengubah data kualitas air permukaan di lokasi ${updatedItem.location} (${evalRes.overall})`,
-      beforeData: oldData as Record<string, any>,
-      afterData: updatedItem as Record<string, any>,
-      correctionReason: item.correctionReason || null,
-    });
   }
 };
 
@@ -653,24 +743,28 @@ export const rainfallService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'rainfall', id), stripUndefined({ ...newItem, ...trailCreate() }));
-
-    // Audit Log
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'rainfall', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'rainfall',
       recordId: id,
       action: 'insert',
       details: `Menambah catatan curah hujan di stasiun ${item.station} sebesar ${item.rainfall} mm`
     });
+    await batch.commit();
 
-    // Handle high intensity rain triggers
+    // Handle high intensity rain triggers (best-effort)
     if (item.rainfall >= 50) {
-      await notificationService.add({
-        type: 'Warning',
-        category: 'Wastewater',
-        title: 'Curah Hujan Tinggi!',
-        message: `Curah hujan tinggi terdeteksi di stasiun ${item.station} sebesar ${item.rainfall} mm. Naikkan pengawasan tanggul & pompa sump.`
-      });
+      try {
+        await notificationService.add({
+          type: 'Warning',
+          category: 'Wastewater',
+          title: 'Curah Hujan Tinggi!',
+          message: `Curah hujan tinggi terdeteksi di stasiun ${item.station} sebesar ${item.rainfall} mm. Naikkan pengawasan tanggul & pompa sump.`
+        });
+      } catch {
+        // non-fatal alert
+      }
     }
 
     return newItem;
@@ -684,19 +778,20 @@ export const rainfallService = {
     }
     const oldData = snap.data() as RainfallData;
 
-    await deleteDoc(docRef);
-
-    // Update offline cache
-    const docs = getOfflineCache<RainfallData[]>('rainfall', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('rainfall', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'rainfall',
       recordId: id,
       action: 'delete',
       details: `Menghapus curah hujan stasiun ${oldData.station || '-'}, tgl: ${oldData.date || '-'}, curah: ${oldData.rainfall ?? 0} mm`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<RainfallData[]>('rainfall', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('rainfall', updated);
   },
 
   update: async (id: string, item: Partial<RainfallData>): Promise<void> => {
@@ -711,19 +806,20 @@ export const rainfallService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-
-    // Update offline cache
-    const docs = getOfflineCache<RainfallData[]>('rainfall', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
-    setOfflineCache('rainfall', updatedDocs);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'rainfall',
       recordId: id,
       action: 'update',
       details: `Mengubah data curah hujan di stasiun ${updatedItem.station}`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<RainfallData[]>('rainfall', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    setOfflineCache('rainfall', updatedDocs);
   }
 };
 
@@ -756,15 +852,15 @@ export const nurseryService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'nursery', id), stripUndefined({ ...newItem, ...trailCreate() }));
-
-    // Audit Log
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'nursery', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'nursery',
       recordId: id,
       action: 'insert',
       details: `Menambah stok nursery ${item.plantType} sebanyak ${item.quantity} bibit`
     });
+    await batch.commit();
 
     return newItem;
   },
@@ -777,19 +873,20 @@ export const nurseryService = {
     }
     const oldData = snap.data() as NurseryData;
 
-    await deleteDoc(docRef);
-
-    // Update offline cache
-    const docs = getOfflineCache<NurseryData[]>('nursery', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('nursery', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'nursery',
       recordId: id,
       action: 'delete',
       details: `Menghapus bibit nursery: ${oldData.plantType || '-'}, batch: ${oldData.batchCode || '-'}, jumlah: ${oldData.quantity ?? 0}`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<NurseryData[]>('nursery', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('nursery', updated);
   },
 
   update: async (id: string, item: Partial<NurseryData>): Promise<void> => {
@@ -804,19 +901,20 @@ export const nurseryService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-
-    // Update offline cache
-    const docs = getOfflineCache<NurseryData[]>('nursery', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
-    setOfflineCache('nursery', updatedDocs);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'nursery',
       recordId: id,
       action: 'update',
       details: `Mengubah data nursery ${updatedItem.plantType}`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<NurseryData[]>('nursery', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    setOfflineCache('nursery', updatedDocs);
   }
 };
 
@@ -883,19 +981,20 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'reclamation', id), stripUndefined({ ...newItem, ...trailCreate() }));
-
-    // Update offline cache
-    const docs = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
-    const updated = [newItem, ...docs.filter(x => x.id !== id)];
-    setOfflineCache('reclamation_plans', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'reclamation', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'reclamation',
       recordId: id,
       action: 'insert',
       details: `Membuat rencana reklamasi baru di area ${item.areaName} tahun target ${item.targetYear}`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
+    const updated = [newItem, ...docs.filter(x => x.id !== id)];
+    setOfflineCache('reclamation_plans', updated);
 
     return newItem;
   },
@@ -914,28 +1013,33 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...merged, ...trailUpdate() }) as any);
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...merged, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
+      collection: 'reclamation',
+      recordId: id,
+      action: 'update',
+      details: `Memperbarui rencana reklamasi area ${current.areaName} (Status: ${merged.status})`
+    });
+    await batch.commit();
 
     // Update offline cache
     const docs = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
     const updatedDocs = docs.map(x => x.id === id ? merged : x);
     setOfflineCache('reclamation_plans', updatedDocs);
 
-    await auditService.createLog({
-      collection: 'reclamation',
-      recordId: id,
-      action: 'update',
-      details: `Memperbarui rencana reklamasi area ${current.areaName} (Status: ${merged.status})`
-    });
-
-    // Notify upon completion of block targets
+    // Notify upon completion of block targets (non-fatal)
     if (merged.status === 'Completed' && current.status !== 'Completed') {
-      await notificationService.add({
-        type: 'Info',
-        category: 'Guarantee',
-        title: 'Blok Reklamasi Selesai',
-        message: `Program revegetasi di blok ${merged.areaName} seluas ${merged.realizedSizeHa || merged.sizeHa} Ha telah dipastikan selesai.`
-      });
+      try {
+        await notificationService.add({
+          type: 'Info',
+          category: 'Guarantee',
+          title: 'Blok Reklamasi Selesai',
+          message: `Program revegetasi di blok ${merged.areaName} seluas ${merged.realizedSizeHa || merged.sizeHa} Ha telah dipastikan selesai.`
+        });
+      } catch {
+        // Non-fatal
+      }
     }
   },
 
@@ -947,19 +1051,20 @@ export const reclamationService = {
     }
     const current = snap.data() as ReclamationPlan;
 
-    await deleteDoc(docRef);
-
-    // Update offline cache
-    const docs = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('reclamation_plans', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'reclamation',
       recordId: id,
       action: 'delete',
       details: `Menghapus rencana reklamasi area: ${current.areaName || '-'}, tahun target: ${current.targetYear ?? '-'}, luas: ${current.sizeHa ?? 0} Ha`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<ReclamationPlan[]>('reclamation_plans', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('reclamation_plans', updated);
   },
 
   addGuarantee: async (item: Omit<ReclamationGuarantee, 'id'>): Promise<ReclamationGuarantee> => {
@@ -974,19 +1079,20 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'reclamation', id), stripUndefined({ ...newItem, ...trailCreate() }));
-
-    // Update offline cache
-    const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
-    const updated = [newItem, ...docs.filter(x => x.id !== id)];
-    setOfflineCache('reclamation_guarantees', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'reclamation', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'reclamation',
       recordId: id,
       action: 'insert',
       details: `Mendaftarkan jaminan rekening reklamasi baru No: ${item.guaranteeNo}`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
+    const updated = [newItem, ...docs.filter(x => x.id !== id)];
+    setOfflineCache('reclamation_guarantees', updated);
 
     return newItem;
   },
@@ -998,21 +1104,22 @@ export const reclamationService = {
       throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     }
     const current = snap.data() as ReclamationGuarantee;
-
-    await deleteDoc(docRef);
-
-    // Update offline cache
-    const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('reclamation_guarantees', updated);
-
     const valFormatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(current.value || 0);
-    await auditService.createLog({
+
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'reclamation',
       recordId: id,
       action: 'delete',
       details: `Menghapus jaminan reklamasi No: ${current.guaranteeNo || '-'}, Tipe: ${current.guaranteeType || '-'}, Nilai: ${valFormatted}, Penerbit: ${current.issuingInstitution || '-'}, Jatuh Tempo: ${current.dueDate || '-'}`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('reclamation_guarantees', updated);
   },
 
   updateGuarantee: async (id: string, item: Partial<ReclamationGuarantee>): Promise<void> => {
@@ -1027,19 +1134,20 @@ export const reclamationService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-
-    // Update offline cache
-    const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
-    setOfflineCache('reclamation_guarantees', updatedDocs);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'reclamation',
       recordId: id,
       action: 'update',
       details: `Mengubah jaminan reklamasi No: ${updatedItem.guaranteeNo}`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<ReclamationGuarantee[]>('reclamation_guarantees', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    setOfflineCache('reclamation_guarantees', updatedDocs);
   }
 };
 
@@ -1085,14 +1193,9 @@ export const wasteB3Service = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'waste_b3', id), stripUndefined({ ...newItem, ...trailCreate() }));
-
-    // Update offline cache
-    const docs = getOfflineCache<WasteIn[]>('waste_in', []);
-    const updated = [newItem, ...docs.filter(x => x.id !== id)].sort(compareLatestFirst);
-    setOfflineCache('waste_in', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'waste_b3', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'waste_b3',
       module: 'waste_b3',
       recordId: id,
@@ -1100,6 +1203,12 @@ export const wasteB3Service = {
       details: `Mencatat masuk limbah B3 ${item.wasteType} sebesar ${item.weightKg.toLocaleString('id-ID')} kg`,
       afterData: newItem as Record<string, any>,
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<WasteIn[]>('waste_in', []);
+    const updated = [newItem, ...docs.filter(x => x.id !== id)].sort(compareLatestFirst);
+    setOfflineCache('waste_in', updated);
 
     return newItem;
   },
@@ -1135,14 +1244,9 @@ export const wasteB3Service = {
       throw new Error(`Tidak dapat menghapus: limbah pada batch ${id} sudah dikeluarkan lewat manifest ${manifestList || 'pengeluaran B3'}.`);
     }
 
-    await deleteDoc(docRef);
-
-    // Update offline cache
-    const docs = getOfflineCache<WasteIn[]>('waste_in', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('waste_in', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'waste_b3',
       module: 'waste_b3',
       recordId: id,
@@ -1151,6 +1255,12 @@ export const wasteB3Service = {
       beforeData: targetIn as Record<string, any>,
       correctionReason: reason || null,
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<WasteIn[]>('waste_in', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('waste_in', updated);
   },
 
   updateIn: async (id: string, item: Partial<WasteIn>, reason?: string): Promise<void> => {
@@ -1181,14 +1291,9 @@ export const wasteB3Service = {
     }
 
     const docRef = doc(db, 'waste_b3', id);
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-
-    // Update offline cache
-    const docs = getOfflineCache<WasteIn[]>('waste_in', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x).sort(compareLatestFirst);
-    setOfflineCache('waste_in', updatedDocs);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'waste_b3',
       module: 'waste_b3',
       recordId: id,
@@ -1198,6 +1303,12 @@ export const wasteB3Service = {
       afterData: updatedItem as Record<string, any>,
       correctionReason: reason || null,
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<WasteIn[]>('waste_in', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x).sort(compareLatestFirst);
+    setOfflineCache('waste_in', updatedDocs);
   },
 
   addOut: async (
@@ -1237,19 +1348,14 @@ export const wasteB3Service = {
     const candidateOut = [...currentOut, newItem];
     const ledger = buildWasteLedger(currentIn, candidateOut);
     const outInfo = ledger.outById[id];
-
-    await setDoc(doc(db, 'waste_b3', id), stripUndefined({ ...newItem, ...trailCreate() }));
-
-    const docs = getOfflineCache<WasteOut[]>('waste_out', []);
-    const updated = [newItem, ...docs.filter(x => x.id !== id)].sort(compareLatestFirst);
-    setOfflineCache('waste_out', updated);
-
     const remainingStock = ledger.stocks.find(s => s.wasteType === item.wasteType)?.currentStock ?? 0;
     const allocationsSummary = (outInfo?.allocations || [])
       .map(a => `${a.inId} (${a.kg.toLocaleString('id-ID')} Kg)`)
       .join(', ') || 'Tanpa alokasi';
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'waste_b3', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'waste_b3',
       module: 'waste_b3',
       recordId: id,
@@ -1258,6 +1364,11 @@ export const wasteB3Service = {
       afterData: newItem as Record<string, any>,
       correctionReason: options?.correctionOverride?.authorized ? options.correctionOverride.reason || null : null,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<WasteOut[]>('waste_out', []);
+    const updated = [newItem, ...docs.filter(x => x.id !== id)].sort(compareLatestFirst);
+    setOfflineCache('waste_out', updated);
 
     return newItem;
   },
@@ -1280,18 +1391,13 @@ export const wasteB3Service = {
 
     const candidateOut = currentOut.filter(x => x.id !== id);
     const simLedger = buildWasteLedger(currentIn, candidateOut);
-
-    await deleteDoc(docRef);
-
-    const docs = getOfflineCache<WasteOut[]>('waste_out', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('waste_out', updated);
-
     const remainingStock = oldData
       ? (simLedger.stocks.find(s => s.wasteType === oldData.wasteType)?.currentStock ?? 0)
       : 0;
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'waste_b3',
       module: 'waste_b3',
       recordId: id,
@@ -1300,6 +1406,11 @@ export const wasteB3Service = {
       beforeData: oldData as Record<string, any>,
       correctionReason: reason || null,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<WasteOut[]>('waste_out', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('waste_out', updated);
   },
 
   updateOut: async (
@@ -1338,20 +1449,15 @@ export const wasteB3Service = {
     const candidateOut = currentOut.map(x => x.id === id ? updatedItem : x);
     const ledger = buildWasteLedger(currentIn, candidateOut);
     const outInfo = ledger.outById[id];
-
-    const docRef = doc(db, 'waste_b3', id);
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-
-    const docs = getOfflineCache<WasteOut[]>('waste_out', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x).sort(compareLatestFirst);
-    setOfflineCache('waste_out', updatedDocs);
-
     const remainingStock = ledger.stocks.find(s => s.wasteType === updatedItem.wasteType)?.currentStock ?? 0;
     const allocationsSummary = (outInfo?.allocations || [])
       .map(a => `${a.inId} (${a.kg.toLocaleString('id-ID')} Kg)`)
       .join(', ') || 'Tanpa alokasi';
 
-    await auditService.createLog({
+    const docRef = doc(db, 'waste_b3', id);
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'waste_b3',
       module: 'waste_b3',
       recordId: id,
@@ -1361,6 +1467,11 @@ export const wasteB3Service = {
       afterData: updatedItem as Record<string, any>,
       correctionReason: options?.correctionOverride?.reason || null,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<WasteOut[]>('waste_out', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x).sort(compareLatestFirst);
+    setOfflineCache('waste_out', updatedDocs);
   }
 };
 
@@ -1404,14 +1515,15 @@ export const documentService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'documents', id), stripUndefined({ ...newItem, ...trailCreate() }));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'documents', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'documents',
       recordId: id,
       action: 'insert',
       details: `Menambahkan dokumen lingkungan baru: ${item.name}`
     });
+    await batch.commit();
 
     return newItem;
   },
@@ -1424,19 +1536,20 @@ export const documentService = {
     }
     const oldData = snap.data() as EnvironmentalDocument;
 
-    await deleteDoc(docRef);
-
-    // Update offline cache
-    const docs = getOfflineCache<EnvironmentalDocument[]>('documents', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('documents', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'documents',
       recordId: id,
       action: 'delete',
       details: `Menghapus dokumen lingkungan: ${oldData.name || '-'} (No: ${oldData.docNo || '-'}, Tipe: ${oldData.type || '-'})`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<EnvironmentalDocument[]>('documents', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('documents', updated);
   },
 
   updateDoc: async (id: string, item: Partial<EnvironmentalDocument>): Promise<void> => {
@@ -1451,19 +1564,20 @@ export const documentService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-
-    // Update offline cache
-    const docs = getOfflineCache<EnvironmentalDocument[]>('documents', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
-    setOfflineCache('documents', updatedDocs);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'documents',
       recordId: id,
       action: 'update',
       details: `Mengubah dokumen lingkungan: ${updatedItem.name}`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<EnvironmentalDocument[]>('documents', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    setOfflineCache('documents', updatedDocs);
   },
 
   addEvent: async (item: Omit<ComplianceCalendarEvent, 'id'>): Promise<ComplianceCalendarEvent> => {
@@ -1478,14 +1592,15 @@ export const documentService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'documents', id), stripUndefined({ ...newItem, ...trailCreate() }));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'documents', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'documents',
       recordId: id,
       action: 'insert',
       details: `Menambahkan agenda kepatuhan baru: ${item.title}`
     });
+    await batch.commit();
 
     return newItem;
   },
@@ -1504,14 +1619,15 @@ export const documentService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...merged, ...trailUpdate() }) as any);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...merged, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'documents',
       recordId: id,
       action: 'update',
       details: `Mengubah detail agenda "${current.title}"`
     });
+    await batch.commit();
   },
 
   deleteEvent: async (id: string): Promise<void> => {
@@ -1522,19 +1638,20 @@ export const documentService = {
     }
     const oldData = snap.data() as ComplianceCalendarEvent;
 
-    await deleteDoc(docRef);
-
-    // Update offline cache
-    const docs = getOfflineCache<ComplianceCalendarEvent[]>('compliance_events', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('compliance_events', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'documents',
       recordId: id,
       action: 'delete',
       details: `Menghapus kegiatan agenda: ${oldData.title || '-'} (Tanggal: ${oldData.date || '-'}, Status: ${oldData.status || '-'})`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<ComplianceCalendarEvent[]>('compliance_events', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('compliance_events', updated);
   }
 };
 
@@ -1567,14 +1684,15 @@ export const environmentalCostService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'costs', id), stripUndefined({ ...newItem, ...trailCreate() }));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'costs', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'costs',
       recordId: id,
       action: 'insert',
       details: `Mencatat rancangan biaya program ${item.category} periode ${item.period} ${item.year}`
     });
+    await batch.commit();
 
     return newItem;
   },
@@ -1587,19 +1705,20 @@ export const environmentalCostService = {
     }
     const oldData = snap.data() as EnvironmentalCost;
 
-    await deleteDoc(docRef);
-
-    // Update offline cache
-    const docs = getOfflineCache<EnvironmentalCost[]>('costs', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('costs', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'costs',
       recordId: id,
       action: 'delete',
       details: `Menghapus alokasi biaya lingkungan ${id} (Kategori: ${oldData.category || '-'}, Periode: ${oldData.period || '-'} ${oldData.year ?? ''}, OPEX: Rp${(oldData.plannedOpex ?? 0).toLocaleString('id-ID')})`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<EnvironmentalCost[]>('costs', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('costs', updated);
   },
 
   update: async (id: string, item: Partial<EnvironmentalCost>): Promise<void> => {
@@ -1614,19 +1733,20 @@ export const environmentalCostService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-
-    // Update offline cache
-    const docs = getOfflineCache<EnvironmentalCost[]>('costs', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
-    setOfflineCache('costs', updatedDocs);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'costs',
       recordId: id,
       action: 'update',
       details: `Mengubah alokasi biaya program ${updatedItem.category} periode ${updatedItem.period} ${updatedItem.year}`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<EnvironmentalCost[]>('costs', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    setOfflineCache('costs', updatedDocs);
   }
 };
 
@@ -1777,15 +1897,15 @@ export const solidWasteService = {
       handleValidationError(parseResult.error);
     }
 
-    await setDoc(doc(db, 'solid_waste', id), stripUndefined({ ...newItem, ...trailCreate() }));
-
-    // Audit Log
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'solid_waste', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'solid_waste',
       recordId: id,
       action: 'insert',
       details: `Menambah data pengolahan sampah tanggal ${item.date} dari sumber ${item.source}`
     });
+    await batch.commit();
 
     // Hitung persentase pemilahan/pengolahan terhadap target internal perusahaan (dapat dikonfigurasi di Pengaturan Ambang)
     const targetPct = _cachedThresholds?.solidWasteTargetPct ?? DEFAULT_INTERNAL_THRESHOLDS.solidWasteTargetPct;
@@ -1794,12 +1914,16 @@ export const solidWasteService = {
     const recoveryPct = totalGen > 0 ? (totalProcessed / totalGen) * 100 : 0;
 
     if (recoveryPct < targetPct && totalGen > 10) {
-      await notificationService.add({
-        type: 'Warning',
-        category: 'Solid Waste',
-        title: 'Rasio Pemrosesan Sampah Di Bawah Target Internal',
-        message: `Rasio pemrosesan sampah untuk sumber ${item.source} sebesar ${recoveryPct.toFixed(1)}% di bawah target internal perusahaan (${targetPct}% — mengacu arah Jakstranas; perlu penetapan manajemen). Optimalkan komposter & pemilahan anorganik!`
-      });
+      try {
+        await notificationService.add({
+          type: 'Warning',
+          category: 'Solid Waste',
+          title: 'Rasio Pemrosesan Sampah Di Bawah Target Internal',
+          message: `Rasio pemrosesan sampah untuk sumber ${item.source} sebesar ${recoveryPct.toFixed(1)}% di bawah target internal perusahaan (${targetPct}% — mengacu arah Jakstranas; perlu penetapan manajemen). Optimalkan komposter & pemilahan anorganik!`
+        });
+      } catch {
+        // Non-fatal
+      }
     }
 
     return newItem;
@@ -1813,19 +1937,20 @@ export const solidWasteService = {
     }
     const oldData = snap.data() as SolidWasteData;
 
-    await deleteDoc(docRef);
-
-    // Update offline cache
-    const docs = getOfflineCache<SolidWasteData[]>('solid_waste', []);
-    const updated = docs.filter(x => x.id !== id);
-    setOfflineCache('solid_waste', updated);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'solid_waste',
       recordId: id,
       action: 'delete',
       details: `Menghapus data pengolahan sampah tanggal ${oldData.date || '-'} dari sumber ${oldData.source || '-'} (Total timbulan: ${(oldData.organicKg || 0) + (oldData.inorganicKg || 0) + (oldData.residueKg || 0)} kg)`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<SolidWasteData[]>('solid_waste', []);
+    const updated = docs.filter(x => x.id !== id);
+    setOfflineCache('solid_waste', updated);
   },
 
   update: async (id: string, item: Partial<SolidWasteData>): Promise<void> => {
@@ -1840,19 +1965,20 @@ export const solidWasteService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-
-    // Update offline cache
-    const docs = getOfflineCache<SolidWasteData[]>('solid_waste', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
-    setOfflineCache('solid_waste', updatedDocs);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'solid_waste',
       recordId: id,
       action: 'update',
       details: `Mengubah data pengolahan sampah tanggal ${updatedItem.date} dari sumber ${updatedItem.source}`
     });
+    await batch.commit();
+
+    // Update offline cache
+    const docs = getOfflineCache<SolidWasteData[]>('solid_waste', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    setOfflineCache('solid_waste', updatedDocs);
   }
 };
 
@@ -1882,16 +2008,18 @@ export const capaService = {
       id,
       createdAt: new Date().toISOString()
     };
-    await setDoc(doc(db, 'capa', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    
-    const docs = getOfflineCache<CapaData[]>('capa', []);
-    setOfflineCache('capa', [newItem, ...docs]);
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'capa', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'capa',
       action: 'insert',
       recordId: id,
       details: `Created new CAPA record: ${newItem.title}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<CapaData[]>('capa', []);
+    setOfflineCache('capa', [newItem, ...docs]);
     return id;
   },
 
@@ -1914,17 +2042,19 @@ export const capaService = {
       history: updatedHistory
     };
 
-    await updateDoc(docRef, stripUndefined({ ...merged, ...trailUpdate() }) as any);
-
-    const docs = getOfflineCache<CapaData[]>('capa', []);
-    const updatedDocs = docs.map(x => x.id === id ? merged : x);
-    setOfflineCache('capa', updatedDocs);
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...merged, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'capa',
       action: 'update',
       recordId: id,
       details: `Updated CAPA record status/details.`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<CapaData[]>('capa', []);
+    const updatedDocs = docs.map(x => x.id === id ? merged : x);
+    setOfflineCache('capa', updatedDocs);
   },
 
   delete: async (id: string): Promise<void> => {
@@ -1935,15 +2065,18 @@ export const capaService = {
     }
     const oldData = snap.data() as CapaData;
 
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<CapaData[]>('capa', []);
-    setOfflineCache('capa', docs.filter(x => x.id !== id));
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'capa',
       action: 'delete',
       recordId: id,
       details: `Menghapus temuan CAPA: ${oldData.title || '-'} (Severity: ${oldData.severity || '-'}, Status: ${oldData.status || '-'})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<CapaData[]>('capa', []);
+    setOfflineCache('capa', docs.filter(x => x.id !== id));
   }
 };
 
@@ -1977,17 +2110,18 @@ export const complianceMatrixService = {
     }
 
     const docRef = doc(db, 'compliance_matrix', id);
-    await setDoc(docRef, stripUndefined({ ...newItem, ...trailCreate() }));
-
-    const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
-    setOfflineCache('compliance_matrix', [newItem, ...docs]);
-    
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(docRef, stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'compliance_matrix',
       action: 'insert',
       recordId: id,
       details: `Created new Compliance Matrix record for ${newItem.period} (${newItem.aspect})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
+    setOfflineCache('compliance_matrix', [newItem, ...docs]);
 
     return newItem;
   },
@@ -2005,18 +2139,19 @@ export const complianceMatrixService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
-
-    const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
-    setOfflineCache('compliance_matrix', updatedDocs);
-    
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'compliance_matrix',
       action: 'update',
       recordId: id,
       details: `Updated Compliance Matrix record for ${updatedItem.period} (${updatedItem.aspect})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    setOfflineCache('compliance_matrix', updatedDocs);
   },
 
   delete: async (id: string): Promise<void> => {
@@ -2027,17 +2162,18 @@ export const complianceMatrixService = {
     }
     const oldData = snap.data() as ComplianceMatrixData;
 
-    await deleteDoc(docRef);
-
-    const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
-    setOfflineCache('compliance_matrix', docs.filter(x => x.id !== id));
-    
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'compliance_matrix',
       action: 'delete',
       recordId: id,
       details: `Menghapus matriks kepatuhan RKL/RPL: ${oldData.aspect || '-'} (Periode: ${oldData.period || '-'}, Target: ${oldData.target || '-'})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ComplianceMatrixData[]>('compliance_matrix', []);
+    setOfflineCache('compliance_matrix', docs.filter(x => x.id !== id));
   }
 };
 
@@ -2071,17 +2207,18 @@ export const incidentService = {
     }
 
     const docRef = doc(db, 'incidents', id);
-    await setDoc(docRef, stripUndefined({ ...newItem, ...trailCreate() }));
-
-    const docs = getOfflineCache<IncidentData[]>('incidents', []);
-    setOfflineCache('incidents', [newItem, ...docs]);
-    
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(docRef, stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'incidents',
       action: 'insert',
       recordId: id,
       details: `Created new Incident record (${newItem.category} at ${newItem.location})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<IncidentData[]>('incidents', []);
+    setOfflineCache('incidents', [newItem, ...docs]);
 
     return newItem;
   },
@@ -2099,18 +2236,19 @@ export const incidentService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
-
-    const docs = getOfflineCache<IncidentData[]>('incidents', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
-    setOfflineCache('incidents', updatedDocs);
-    
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'incidents',
       action: 'update',
       recordId: id,
       details: `Updated Incident record status to ${updatedItem.status}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<IncidentData[]>('incidents', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    setOfflineCache('incidents', updatedDocs);
   },
 
   delete: async (id: string): Promise<void> => {
@@ -2121,17 +2259,18 @@ export const incidentService = {
     }
     const oldData = snap.data() as IncidentData;
 
-    await deleteDoc(docRef);
-
-    const docs = getOfflineCache<IncidentData[]>('incidents', []);
-    setOfflineCache('incidents', docs.filter(x => x.id !== id));
-    
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'incidents',
       action: 'delete',
       recordId: id,
       details: `Menghapus catatan insiden: ${oldData.category || '-'} di lokasi ${oldData.location || '-'} (Tgl: ${oldData.date || '-'})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<IncidentData[]>('incidents', []);
+    setOfflineCache('incidents', docs.filter(x => x.id !== id));
   }
 };
 
@@ -2165,12 +2304,9 @@ export const regulatoryService = {
     }
 
     const docRef = doc(db, 'regulatory', id);
-    await setDoc(docRef, stripUndefined({ ...newItem, ...trailCreate() }));
-
-    const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
-    setOfflineCache('regulatory', [newItem, ...docs]);
-    
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(docRef, stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'regulatory',
       module: 'regulatory_watch',
       action: 'insert',
@@ -2178,6 +2314,10 @@ export const regulatoryService = {
       details: `Menambahkan Regulatory Watch (${newItem.regulationNo}, status: ${newItem.status})`,
       afterData: newItem as Record<string, any>,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
+    setOfflineCache('regulatory', [newItem, ...docs]);
 
     return newItem;
   },
@@ -2216,13 +2356,9 @@ export const regulatoryService = {
       handleValidationError(parseResult.error);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
-
-    const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
-    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
-    setOfflineCache('regulatory', updatedDocs);
-    
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'regulatory',
       module: 'regulatory_watch',
       action: 'update',
@@ -2232,6 +2368,11 @@ export const regulatoryService = {
       afterData: updatedItem as Record<string, any>,
       correctionReason: reason || null,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
+    const updatedDocs = docs.map(x => x.id === id ? updatedItem : x);
+    setOfflineCache('regulatory', updatedDocs);
   },
 
   delete: async (id: string): Promise<void> => {
@@ -2242,12 +2383,9 @@ export const regulatoryService = {
     }
     const oldData = snap.data() as RegulatoryWatchData;
 
-    await deleteDoc(docRef);
-
-    const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
-    setOfflineCache('regulatory', docs.filter(x => x.id !== id));
-    
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'regulatory',
       module: 'regulatory_watch',
       action: 'delete',
@@ -2255,6 +2393,10 @@ export const regulatoryService = {
       details: `Menghapus regulasi: ${oldData.regulationNo || '-'} (${oldData.about || '-'})`,
       beforeData: oldData as Record<string, any>,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
+    setOfflineCache('regulatory', docs.filter(x => x.id !== id));
   },
 
   seedLatestRegulations: async (): Promise<{ inserted: number; skipped: number }> => {
@@ -2271,6 +2413,7 @@ export const regulatoryService = {
     let inserted = 0;
     let skipped = 0;
     const newlyInserted: RegulatoryWatchData[] = [];
+    const batch = writeBatch(db);
 
     for (const seed of REGULATORY_WATCH_SEED_15) {
       const normNo = seed.regulationNo.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -2284,22 +2427,23 @@ export const regulatoryService = {
       if (!parseResult.success) {
         handleValidationError(parseResult.error);
       }
-      await setDoc(doc(db, 'regulatory', id), stripUndefined({ ...newItem, ...trailCreate() }));
+      batch.set(doc(db, 'regulatory', id), stripUndefined({ ...newItem, ...trailCreate() }));
       existingNorms.add(normNo);
       newlyInserted.push(newItem);
       inserted += 1;
     }
 
     if (inserted > 0) {
-      const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
-      setOfflineCache('regulatory', [...newlyInserted, ...docs]);
-      await auditService.createLog({
+      auditService.addToBatch(batch, {
         collection: 'regulatory',
         module: 'regulatory_watch',
         recordId: 'seed-2024-2026',
         action: 'insert',
         details: `Memuat ${inserted} regulasi referensi 2024-2026 (${skipped} dilewati karena sudah ada; item 2025-2026 bertanda MENUNGGU VERIFIKASI)`
       });
+      await batch.commit();
+      const docs = getOfflineCache<RegulatoryWatchData[]>('regulatory', []);
+      setOfflineCache('regulatory', [...newlyInserted, ...docs]);
     }
 
     return { inserted, skipped };
@@ -2352,14 +2496,15 @@ export const nurseryStockOutService = {
       throw new Error(`Stok bibit tidak mencukupi. Tersedia: ${availableStock} bibit, diminta: ${item.jumlahKeluar} bibit.`);
     }
 
-    await setDoc(doc(db, 'nursery_stock_out', id), stripUndefined({ ...newItem, ...trailCreate(), createdAt: nowIso }));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'nursery_stock_out', id), stripUndefined({ ...newItem, ...trailCreate(), createdAt: nowIso }));
+    auditService.addToBatch(batch, {
       collection: 'nursery_stock_out',
       recordId: id,
       action: 'insert',
       details: `Mengeluarkan stok nursery ${item.namaBibit} sebanyak ${item.jumlahKeluar} bibit`
     });
+    await batch.commit();
 
     return newItem;
   },
@@ -2400,14 +2545,15 @@ export const nurseryStockOutService = {
       throw new Error(`Stok bibit tidak mencukupi. Tersedia: ${availableStock} bibit, diminta: ${merged.jumlahKeluar} bibit.`);
     }
 
-    await updateDoc(docRef, stripUndefined({ ...merged, ...trailUpdate() }));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...merged, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'nursery_stock_out',
       recordId: id,
       action: 'update',
       details: `Mengubah data nursery stock out ${merged.namaBibit}`
     });
+    await batch.commit();
   },
 
   delete: async (id: string): Promise<void> => {
@@ -2418,14 +2564,15 @@ export const nurseryStockOutService = {
     }
     const oldData = snap.data() as NurseryStockOut;
 
-    await deleteDoc(docRef);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'nursery_stock_out',
       recordId: id,
       action: 'delete',
       details: `Menghapus penyaluran bibit: ${oldData.namaBibit || '-'} (Jumlah: ${oldData.jumlahKeluar ?? 0}, Lokasi: ${oldData.lokasiPenanaman || '-'}, Tgl: ${oldData.tanggal || '-'})`
     });
+    await batch.commit();
   }
 };
 
@@ -2452,24 +2599,30 @@ export const amdTreatmentService = {
     const parseResult = AmdTreatmentSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'amd_treatment', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<AmdTreatmentData[]>('amd_treatment', []);
-    setOfflineCache('amd_treatment', [newItem, ...docs]);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'amd_treatment', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'amd_treatment',
       recordId: id,
       action: 'insert',
       details: `Mencatat treatment AAT tanggal ${item.date} di ${item.location} (pH In: ${item.inflowPh}, pH Out: ${item.outflowPh}, Kapur: ${item.limeKg} kg)`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<AmdTreatmentData[]>('amd_treatment', []);
+    setOfflineCache('amd_treatment', [newItem, ...docs]);
 
     if (item.complianceStatus === 'Tidak Memenuhi') {
-      await notificationService.add({
-        type: 'Warning',
-        category: 'AMD Treatment',
-        title: 'Outlet AAT Di Luar Baku Mutu',
-        message: `pH outflow AAT di ${item.location} (${item.treatmentZone}) tercatat ${item.outflowPh} (di luar rentang 6.0-9.0). Segera evaluasi dosis pengapuran.`
-      });
+      try {
+        await notificationService.add({
+          type: 'Warning',
+          category: 'AMD Treatment',
+          title: 'Outlet AAT Di Luar Baku Mutu',
+          message: `pH outflow AAT di ${item.location} (${item.treatmentZone}) tercatat ${item.outflowPh} (di luar rentang 6.0-9.0). Segera evaluasi dosis pengapuran.`
+        });
+      } catch {
+        // Non-fatal
+      }
     }
 
     return newItem;
@@ -2483,16 +2636,18 @@ export const amdTreatmentService = {
     const parseResult = AmdTreatmentSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<AmdTreatmentData[]>('amd_treatment', []);
-    setOfflineCache('amd_treatment', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'amd_treatment',
       recordId: id,
       action: 'update',
       details: `Memperbarui data treatment AAT tanggal ${updatedItem.date} di ${updatedItem.location}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<AmdTreatmentData[]>('amd_treatment', []);
+    setOfflineCache('amd_treatment', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -2500,16 +2655,19 @@ export const amdTreatmentService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as AmdTreatmentData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<AmdTreatmentData[]>('amd_treatment', []);
-    setOfflineCache('amd_treatment', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'amd_treatment',
       recordId: id,
       action: 'delete',
       details: `Menghapus data treatment AAT tanggal ${oldData.date || '-'} di ${oldData.location || '-'}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<AmdTreatmentData[]>('amd_treatment', []);
+    setOfflineCache('amd_treatment', docs.filter(x => x.id !== id));
   }
 };
 
@@ -2536,24 +2694,30 @@ export const airEmissionService = {
     const parseResult = AirEmissionSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'air_emission', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<AirEmissionData[]>('air_emission', []);
-    setOfflineCache('air_emission', [newItem, ...docs]);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'air_emission', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'air_emission',
       recordId: id,
       action: 'insert',
       details: `Mencatat pemantauan ${item.monitoringCategory} di ${item.location} tanggal ${item.date} (Status: ${item.status})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<AirEmissionData[]>('air_emission', []);
+    setOfflineCache('air_emission', [newItem, ...docs]);
 
     if (item.status === 'Exceeded') {
-      await notificationService.add({
-        type: 'Critical',
-        category: 'Air & Emission',
-        title: 'Pelampauan Baku Mutu Udara / Kebisingan',
-        message: `Hasil pemantauan ${item.monitoringCategory} di ${item.location} pada ${item.date} melebihi baku mutu (PM10: ${item.pm10}, Kebisingan: ${item.noiseDb} dBA).`
-      });
+      try {
+        await notificationService.add({
+          type: 'Critical',
+          category: 'Air & Emission',
+          title: 'Pelampauan Baku Mutu Udara / Kebisingan',
+          message: `Hasil pemantauan ${item.monitoringCategory} di ${item.location} pada ${item.date} melebihi baku mutu (PM10: ${item.pm10 ?? '-'}, Kebisingan: ${item.noiseDb ?? '-'} dBA).`
+        });
+      } catch {
+        // Non-fatal
+      }
     }
 
     return newItem;
@@ -2567,16 +2731,18 @@ export const airEmissionService = {
     const parseResult = AirEmissionSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<AirEmissionData[]>('air_emission', []);
-    setOfflineCache('air_emission', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'air_emission',
       recordId: id,
       action: 'update',
       details: `Memperbarui data ${updatedItem.monitoringCategory} di ${updatedItem.location} (${updatedItem.date})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<AirEmissionData[]>('air_emission', []);
+    setOfflineCache('air_emission', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -2584,16 +2750,19 @@ export const airEmissionService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as AirEmissionData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<AirEmissionData[]>('air_emission', []);
-    setOfflineCache('air_emission', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'air_emission',
       recordId: id,
       action: 'delete',
       details: `Menghapus data udara/emisi ${oldData.monitoringCategory || '-'} di ${oldData.location || '-'} (${oldData.date || '-'})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<AirEmissionData[]>('air_emission', []);
+    setOfflineCache('air_emission', docs.filter(x => x.id !== id));
   }
 };
 
@@ -2620,16 +2789,18 @@ export const topsoilErosionService = {
     const parseResult = TopsoilErosionSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'topsoil_erosion', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<TopsoilErosionData[]>('topsoil_erosion', []);
-    setOfflineCache('topsoil_erosion', [newItem, ...docs]);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'topsoil_erosion', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'topsoil_erosion',
       recordId: id,
       action: 'insert',
       details: `Mencatat neraca topsoil & erosi blok ${item.blockLocation} tanggal ${item.date} (Saldo: ${item.cumulativeBalanceM3} m³, Erosi: ${item.erosionSeverity})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<TopsoilErosionData[]>('topsoil_erosion', []);
+    setOfflineCache('topsoil_erosion', [newItem, ...docs]);
 
     return newItem;
   },
@@ -2642,16 +2813,18 @@ export const topsoilErosionService = {
     const parseResult = TopsoilErosionSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<TopsoilErosionData[]>('topsoil_erosion', []);
-    setOfflineCache('topsoil_erosion', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'topsoil_erosion',
       recordId: id,
       action: 'update',
       details: `Memperbarui data topsoil & erosi blok ${updatedItem.blockLocation} (${updatedItem.date})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<TopsoilErosionData[]>('topsoil_erosion', []);
+    setOfflineCache('topsoil_erosion', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -2659,16 +2832,19 @@ export const topsoilErosionService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as TopsoilErosionData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<TopsoilErosionData[]>('topsoil_erosion', []);
-    setOfflineCache('topsoil_erosion', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'topsoil_erosion',
       recordId: id,
       action: 'delete',
       details: `Menghapus catatan topsoil & erosi blok ${oldData.blockLocation || '-'} (${oldData.date || '-'})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<TopsoilErosionData[]>('topsoil_erosion', []);
+    setOfflineCache('topsoil_erosion', docs.filter(x => x.id !== id));
   }
 };
 
@@ -2695,24 +2871,30 @@ export const biodiversityService = {
     const parseResult = BiodiversitySchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'biodiversity', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<BiodiversityData[]>('biodiversity', []);
-    setOfflineCache('biodiversity', [newItem, ...docs]);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'biodiversity', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'biodiversity',
       recordId: id,
       action: 'insert',
       details: `Mencatat observasi ${item.category}: ${item.speciesName} (${item.count} individu) di ${item.zone}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<BiodiversityData[]>('biodiversity', []);
+    setOfflineCache('biodiversity', [newItem, ...docs]);
 
     if (item.condition === 'Terancam' || (isProtectedConservationStatus(item.conservationStatus) && item.condition !== 'Sehat')) {
-      await notificationService.add({
-        type: 'Warning',
-        category: 'Biodiversity',
-        title: 'Perhatian Satwa / Spesies Dilindungi',
-        message: `Terdeteksi ${item.speciesName} (${item.conservationStatus}) dengan kondisi "${item.condition}" di ${item.zone}. Perlu perlindungan koridor/habitat.`
-      });
+      try {
+        await notificationService.add({
+          type: 'Warning',
+          category: 'Biodiversity',
+          title: 'Perhatian Satwa / Spesies Dilindungi',
+          message: `Terdeteksi ${item.speciesName} (${item.conservationStatus}) dengan kondisi "${item.condition}" di ${item.zone}. Perlu perlindungan koridor/habitat.`
+        });
+      } catch {
+        // Non-fatal
+      }
     }
 
     return newItem;
@@ -2726,16 +2908,18 @@ export const biodiversityService = {
     const parseResult = BiodiversitySchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<BiodiversityData[]>('biodiversity', []);
-    setOfflineCache('biodiversity', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'biodiversity',
       recordId: id,
       action: 'update',
       details: `Memperbarui observasi kehati ${updatedItem.speciesName} di ${updatedItem.zone}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<BiodiversityData[]>('biodiversity', []);
+    setOfflineCache('biodiversity', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -2743,16 +2927,19 @@ export const biodiversityService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as BiodiversityData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<BiodiversityData[]>('biodiversity', []);
-    setOfflineCache('biodiversity', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'biodiversity',
       recordId: id,
       action: 'delete',
       details: `Menghapus catatan kehati ${oldData.speciesName || '-'} (${oldData.zone || '-'})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<BiodiversityData[]>('biodiversity', []);
+    setOfflineCache('biodiversity', docs.filter(x => x.id !== id));
   }
 };
 
@@ -2779,16 +2966,18 @@ export const iadlRiskService = {
     const parseResult = IadlRiskSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'iadl_risk', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<IadlRiskData[]>('iadl_risk', []);
-    setOfflineCache('iadl_risk', [newItem, ...docs]);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'iadl_risk', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'iadl_risk',
       recordId: id,
       action: 'insert',
       details: `Menambah register IADL ${item.code}: ${item.activity} (Skor Risiko: ${item.riskScore} - ${item.riskLevel})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<IadlRiskData[]>('iadl_risk', []);
+    setOfflineCache('iadl_risk', [newItem, ...docs]);
 
     return newItem;
   },
@@ -2801,16 +2990,18 @@ export const iadlRiskService = {
     const parseResult = IadlRiskSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<IadlRiskData[]>('iadl_risk', []);
-    setOfflineCache('iadl_risk', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'iadl_risk',
       recordId: id,
       action: 'update',
       details: `Memperbarui register IADL ${updatedItem.code} (${updatedItem.riskLevel})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<IadlRiskData[]>('iadl_risk', []);
+    setOfflineCache('iadl_risk', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -2818,16 +3009,19 @@ export const iadlRiskService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as IadlRiskData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<IadlRiskData[]>('iadl_risk', []);
-    setOfflineCache('iadl_risk', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'iadl_risk',
       recordId: id,
       action: 'delete',
       details: `Menghapus register IADL ${oldData.code || '-'}: ${oldData.activity || '-'}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<IadlRiskData[]>('iadl_risk', []);
+    setOfflineCache('iadl_risk', docs.filter(x => x.id !== id));
   }
 };
 
@@ -2854,16 +3048,18 @@ export const properRkabService = {
     const parseResult = ProperRkabSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'proper_rkab', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<ProperRkabData[]>('proper_rkab', []);
-    setOfflineCache('proper_rkab', [newItem, ...docs]);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'proper_rkab', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'proper_rkab',
       recordId: id,
       action: 'insert',
       details: `Menambah indikator ${item.recordType} ${item.year} (${item.period}): ${item.indicatorName}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ProperRkabData[]>('proper_rkab', []);
+    setOfflineCache('proper_rkab', [newItem, ...docs]);
 
     return newItem;
   },
@@ -2876,16 +3072,18 @@ export const properRkabService = {
     const parseResult = ProperRkabSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<ProperRkabData[]>('proper_rkab', []);
-    setOfflineCache('proper_rkab', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'proper_rkab',
       recordId: id,
       action: 'update',
       details: `Memperbarui indikator ${updatedItem.recordType}: ${updatedItem.indicatorName}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ProperRkabData[]>('proper_rkab', []);
+    setOfflineCache('proper_rkab', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -2893,16 +3091,19 @@ export const properRkabService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as ProperRkabData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<ProperRkabData[]>('proper_rkab', []);
-    setOfflineCache('proper_rkab', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'proper_rkab',
       recordId: id,
       action: 'delete',
       details: `Menghapus indikator ${oldData.recordType || '-'}: ${oldData.indicatorName || '-'}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ProperRkabData[]>('proper_rkab', []);
+    setOfflineCache('proper_rkab', docs.filter(x => x.id !== id));
   }
 };
 
@@ -2933,6 +3134,7 @@ export const standardsService = {
     const existingIds = new Set(snap.docs.map(d => d.id));
     let inserted = 0;
     let skipped = 0;
+    const batch = writeBatch(db);
 
     for (const item of INITIAL_STANDARDS_SEED) {
       if (existingIds.has(item.id)) {
@@ -2943,18 +3145,19 @@ export const standardsService = {
       if (!parseResult.success) {
         handleValidationError(parseResult.error);
       }
-      await setDoc(doc(db, 'standards', item.id), stripUndefined({ ...item, ...trailCreate() }));
+      batch.set(doc(db, 'standards', item.id), stripUndefined({ ...item, ...trailCreate() }));
       inserted += 1;
     }
 
     if (inserted > 0) {
-      await auditService.createLog({
+      auditService.addToBatch(batch, {
         collection: 'standards',
         module: 'standards_master',
         recordId: 'seed-defaults',
         action: 'insert',
         details: `Inisialisasi ${inserted} baku mutu standar (${skipped} sudah ada)`
       });
+      await batch.commit();
     }
     return { inserted, skipped };
   },
@@ -2965,8 +3168,9 @@ export const standardsService = {
     const parseResult = EnvironmentalStandardSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'standards', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'standards', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'standards',
       module: 'standards_master',
       recordId: id,
@@ -2974,6 +3178,7 @@ export const standardsService = {
       details: `Menambah baku mutu ${newItem.media} (${newItem.parameterLabel}) — ${newItem.basisRegulasi}`,
       afterData: newItem as Record<string, any>,
     });
+    await batch.commit();
     return newItem;
   },
 
@@ -3009,8 +3214,9 @@ export const standardsService = {
     const parseResult = EnvironmentalStandardSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'standards',
       module: 'standards_master',
       recordId: id,
@@ -3020,6 +3226,7 @@ export const standardsService = {
       afterData: updatedItem as Record<string, any>,
       correctionReason: revisionReason || null,
     });
+    await batch.commit();
   },
 
   delete: async (id: string): Promise<void> => {
@@ -3027,8 +3234,10 @@ export const standardsService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data baku mutu tidak ditemukan di server.');
     const oldData = snap.data() as EnvironmentalStandard;
-    await deleteDoc(docRef);
-    await auditService.createLog({
+
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'standards',
       module: 'standards_master',
       recordId: id,
@@ -3036,6 +3245,7 @@ export const standardsService = {
       details: `Menghapus baku mutu ${oldData.parameterLabel || id} (${oldData.media || '-'})`,
       beforeData: oldData as Record<string, any>,
     });
+    await batch.commit();
   }
 };
 
@@ -3066,16 +3276,18 @@ export const internalThresholdsService = {
     const parseResult = InternalThresholdsSchema.safeParse(payload);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'app_meta', 'env_thresholds'), stripUndefined({ ...payload, ...trailUpdate() }), { merge: true });
-    _cachedThresholds = payload;
-    setOfflineCache('env_thresholds', payload);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'app_meta', 'env_thresholds'), stripUndefined({ ...payload, ...trailUpdate() }), { merge: true });
+    auditService.addToBatch(batch, {
       collection: 'app_meta',
       recordId: 'env_thresholds',
       action: 'update',
       details: `Memperbarui ambang internal (warningRatio=${payload.warningRatio}, phMargin=${payload.phMargin}, targetSampah=${payload.solidWasteTargetPct}%)`
     });
+    await batch.commit();
+
+    _cachedThresholds = payload;
+    setOfflineCache('env_thresholds', payload);
     return payload;
   }
 };
@@ -3105,15 +3317,17 @@ export const properCriteriaService = {
     const parseResult = ProperCriteriaMasterSchema.safeParse(payload);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'app_meta', 'proper_criteria'), stripUndefined({ ...payload, ...trailUpdate() }), { merge: true });
-    setOfflineCache('proper_criteria', payload);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'app_meta', 'proper_criteria'), stripUndefined({ ...payload, ...trailUpdate() }), { merge: true });
+    auditService.addToBatch(batch, {
       collection: 'app_meta',
       recordId: 'proper_criteria',
       action: 'update',
       details: `Memperbarui master kriteria PROPER (${payload.criteria.length} kriteria)`
     });
+    await batch.commit();
+
+    setOfflineCache('proper_criteria', payload);
     return payload;
   }
 };
@@ -3141,16 +3355,18 @@ export const pertekSloService = {
     const parseResult = PertekSloSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'pertek_slo', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<PertekSloData[]>('pertek_slo', []);
-    setOfflineCache('pertek_slo', [newItem, ...docs]);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'pertek_slo', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'pertek_slo',
       recordId: id,
       action: 'insert',
       details: `Menambah register ${item.docKind} (${item.category}): ${item.permitNumber} — ${item.title}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<PertekSloData[]>('pertek_slo', []);
+    setOfflineCache('pertek_slo', [newItem, ...docs]);
     return newItem;
   },
 
@@ -3162,16 +3378,18 @@ export const pertekSloService = {
     const parseResult = PertekSloSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<PertekSloData[]>('pertek_slo', []);
-    setOfflineCache('pertek_slo', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'pertek_slo',
       recordId: id,
       action: 'update',
       details: `Memperbarui ${updatedItem.docKind} ${updatedItem.permitNumber} (Status: ${updatedItem.status})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<PertekSloData[]>('pertek_slo', []);
+    setOfflineCache('pertek_slo', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -3179,16 +3397,19 @@ export const pertekSloService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as PertekSloData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<PertekSloData[]>('pertek_slo', []);
-    setOfflineCache('pertek_slo', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'pertek_slo',
       recordId: id,
       action: 'delete',
       details: `Menghapus register ${oldData.docKind || '-'} ${oldData.permitNumber || '-'} (${oldData.title || '-'})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<PertekSloData[]>('pertek_slo', []);
+    setOfflineCache('pertek_slo', docs.filter(x => x.id !== id));
   }
 };
 
@@ -3215,16 +3436,18 @@ export const reportingCalendarService = {
     const parseResult = ReportingCalendarSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'reporting_calendar', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<ReportingCalendarData[]>('reporting_calendar', []);
-    setOfflineCache('reporting_calendar', [newItem, ...docs]);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'reporting_calendar', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'reporting_calendar',
       recordId: id,
       action: 'insert',
       details: `Menambah jadwal pelaporan ${item.reportType} (${item.periodLabel}), tenggat ${item.dueDate}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ReportingCalendarData[]>('reporting_calendar', []);
+    setOfflineCache('reporting_calendar', [newItem, ...docs]);
     return newItem;
   },
 
@@ -3236,16 +3459,18 @@ export const reportingCalendarService = {
     const parseResult = ReportingCalendarSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<ReportingCalendarData[]>('reporting_calendar', []);
-    setOfflineCache('reporting_calendar', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'reporting_calendar',
       recordId: id,
       action: 'update',
       details: `Memperbarui pelaporan ${updatedItem.reportType} (${updatedItem.periodLabel}, status: ${updatedItem.status})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ReportingCalendarData[]>('reporting_calendar', []);
+    setOfflineCache('reporting_calendar', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -3253,16 +3478,19 @@ export const reportingCalendarService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as ReportingCalendarData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<ReportingCalendarData[]>('reporting_calendar', []);
-    setOfflineCache('reporting_calendar', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'reporting_calendar',
       recordId: id,
       action: 'delete',
       details: `Menghapus jadwal pelaporan ${oldData.reportType || '-'} (${oldData.periodLabel || '-'})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ReportingCalendarData[]>('reporting_calendar', []);
+    setOfflineCache('reporting_calendar', docs.filter(x => x.id !== id));
   }
 };
 
@@ -3289,24 +3517,30 @@ export const externalSupervisionService = {
     const parseResult = ExternalSupervisionSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'external_supervisions', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<ExternalSupervisionData[]>('external_supervisions', []);
-    setOfflineCache('external_supervisions', [newItem, ...docs]);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'external_supervisions', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'external_supervisions',
       recordId: id,
       action: 'insert',
       details: `Mencatat pengawasan eksternal ${item.agency} (${item.officialDocNo}), sanksi: ${item.sanctionCategory}`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ExternalSupervisionData[]>('external_supervisions', []);
+    setOfflineCache('external_supervisions', [newItem, ...docs]);
 
     if (item.sanctionCategory !== 'Tidak Ada') {
-      await notificationService.add({
-        type: 'Critical',
-        category: 'Permit',
-        title: `Pengawasan Eksternal: ${item.sanctionCategory}`,
-        message: `${item.agency} menerbitkan ${item.officialDocNo} dengan kategori sanksi "${item.sanctionCategory}". Tenggat tindak lanjut: ${item.followUpDeadline}.`
-      });
+      try {
+        await notificationService.add({
+          type: 'Critical',
+          category: 'Permit',
+          title: `Pengawasan Eksternal: ${item.sanctionCategory}`,
+          message: `${item.agency} menerbitkan ${item.officialDocNo} dengan kategori sanksi "${item.sanctionCategory}". Tenggat tindak lanjut: ${item.followUpDeadline}.`
+        });
+      } catch {
+        // Non-fatal
+      }
     }
 
     return newItem;
@@ -3320,16 +3554,18 @@ export const externalSupervisionService = {
     const parseResult = ExternalSupervisionSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<ExternalSupervisionData[]>('external_supervisions', []);
-    setOfflineCache('external_supervisions', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'external_supervisions',
       recordId: id,
       action: 'update',
       details: `Memperbarui tindak lanjut pengawasan ${updatedItem.officialDocNo} (Status: ${updatedItem.resolutionStatus})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ExternalSupervisionData[]>('external_supervisions', []);
+    setOfflineCache('external_supervisions', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -3337,16 +3573,19 @@ export const externalSupervisionService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as ExternalSupervisionData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<ExternalSupervisionData[]>('external_supervisions', []);
-    setOfflineCache('external_supervisions', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'external_supervisions',
       recordId: id,
       action: 'delete',
       details: `Menghapus catatan pengawasan ${oldData.agency || '-'} (${oldData.officialDocNo || '-'})`
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<ExternalSupervisionData[]>('external_supervisions', []);
+    setOfflineCache('external_supervisions', docs.filter(x => x.id !== id));
   }
 };
 
@@ -3380,39 +3619,57 @@ export const domesticWastewaterService = {
       sampleDate: item.date,
       unitMap: item.unitMap,
     });
-    const newItem: DomesticWastewaterData = {
-      ...item,
-      id,
-      complianceStatus: evalRes.domesticStatus,
-      evaluationStatus: evalRes.overall,
-      evaluationReason: evalRes.evaluationReason,
-      standardBasis: evalRes.standardsBasis,
-      standardId: evalCtx.standardId,
-      standardSnapshot: evalCtx.standardSnapshot,
-    };
+    const serverEvalActive = getCachedFeatureFlags().serverEvaluation;
+    const newItem: DomesticWastewaterData = serverEvalActive
+      ? {
+          ...stripServerEvalFields(item),
+          id,
+        } as DomesticWastewaterData
+      : {
+          ...item,
+          id,
+          complianceStatus: evalRes.domesticStatus,
+          evaluationStatus: evalRes.overall,
+          evaluationReason: evalRes.evaluationReason,
+          standardBasis: evalRes.standardsBasis,
+          standardId: evalCtx.standardId,
+          standardSnapshot: evalCtx.standardSnapshot,
+        };
     const parseResult = DomesticWastewaterSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'domestic_wastewater', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<DomesticWastewaterData[]>('domestic_wastewater', []);
-    setOfflineCache('domestic_wastewater', [newItem, ...docs]);
+    const writePayload = serverEvalActive
+      ? stripUndefined(stripServerEvalFields({ ...newItem, ...trailCreate() }))
+      : stripUndefined({ ...newItem, ...trailCreate() });
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'domestic_wastewater', id), writePayload);
+    auditService.addToBatch(batch, {
       collection: 'domestic_wastewater',
       module: 'domestic_wastewater',
       recordId: id,
       action: 'insert',
-      details: `Mencatat air limbah domestik ${item.facilityName} tgl ${item.date} (Kesimpulan: ${evalRes.overall})`,
+      details: serverEvalActive
+        ? `Mencatat air limbah domestik ${item.facilityName} tgl ${item.date} — Menunggu evaluasi server`
+        : `Mencatat air limbah domestik ${item.facilityName} tgl ${item.date} (Kesimpulan: ${evalRes.overall})`,
       afterData: newItem as Record<string, any>,
     });
+    await batch.commit();
 
-    if (newItem.complianceStatus === 'Tidak Memenuhi') {
-      await notificationService.add({
-        type: 'Critical',
-        category: 'Wastewater',
-        title: 'Pelampauan Baku Mutu IPAL Domestik',
-        message: `Hasil IPAL Domestik ${item.facilityName} tanggal ${item.date} tidak memenuhi baku mutu master (${evalRes.failedParams.join(', ')}).`
-      });
+    const docs = getOfflineCache<DomesticWastewaterData[]>('domestic_wastewater', []);
+    setOfflineCache('domestic_wastewater', [newItem, ...docs]);
+
+    if (evalRes.domesticStatus === 'Tidak Memenuhi') {
+      try {
+        await notificationService.add({
+          type: 'Critical',
+          category: 'Wastewater',
+          title: 'Pelampauan Baku Mutu IPAL Domestik',
+          message: `Hasil IPAL Domestik ${item.facilityName} tanggal ${item.date} tidak memenuhi baku mutu master (${evalRes.failedParams.join(', ')}).`
+        });
+      } catch {
+        // Non-fatal
+      }
     }
 
     return newItem;
@@ -3435,32 +3692,43 @@ export const domesticWastewaterService = {
       sampleDate: merged.date,
       unitMap: merged.unitMap,
     });
-    const updatedItem: DomesticWastewaterData = {
-      ...merged,
-      complianceStatus: evalRes.domesticStatus,
-      evaluationStatus: evalRes.overall,
-      evaluationReason: evalRes.evaluationReason,
-      standardBasis: evalRes.standardsBasis,
-      standardId: evalCtx.standardId,
-      standardSnapshot: evalCtx.standardSnapshot,
-    };
+    const serverEvalActive = getCachedFeatureFlags().serverEvaluation;
+    const updatedItem: DomesticWastewaterData = serverEvalActive
+      ? ({ ...stripServerEvalFields(merged), id } as DomesticWastewaterData)
+      : {
+          ...merged,
+          complianceStatus: evalRes.domesticStatus,
+          evaluationStatus: evalRes.overall,
+          evaluationReason: evalRes.evaluationReason,
+          standardBasis: evalRes.standardsBasis,
+          standardId: evalCtx.standardId,
+          standardSnapshot: evalCtx.standardSnapshot,
+        };
     const parseResult = DomesticWastewaterSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<DomesticWastewaterData[]>('domestic_wastewater', []);
-    setOfflineCache('domestic_wastewater', docs.map(x => x.id === id ? updatedItem : x));
+    const updatePayload = serverEvalActive
+      ? stripUndefined(stripServerEvalFields({ ...updatedItem, ...trailUpdate() }))
+      : stripUndefined({ ...updatedItem, ...trailUpdate() });
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, updatePayload as any);
+    auditService.addToBatch(batch, {
       collection: 'domestic_wastewater',
       module: 'domestic_wastewater',
       recordId: id,
       action: 'update',
-      details: `Memperbarui data IPAL domestik ${updatedItem.facilityName} (${updatedItem.date}) — ${evalRes.overall}`,
+      details: serverEvalActive
+        ? `Memperbarui data IPAL domestik ${updatedItem.facilityName} (${updatedItem.date}) — Evaluasi ulang server`
+        : `Memperbarui data IPAL domestik ${updatedItem.facilityName} (${updatedItem.date}) — ${evalRes.overall}`,
       beforeData: oldData as Record<string, any>,
       afterData: updatedItem as Record<string, any>,
       correctionReason: item.correctionReason || null,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<DomesticWastewaterData[]>('domestic_wastewater', []);
+    setOfflineCache('domestic_wastewater', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -3468,11 +3736,10 @@ export const domesticWastewaterService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as DomesticWastewaterData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<DomesticWastewaterData[]>('domestic_wastewater', []);
-    setOfflineCache('domestic_wastewater', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'domestic_wastewater',
       module: 'domestic_wastewater',
       recordId: id,
@@ -3480,6 +3747,10 @@ export const domesticWastewaterService = {
       details: `Menghapus catatan IPAL domestik ${oldData.facilityName || '-'} (${oldData.date || '-'})`,
       beforeData: oldData as Record<string, any>,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<DomesticWastewaterData[]>('domestic_wastewater', []);
+    setOfflineCache('domestic_wastewater', docs.filter(x => x.id !== id));
   }
 };
 
@@ -3506,11 +3777,9 @@ export const ghgFactorService = {
     const parseResult = GhgEmissionFactorSchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'ghg_factors', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<GhgEmissionFactorData[]>('ghg_factors', []);
-    setOfflineCache('ghg_factors', [newItem, ...docs]);
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'ghg_factors', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'ghg_factors',
       module: 'ghg_inventory',
       recordId: id,
@@ -3518,6 +3787,10 @@ export const ghgFactorService = {
       details: `Menambah faktor emisi GRK ${item.factorName} (${item.factorKgCo2ePerUnit} kgCO2e/${item.unit}, Ref: ${item.referenceSource})`,
       afterData: newItem as Record<string, any>,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<GhgEmissionFactorData[]>('ghg_factors', []);
+    setOfflineCache('ghg_factors', [newItem, ...docs]);
     return newItem;
   },
 
@@ -3530,11 +3803,9 @@ export const ghgFactorService = {
     const parseResult = GhgEmissionFactorSchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<GhgEmissionFactorData[]>('ghg_factors', []);
-    setOfflineCache('ghg_factors', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'ghg_factors',
       module: 'ghg_inventory',
       recordId: id,
@@ -3543,6 +3814,10 @@ export const ghgFactorService = {
       beforeData: oldData as Record<string, any>,
       afterData: updatedItem as Record<string, any>,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<GhgEmissionFactorData[]>('ghg_factors', []);
+    setOfflineCache('ghg_factors', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -3550,11 +3825,10 @@ export const ghgFactorService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as GhgEmissionFactorData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<GhgEmissionFactorData[]>('ghg_factors', []);
-    setOfflineCache('ghg_factors', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'ghg_factors',
       module: 'ghg_inventory',
       recordId: id,
@@ -3562,6 +3836,10 @@ export const ghgFactorService = {
       details: `Menghapus faktor emisi GRK ${oldData.factorName || '-'}`,
       beforeData: oldData as Record<string, any>,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<GhgEmissionFactorData[]>('ghg_factors', []);
+    setOfflineCache('ghg_factors', docs.filter(x => x.id !== id));
   }
 };
 
@@ -3585,14 +3863,12 @@ export const ghgActivityService = {
     const parseResult = GhgActivitySchema.safeParse(newItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await setDoc(doc(db, 'ghg_activities', id), stripUndefined({ ...newItem, ...trailCreate() }));
-    const docs = getOfflineCache<GhgActivityData[]>('ghg_activities', []);
-    setOfflineCache('ghg_activities', [newItem, ...docs]);
-
     const emissionTxt = item.emissionsTco2e !== null && item.emissionsTco2e !== undefined
       ? `${item.emissionsTco2e} tCO2e`
       : 'BELUM TERHITUNG';
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'ghg_activities', id), stripUndefined({ ...newItem, ...trailCreate() }));
+    auditService.addToBatch(batch, {
       collection: 'ghg_activities',
       module: 'ghg_inventory',
       recordId: id,
@@ -3600,6 +3876,10 @@ export const ghgActivityService = {
       details: `Mencatat aktivitas GRK ${item.activityCategory} (${item.quantity} ${item.unit}, ${emissionTxt})`,
       afterData: newItem as Record<string, any>,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<GhgActivityData[]>('ghg_activities', []);
+    setOfflineCache('ghg_activities', [newItem, ...docs]);
     return newItem;
   },
 
@@ -3612,11 +3892,9 @@ export const ghgActivityService = {
     const parseResult = GhgActivitySchema.safeParse(updatedItem);
     if (!parseResult.success) handleValidationError(parseResult.error);
 
-    await updateDoc(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }));
-    const docs = getOfflineCache<GhgActivityData[]>('ghg_activities', []);
-    setOfflineCache('ghg_activities', docs.map(x => x.id === id ? updatedItem : x));
-
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.update(docRef, stripUndefined({ ...updatedItem, ...trailUpdate() }) as any);
+    auditService.addToBatch(batch, {
       collection: 'ghg_activities',
       module: 'ghg_inventory',
       recordId: id,
@@ -3626,6 +3904,10 @@ export const ghgActivityService = {
       afterData: updatedItem as Record<string, any>,
       correctionReason: item.correctionReason || null,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<GhgActivityData[]>('ghg_activities', []);
+    setOfflineCache('ghg_activities', docs.map(x => x.id === id ? updatedItem : x));
   },
 
   delete: async (id: string): Promise<void> => {
@@ -3633,11 +3915,10 @@ export const ghgActivityService = {
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error('Data tidak ditemukan di server. Muat ulang halaman lalu coba lagi.');
     const oldData = snap.data() as GhgActivityData;
-    await deleteDoc(docRef);
-    const docs = getOfflineCache<GhgActivityData[]>('ghg_activities', []);
-    setOfflineCache('ghg_activities', docs.filter(x => x.id !== id));
 
-    await auditService.createLog({
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    auditService.addToBatch(batch, {
       collection: 'ghg_activities',
       module: 'ghg_inventory',
       recordId: id,
@@ -3645,5 +3926,147 @@ export const ghgActivityService = {
       details: `Menghapus aktivitas GRK ${oldData.activityCategory || '-'} (${oldData.date || '-'})`,
       beforeData: oldData as Record<string, any>,
     });
+    await batch.commit();
+
+    const docs = getOfflineCache<GhgActivityData[]>('ghg_activities', []);
+    setOfflineCache('ghg_activities', docs.filter(x => x.id !== id));
+  }
+};
+
+// ============================================================================
+// 27. EVALUASI ULANG BATCH KUALITAS AIR TERKONTROL (D-01, khusus Superintendent+)
+// ============================================================================
+const WATER_MEDIA_COLLECTION_MAP: Record<'air_limbah' | 'air_permukaan' | 'air_limbah_domestik', string> = {
+  air_limbah: 'wastewater',
+  air_permukaan: 'surfacewater',
+  air_limbah_domestik: 'domestic_wastewater',
+};
+
+export const waterReEvaluationService = {
+  applyBatch: async (params: {
+    media: 'air_limbah' | 'air_permukaan' | 'air_limbah_domestik';
+    items: ReEvaluationPreviewItem[];
+    reason: string;
+    fromDate?: string;
+    toDate?: string;
+    locationFilter?: string;
+    onlyChanged?: boolean;
+  }): Promise<{ updatedCount: number; batchCount: number }> => {
+    const trimmedReason = params.reason.trim().slice(0, 500);
+    if (trimmedReason.length < 20) {
+      throw new Error('Alasan evaluasi ulang wajib minimal 20 karakter untuk audit trail.');
+    }
+
+    const colName = WATER_MEDIA_COLLECTION_MAP[params.media];
+
+    if (getCachedFeatureFlags().serverEvaluation) {
+      const callable = httpsCallable<
+        {
+          collectionName: string;
+          fromDate?: string;
+          toDate?: string;
+          locationFilter?: string;
+          correctionReason: string;
+          onlyChanged?: boolean;
+        },
+        { collectionName: string; totalScanned: number; updatedCount: number }
+      >(functions, 'reevaluateRange');
+
+      const res = await callable({
+        collectionName: colName,
+        fromDate: params.fromDate || undefined,
+        toDate: params.toDate || undefined,
+        locationFilter: params.locationFilter || undefined,
+        correctionReason: trimmedReason.slice(0, 400),
+        onlyChanged: params.onlyChanged ?? true,
+      });
+      return {
+        updatedCount: res.data?.updatedCount ?? 0,
+        batchCount: 1,
+      };
+    }
+
+    const targetItems = params.items;
+    if (targetItems.length === 0) {
+      return { updatedCount: 0, batchCount: 0 };
+    }
+
+    const actorEmail = auth.currentUser?.email || 'system';
+    const nowIso = new Date().toISOString();
+    const CHUNK_SIZE = 350;
+    let updatedCount = 0;
+    let batchCount = 0;
+    const updatedMap = new Map<string, Record<string, any>>();
+
+    for (let i = 0; i < targetItems.length; i += CHUNK_SIZE) {
+      const chunk = targetItems.slice(i, i + CHUNK_SIZE);
+      const snaps = await Promise.all(chunk.map(item => getDoc(doc(db, colName, item.id))));
+      const batch = writeBatch(db);
+      let opsInChunk = 0;
+
+      for (let idx = 0; idx < chunk.length; idx += 1) {
+        const item = chunk[idx];
+        const snap = snaps[idx];
+        if (!snap.exists()) continue;
+
+        const oldData = snap.data() as Record<string, any>;
+        const prevHistory: EvaluationHistoryEntry[] = Array.isArray(oldData.evaluationHistory)
+          ? oldData.evaluationHistory
+          : [];
+        const historyEntry: EvaluationHistoryEntry = {
+          evaluatedAt: nowIso,
+          evaluatedBy: actorEmail,
+          previousStatus: item.oldStatus,
+          newStatus: item.newStatus,
+          reason: trimmedReason,
+          standardBasis: item.standardsBasis.slice(0, 350),
+        };
+        const nextHistory = [...prevHistory, historyEntry];
+
+        const updatePayload = stripUndefined({
+          ...(params.media === 'air_limbah_domestik'
+            ? { complianceStatus: item.newDomesticStatus }
+            : { status: item.newLegacyStatus }),
+          evaluationStatus: item.newStatus,
+          evaluationReason: item.evaluationReason.slice(0, 1000),
+          standardId: item.standardId ? item.standardId.slice(0, 128) : undefined,
+          standardBasis: item.standardsBasis.slice(0, 350),
+          standardSnapshot: item.standardSnapshot,
+          correctionReason: trimmedReason,
+          evaluationHistory: nextHistory,
+          ...trailUpdate(),
+        });
+
+        batch.update(doc(db, colName, item.id), updatePayload as any);
+        updatedMap.set(item.id, { ...oldData, ...updatePayload });
+        opsInChunk += 1;
+      }
+
+      if (opsInChunk > 0) {
+        auditService.addToBatch(batch, {
+          collection: colName,
+          module: 'water_re_evaluation',
+          recordId: `reeval-${params.media}-${nowIso.slice(0, 10)}-b${batchCount + 1}`,
+          action: 'update',
+          details: `Evaluasi ulang batch ${opsInChunk} sampel ${colName} (Batch ${batchCount + 1})`,
+          correctionReason: trimmedReason,
+        });
+        await batch.commit();
+        updatedCount += opsInChunk;
+        batchCount += 1;
+      }
+    }
+
+    if (updatedCount > 0) {
+      const cached = getOfflineCache<Record<string, any>[]>(colName, []);
+      if (cached.length > 0) {
+        setOfflineCache(
+          colName,
+          cached.map(rec => (updatedMap.has(rec.id) ? { ...rec, ...updatedMap.get(rec.id) } : rec))
+        );
+      }
+    }
+
+    return { updatedCount, batchCount };
   }
 };

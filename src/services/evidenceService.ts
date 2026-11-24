@@ -14,7 +14,9 @@ import {
   serverTimestamp, 
   writeBatch 
 } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../utils/firebaseAuth';
+import { httpsCallable } from 'firebase/functions';
+import { db, auth, functions, handleFirestoreError, OperationType } from '../utils/firebaseAuth';
+import { getCachedFeatureFlags } from './featureFlagService';
 import { 
   EvidenceReport, 
   DailyEvidenceSnapshot, 
@@ -23,7 +25,7 @@ import {
   EvidenceVerification 
 } from '../types';
 import { computeSnapshotHash, generateRandomToken } from '../utils/hash';
-import { auditService } from './auditService';
+import { auditService, buildAuditLogPayload } from './auditService';
 import { triggerToast } from '../utils/errorHandler';
 import { getOfflineCache, setOfflineCache } from '../utils/googleSync';
 
@@ -127,6 +129,26 @@ export const evidenceService = {
     preparedSignature: EvidenceSignature;
     followUpAction?: string;
   }): Promise<EvidenceReport> => {
+    if (getCachedFeatureFlags().serverEvidence) {
+      try {
+        const callable = httpsCallable<
+          { wastewaterId: string; locationCode: string; followUpAction?: string },
+          EvidenceReport
+        >(functions, 'issueDailyEvidence');
+        const res = await callable({
+          wastewaterId,
+          locationCode,
+          followUpAction: followUpAction || snapshot.followUpAction,
+        });
+        const published = res.data;
+        triggerToast(`Dokumen ${published.documentNo} berhasil diterbitkan (Server)`, 'success');
+        return published;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `evidence_reports/${id}`);
+        throw err;
+      }
+    }
+
     const year = date.split('-')[0] || new Date().getFullYear().toString();
     const counterDocId = `evidence-daily-${year}`;
     const counterRef = doc(db, 'counters', counterDocId);
@@ -198,15 +220,20 @@ export const evidenceService = {
       // 3. Write public minimal verify document
       transaction.set(verifyRef, cleanFirestoreData(publicVerification));
 
-      return newReport;
-    }).then(async (published) => {
-      await auditService.createLog({
+      // 4. Write audit log atomically inside the transaction
+      const auditBuilt = buildAuditLogPayload({
         collection: 'evidence_reports',
+        module: 'evidence',
         recordId: id,
         action: 'insert',
-        details: `Menerbitkan Evidence Harian ${published.documentNo} (${locationCode}, ${date})`,
+        details: `Menerbitkan Evidence Harian ${documentNo} (${locationCode}, ${date})`,
       });
+      if (auditBuilt) {
+        transaction.set(doc(db, 'audit_logs', auditBuilt.logId), auditBuilt.logData);
+      }
 
+      return newReport;
+    }).then((published) => {
       triggerToast(`Dokumen ${published.documentNo} berhasil diterbitkan`, 'success');
       return published;
     }).catch((err) => {
@@ -223,6 +250,21 @@ export const evidenceService = {
     reportId: string,
     reviewedSignature: EvidenceSignature
   ): Promise<void> => {
+    if (getCachedFeatureFlags().serverEvidence) {
+      try {
+        const callable = httpsCallable<{ reportId: string }, { reportId: string; status: string }>(
+          functions,
+          'reviewEvidence'
+        );
+        await callable({ reportId });
+        triggerToast('Pemeriksaan dokumen berhasil ditandatangani (Server)', 'success');
+        return;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `evidence_reports/${reportId}`);
+        throw err;
+      }
+    }
+
     const reportRef = doc(db, 'evidence_reports', reportId);
     const snap = await getDoc(reportRef);
     if (!snap.exists()) {
@@ -251,14 +293,14 @@ export const evidenceService = {
           status: 'Diperiksa',
         }));
       }
-      await batch.commit();
-
-      await auditService.createLog({
+      auditService.addToBatch(batch, {
         collection: 'evidence_reports',
+        module: 'evidence',
         recordId: reportId,
         action: 'update',
         details: `Dokumen ${report.documentNo} diverifikasi oleh ${reviewedSignature.name} (${reviewedSignature.position})`,
       });
+      await batch.commit();
 
       triggerToast('Pemeriksaan dokumen berhasil ditandatangani', 'success');
     } catch (err) {
@@ -287,6 +329,22 @@ export const evidenceService = {
     snapshot: MonthlyEvidenceSnapshot;
     preparedSignature: EvidenceSignature;
   }): Promise<EvidenceReport> => {
+    if (getCachedFeatureFlags().serverEvidence) {
+      try {
+        const callable = httpsCallable<
+          { period: string; locationCode: string; docSuffix?: string },
+          EvidenceReport
+        >(functions, 'issueMonthlyEvidence');
+        const res = await callable({ period, locationCode, docSuffix });
+        const published = res.data;
+        triggerToast(`Dokumen bulanan ${published.documentNo} berhasil diterbitkan (Server)`, 'success');
+        return published;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `evidence_reports/${id}`);
+        throw err;
+      }
+    }
+
     const [year, month] = period.split('-');
     const suffixPart = docSuffix ? `-${docSuffix}` : '';
     const documentNo = `FR-EMS-WQ-${year}-M${month}${suffixPart}`;
@@ -340,14 +398,14 @@ export const evidenceService = {
       const batch = writeBatch(db);
       batch.set(reportRef, cleanFirestoreData(newReport));
       batch.set(verifyRef, cleanFirestoreData(publicVerification));
-      await batch.commit();
-
-      await auditService.createLog({
+      auditService.addToBatch(batch, {
         collection: 'evidence_reports',
+        module: 'evidence',
         recordId: id,
         action: 'insert',
         details: `Menerbitkan Evidence Bulanan ${documentNo} (${locationCode}, Periode ${period})`,
       });
+      await batch.commit();
 
       triggerToast(`Dokumen bulanan ${documentNo} berhasil diterbitkan`, 'success');
       return newReport;
@@ -366,6 +424,21 @@ export const evidenceService = {
     reportId: string,
     approvedSignature: EvidenceSignature
   ): Promise<void> => {
+    if (getCachedFeatureFlags().serverEvidence) {
+      try {
+        const callable = httpsCallable<{ reportId: string }, { reportId: string; status: string }>(
+          functions,
+          'approveEvidence'
+        );
+        await callable({ reportId });
+        triggerToast('Persetujuan dokumen bulanan berhasil ditandatangani (Server)', 'success');
+        return;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `evidence_reports/${reportId}`);
+        throw err;
+      }
+    }
+
     const reportRef = doc(db, 'evidence_reports', reportId);
     const snap = await getDoc(reportRef);
     if (!snap.exists()) {
@@ -397,14 +470,14 @@ export const evidenceService = {
           status: 'Disetujui',
         }));
       }
-      await batch.commit();
-
-      await auditService.createLog({
+      auditService.addToBatch(batch, {
         collection: 'evidence_reports',
+        module: 'evidence',
         recordId: reportId,
         action: 'update',
         details: `Dokumen ${report.documentNo} disetujui oleh ${approvedSignature.name} (${approvedSignature.position})`,
       });
+      await batch.commit();
 
       triggerToast('Persetujuan dokumen bulanan berhasil ditandatangani', 'success');
     } catch (err) {
@@ -426,6 +499,24 @@ export const evidenceService = {
     preparedSignature: EvidenceSignature,
     revisionReason?: string
   ): Promise<void> => {
+    if (getCachedFeatureFlags().serverEvidence) {
+      try {
+        const callable = httpsCallable<
+          { reportId: string; reason?: string },
+          { reportId: string; revision: number }
+        >(functions, 'reviseEvidence');
+        const res = await callable({ reportId, reason: revisionReason });
+        triggerToast(
+          `Revisi ${String(res.data?.revision ?? 1).padStart(2, '0')} berhasil diterbitkan (Server)`,
+          'success'
+        );
+        return;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `evidence_reports/${reportId}`);
+        throw err;
+      }
+    }
+
     const reportRef = doc(db, 'evidence_reports', reportId);
     const snap = await getDoc(reportRef);
     if (!snap.exists()) {
@@ -473,14 +564,15 @@ export const evidenceService = {
           hashPrefix: newHash.slice(0, 12),
         }));
       }
-      await batch.commit();
-
-      await auditService.createLog({
+      auditService.addToBatch(batch, {
         collection: 'evidence_reports',
+        module: 'evidence',
         recordId: reportId,
         action: 'update',
         details: `Menerbitkan Revisi ${String(nextRevision).padStart(2, '0')} untuk dokumen ${oldReport.documentNo}`,
+        correctionReason: revisionReason ? revisionReason.slice(0, 400) : null,
       });
+      await batch.commit();
 
       triggerToast(`Revisi ${String(nextRevision).padStart(2, '0')} berhasil diterbitkan`, 'success');
     } catch (err) {
@@ -499,6 +591,21 @@ export const evidenceService = {
     const trimmedReason = cancellationReason.trim();
     if (trimmedReason.length < 10 || trimmedReason.length > 500) {
       throw new Error('Alasan pembatalan dokumen wajib diisi minimal 10 karakter dan maksimal 500 karakter.');
+    }
+
+    if (getCachedFeatureFlags().serverEvidence) {
+      try {
+        const callable = httpsCallable<
+          { reportId: string; cancellationReason: string },
+          { reportId: string; status: string }
+        >(functions, 'cancelEvidence');
+        await callable({ reportId, cancellationReason: trimmedReason });
+        triggerToast(`Dokumen ${reportId} telah dibatalkan (Server)`, 'warning');
+        return;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `evidence_reports/${reportId}`);
+        throw err;
+      }
     }
 
     const reportRef = doc(db, 'evidence_reports', reportId);
@@ -528,14 +635,15 @@ export const evidenceService = {
           status: 'Dibatalkan',
         }));
       }
-      await batch.commit();
-
-      await auditService.createLog({
+      auditService.addToBatch(batch, {
         collection: 'evidence_reports',
+        module: 'evidence',
         recordId: reportId,
         action: 'update',
         details: `Membatalkan dokumen ${report.documentNo}. Alasan: ${trimmedReason}`,
+        correctionReason: trimmedReason.slice(0, 400),
       });
+      await batch.commit();
 
       triggerToast(`Dokumen ${report.documentNo} telah dibatalkan`, 'warning');
     } catch (err) {

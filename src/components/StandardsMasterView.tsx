@@ -3,19 +3,31 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  DomesticWastewaterData,
   EnvironmentalStandard,
   InternalThresholdsConfig,
   StandardEffectiveStatus,
   StandardMedia,
   StandardVerificationStatus,
+  SurfaceWaterData,
+  WastewaterData,
 } from '../types';
 import { INITIAL_STANDARDS_SEED } from '../data/regulations';
-import { standardsService, internalThresholdsService } from '../services/dbService';
+import {
+  standardsService,
+  internalThresholdsService,
+  waterReEvaluationService,
+} from '../services/dbService';
 import { triggerToast } from '../utils/errorHandler';
 import { todayLocalISO } from '../utils/dateUtils';
-import { formatStandardLimitDisplay, parseStrictNumber } from '../utils/waterQualityEval';
+import {
+  buildReEvaluationPreview,
+  formatStandardLimitDisplay,
+  parseStrictNumber,
+  ReEvaluationPreviewItem,
+} from '../utils/waterQualityEval';
 import {
   Sliders,
   Plus,
@@ -26,12 +38,16 @@ import {
   ShieldCheck,
   History,
   ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 
 interface StandardsMasterViewProps {
   standards: EnvironmentalStandard[];
   internalThresholds: InternalThresholdsConfig;
+  wastewater?: WastewaterData[];
+  surfaceWater?: SurfaceWaterData[];
+  domesticWastewater?: DomesticWastewaterData[];
   canManage: boolean;
   canDelete?: boolean;
 }
@@ -39,10 +55,13 @@ interface StandardsMasterViewProps {
 export default function StandardsMasterView({
   standards,
   internalThresholds,
+  wastewater = [],
+  surfaceWater = [],
+  domesticWastewater = [],
   canManage,
   canDelete = false,
 }: StandardsMasterViewProps) {
-  const [activeTab, setActiveTab] = useState<'standards' | 'thresholds'>('standards');
+  const [activeTab, setActiveTab] = useState<'standards' | 'thresholds' | 're_evaluate'>('standards');
   const [mediaFilter, setMediaFilter] = useState<'all' | StandardMedia>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -80,6 +99,118 @@ export default function StandardsMasterView({
     setPhMargin(internalThresholds.phMargin ?? 0.3);
     setSolidWasteTargetPct(internalThresholds.solidWasteTargetPct ?? 30);
   }, [internalThresholds]);
+
+  // D-01: Batch Re-Evaluation State (Superintendent+)
+  const [reEvalMedia, setReEvalMedia] = useState<'air_limbah' | 'air_permukaan' | 'air_limbah_domestik'>('air_limbah');
+  const [reEvalFromDate, setReEvalFromDate] = useState('');
+  const [reEvalToDate, setReEvalToDate] = useState('');
+  const [reEvalLocationFilter, setReEvalLocationFilter] = useState('');
+  const [reEvalOnlyChanged, setReEvalOnlyChanged] = useState(true);
+  const [selectedReEvalIds, setSelectedReEvalIds] = useState<string[]>([]);
+  const [reEvalReason, setReEvalReason] = useState('');
+  const [isApplyingReEval, setIsApplyingReEval] = useState(false);
+  const [reEvalResultMsg, setReEvalResultMsg] = useState<string | null>(null);
+
+  const staleCountsByMedia = useMemo(() => {
+    const ww = buildReEvaluationPreview('air_limbah', wastewater, standards, internalThresholds).filter((i) => i.changed).length;
+    const sw = buildReEvaluationPreview('air_permukaan', surfaceWater, standards, internalThresholds).filter((i) => i.changed).length;
+    const dom = buildReEvaluationPreview('air_limbah_domestik', domesticWastewater, standards, internalThresholds).filter((i) => i.changed).length;
+    return {
+      air_limbah: ww,
+      air_permukaan: sw,
+      air_limbah_domestik: dom,
+      total: ww + sw + dom,
+    };
+  }, [wastewater, surfaceWater, domesticWastewater, standards, internalThresholds]);
+
+  const reEvalPreviewAll: ReEvaluationPreviewItem[] = useMemo(() => {
+    const sourceRecords =
+      reEvalMedia === 'air_limbah'
+        ? wastewater
+        : reEvalMedia === 'air_permukaan'
+        ? surfaceWater
+        : domesticWastewater;
+    return buildReEvaluationPreview(reEvalMedia, sourceRecords, standards, internalThresholds, {
+      fromDate: reEvalFromDate || undefined,
+      toDate: reEvalToDate || undefined,
+      locationFilter: reEvalLocationFilter || undefined,
+    });
+  }, [
+    reEvalMedia,
+    wastewater,
+    surfaceWater,
+    domesticWastewater,
+    standards,
+    internalThresholds,
+    reEvalFromDate,
+    reEvalToDate,
+    reEvalLocationFilter,
+  ]);
+
+  const reEvalVisibleRows = useMemo(
+    () => (reEvalOnlyChanged ? reEvalPreviewAll.filter((r) => r.changed) : reEvalPreviewAll),
+    [reEvalPreviewAll, reEvalOnlyChanged]
+  );
+
+  const selectedReEvalSet = useMemo(() => new Set(selectedReEvalIds), [selectedReEvalIds]);
+
+  const handleChangeReEvalMedia = (nextMedia: 'air_limbah' | 'air_permukaan' | 'air_limbah_domestik') => {
+    setReEvalMedia(nextMedia);
+    setSelectedReEvalIds([]);
+    setReEvalResultMsg(null);
+  };
+
+  const toggleReEvalRow = (id: string) => {
+    setSelectedReEvalIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const selectAllChangedReEval = () => {
+    setSelectedReEvalIds(reEvalPreviewAll.filter((r) => r.changed).map((r) => r.id));
+  };
+
+  const selectAllVisibleReEval = () => {
+    setSelectedReEvalIds(reEvalVisibleRows.map((r) => r.id));
+  };
+
+  const clearReEvalSelection = () => {
+    setSelectedReEvalIds([]);
+  };
+
+  const handleApplyBatchReEvaluation = async () => {
+    const chosenItems = reEvalPreviewAll.filter((r) => selectedReEvalSet.has(r.id));
+    if (chosenItems.length === 0) {
+      triggerToast('Pilih minimal 1 sampel untuk dievaluasi ulang.', 'warning');
+      return;
+    }
+    const trimmed = reEvalReason.trim();
+    if (trimmed.length < 20) {
+      triggerToast('Alasan evaluasi ulang wajib minimal 20 karakter.', 'warning');
+      return;
+    }
+
+    try {
+      setIsApplyingReEval(true);
+      setReEvalResultMsg(null);
+      const res = await waterReEvaluationService.applyBatch({
+        media: reEvalMedia,
+        items: chosenItems,
+        reason: trimmed,
+        fromDate: reEvalFromDate || undefined,
+        toDate: reEvalToDate || undefined,
+        locationFilter: reEvalLocationFilter || undefined,
+        onlyChanged: reEvalOnlyChanged,
+      });
+      const msg = `Evaluasi ulang selesai: ${res.updatedCount} sampel diperbarui dalam ${res.batchCount} batch atomik beserta audit log & riwayat evaluasi.`;
+      setReEvalResultMsg(msg);
+      triggerToast(msg, 'success');
+      setSelectedReEvalIds([]);
+      setReEvalReason('');
+    } catch (err: any) {
+      triggerToast(err?.message || 'Gagal menerapkan evaluasi ulang batch.', 'error');
+    } finally {
+      setIsApplyingReEval(false);
+    }
+  };
 
   const displayList: EnvironmentalStandard[] =
     standards.length > 0 ? standards : (INITIAL_STANDARDS_SEED as EnvironmentalStandard[]);
@@ -288,7 +419,7 @@ export default function StandardsMasterView({
       </div>
 
       {/* Sub Tabs */}
-      <div className="flex border-b border-border-neon bg-bg-2/60 rounded-t-2xl px-4 pt-2 border-x border-t border-border-neon">
+      <div className="flex flex-wrap border-b border-border-neon bg-bg-2/60 rounded-t-2xl px-4 pt-2 border-x border-t border-border-neon">
         <button
           type="button"
           onClick={() => setActiveTab('standards')}
@@ -307,6 +438,24 @@ export default function StandardsMasterView({
         >
           Ambang Internal &amp; Target Sampah
         </button>
+        {canManage && (
+          <button
+            id="standards-tab-reeval"
+            type="button"
+            onClick={() => setActiveTab('re_evaluate')}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 're_evaluate' ? 'border-neon-cyan text-neon-cyan' : 'border-transparent text-text-mid hover:text-text-hi'
+            }`}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Evaluasi Ulang Batch
+            {staleCountsByMedia.total > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-neon-amber/20 text-neon-amber border border-neon-amber/40">
+                {staleCountsByMedia.total}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {activeTab === 'standards' && (
@@ -660,6 +809,222 @@ export default function StandardsMasterView({
             </div>
           )}
         </form>
+      )}
+
+      {activeTab === 're_evaluate' && canManage && (
+        <div className="glass-panel rounded-2xl p-5 space-y-4">
+          <div className="p-3.5 rounded-xl bg-neon-cyan/10 border border-neon-cyan/35 text-xs text-text-mid space-y-1">
+            <div className="font-bold text-neon-cyan flex items-center gap-1.5">
+              <RefreshCw className="w-4 h-4 shrink-0" />
+              <span>Evaluasi Ulang Terkontrol Kepatuhan Kualitas Air (D-01)</span>
+            </div>
+            <p>
+              Ketika Master Baku Mutu diperbarui atau diverifikasi, nilai pengukuran lapangan tetap tidak berubah, namun status tersimpan dapat menjadi kedaluwarsa (<em>stale</em>). Pratinjau perubahan status di bawah ini sebelum menerapkan pembaruan atomik bersama <code className="font-mono text-text-hi">evaluationHistory</code> &amp; <code className="font-mono text-text-hi">audit_logs</code>.
+            </p>
+          </div>
+
+          {reEvalResultMsg && (
+            <div className="p-3 rounded-xl bg-neon-green/10 border border-neon-green/35 text-neon-green text-xs font-mono">
+              {reEvalResultMsg}
+            </div>
+          )}
+
+          {/* Media & Filter Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Media Pemantauan</label>
+              <select
+                id="reeval-media-select"
+                value={reEvalMedia}
+                onChange={(e) => handleChangeReEvalMedia(e.target.value as any)}
+                className="w-full px-3 py-2 text-xs cursor-pointer"
+              >
+                <option value="air_limbah">Air Limbah Tambang ({staleCountsByMedia.air_limbah} berubah)</option>
+                <option value="air_permukaan">Air Permukaan / Sungai ({staleCountsByMedia.air_permukaan} berubah)</option>
+                <option value="air_limbah_domestik">Air Limbah Domestik IPAL ({staleCountsByMedia.air_limbah_domestik} berubah)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Dari Tanggal</label>
+              <input
+                type="date"
+                value={reEvalFromDate}
+                onChange={(e) => setReEvalFromDate(e.target.value)}
+                className="w-full px-3 py-2 text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Sampai Tanggal</label>
+              <input
+                type="date"
+                value={reEvalToDate}
+                onChange={(e) => setReEvalToDate(e.target.value)}
+                className="w-full px-3 py-2 text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-text-mid uppercase mb-1 font-mono">Filter Lokasi / Titik</label>
+              <input
+                type="text"
+                placeholder="cth: KPL-01 / IPAL..."
+                value={reEvalLocationFilter}
+                onChange={(e) => setReEvalLocationFilter(e.target.value)}
+                className="w-full px-3 py-2 text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <label className="flex items-center gap-2 text-xs font-semibold text-text-hi cursor-pointer">
+              <input
+                type="checkbox"
+                checked={reEvalOnlyChanged}
+                onChange={(e) => setReEvalOnlyChanged(e.target.checked)}
+                className="accent-neon-cyan rounded"
+              />
+              <span>Hanya tampilkan sampel dengan status berubah ({reEvalPreviewAll.filter((r) => r.changed).length} dari {reEvalPreviewAll.length})</span>
+            </label>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <button
+                type="button"
+                onClick={selectAllChangedReEval}
+                className="px-3 py-1.5 bg-neon-amber/15 hover:bg-neon-amber/25 text-neon-amber border border-neon-amber/35 rounded-lg font-bold text-[11px] cursor-pointer"
+              >
+                Pilih Semua Berubah ({reEvalPreviewAll.filter((r) => r.changed).length})
+              </button>
+              <button
+                type="button"
+                onClick={selectAllVisibleReEval}
+                className="px-3 py-1.5 bg-bg-1 hover:bg-bg-2 border border-border-neon text-text-hi rounded-lg font-semibold text-[11px] cursor-pointer"
+              >
+                Pilih Semua Tampil ({reEvalVisibleRows.length})
+              </button>
+              <button
+                type="button"
+                onClick={clearReEvalSelection}
+                className="px-3 py-1.5 text-text-mid hover:text-text-hi text-[11px] cursor-pointer"
+              >
+                Kosongkan
+              </button>
+            </div>
+          </div>
+
+          {/* Preview Table */}
+          <div className="border border-border-neon rounded-xl overflow-hidden">
+            <div className="overflow-x-auto max-h-80 overflow-y-auto">
+              <table className="neon-table w-full text-left text-xs">
+                <thead>
+                  <tr className="text-[10px] font-mono uppercase">
+                    <th className="p-3 w-10 text-center">Pilih</th>
+                    <th className="p-3">Tanggal</th>
+                    <th className="p-3">Lokasi / Titik</th>
+                    <th className="p-3 text-center">Status Tersimpan</th>
+                    <th className="p-3 text-center">Evaluasi Live</th>
+                    <th className="p-3">Parameter Penyebab &amp; Basis Standar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reEvalVisibleRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-text-low text-xs">
+                        {reEvalPreviewAll.length === 0
+                          ? 'Belum ada rekaman sampel pada media dan filter yang dipilih.'
+                          : 'Seluruh sampel sudah sesuai dengan Master Baku Mutu aktif (tidak ada yang berubah).'}
+                      </td>
+                    </tr>
+                  ) : (
+                    reEvalVisibleRows.map((row) => {
+                      const isChecked = selectedReEvalSet.has(row.id);
+                      return (
+                        <tr
+                          key={row.id}
+                          onClick={() => toggleReEvalRow(row.id)}
+                          className={`cursor-pointer ${isChecked ? 'bg-neon-cyan/10' : ''}`}
+                        >
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleReEvalRow(row.id)}
+                              className="accent-neon-cyan rounded"
+                            />
+                          </td>
+                          <td className="p-3 font-mono tabular-nums text-text-hi whitespace-nowrap">{row.date}</td>
+                          <td className="p-3 font-semibold text-text-hi">{row.locationLabel}</td>
+                          <td className="p-3 text-center">
+                            <StatusBadge status={row.oldStatus} label={row.oldStatus} />
+                          </td>
+                          <td className="p-3 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <StatusBadge status={row.newStatus} label={row.newStatus} />
+                              {row.changed && (
+                                <span className="text-[9px] font-mono uppercase text-neon-amber font-bold">
+                                  Berubah
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3 text-[11px] text-text-mid max-w-xs">
+                            {row.causeParams.length > 0 && (
+                              <div className="font-mono font-bold text-neon-amber">
+                                Parameter: {row.causeParams.join(', ')}
+                              </div>
+                            )}
+                            <div className="text-[10px] text-text-low truncate" title={row.standardsBasis}>
+                              {row.standardsBasis}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Reason & Execute */}
+          <div className="p-4 rounded-xl bg-bg-1/60 border border-border-neon space-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-bold text-neon-amber uppercase font-mono">
+                  Alasan Evaluasi Ulang (Wajib min. 20 karakter untuk Audit Log) *
+                </label>
+                <span className={`text-[10px] font-mono ${reEvalReason.trim().length >= 20 ? 'text-neon-green' : 'text-text-low'}`}>
+                  {reEvalReason.trim().length}/20 min
+                </span>
+              </div>
+              <textarea
+                id="reeval-reason-input"
+                rows={2}
+                maxLength={500}
+                placeholder="Contoh: Penyesuaian baku mutu TSS Pertek 2025 yang telah diverifikasi SK DLH..."
+                value={reEvalReason}
+                onChange={(e) => setReEvalReason(e.target.value)}
+                className="w-full px-3 py-2 text-xs rounded-xl"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-[11px] font-mono text-text-mid">
+                Dipilih: <strong className="text-neon-cyan">{selectedReEvalSet.size}</strong> sampel (maks 350/batch atomik)
+              </span>
+              <button
+                id="reeval-apply-btn"
+                type="button"
+                disabled={isApplyingReEval || selectedReEvalSet.size === 0 || reEvalReason.trim().length < 20}
+                onClick={handleApplyBatchReEvaluation}
+                className="px-5 py-2 neon-btn-primary text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 flex items-center gap-2"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isApplyingReEval ? 'animate-spin' : ''}`} />
+                {isApplyingReEval
+                  ? 'Menerapkan Evaluasi Ulang...'
+                  : `Terapkan Evaluasi Ulang (${selectedReEvalSet.size} Sampel)`}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

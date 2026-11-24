@@ -4,12 +4,11 @@ rules_version = '2';
 // FIRESTORE SECURITY RULES - DEM (DIVA ENVIRO MONITOR)
 // ============================================================================
 //  Aplikasi : Diva Enviro Monitor (DEM) - Sistem Manajemen Lingkungan Tambang
-//  Revisi   : 07 (Pengerasan Rules: Role Source Tunggal, State Machine Evidence,
-//             Kerahasiaan T-02, Otorisasi Master T-03, Integritas ID S-07, S-08)
+//  Revisi   : 08 (Backend Tepercaya: Feature Flags app_meta/feature_flags,
+//             Custom Claims K-03, Server Evaluation K-04, Server Evidence K-02,
+//             Audit Trail Server Source)
 //  Tanggal  : 2026
-//  Fokus    : Hardened ABAC Security Rules, Single /roles Source (K-03),
-//             Strict Evidence Workflow State Machine (K-02), Confidentiality Read
-//             Gates (T-02), Master Write Protection (T-03), S-07 & S-08
+//  Fokus    : Hardened ABAC + Trusted Gen 2 Backend Feature-Flagged Gates
 // ============================================================================
 
 service cloud.firestore {
@@ -61,14 +60,40 @@ service cloud.firestore {
       return isVerifiedUser() && isApprovedUser();
     }
 
-    // Helper: [K-03] Sumber peran tunggal dari /roles/{email}; kembalikan 'Viewer' bila tidak ada
+    // Helper: Feature Flags bertahap di app_meta/feature_flags (default false)
+    function getFeatureFlags() {
+      return exists(/databases/$(database)/documents/app_meta/feature_flags)
+        ? get(/databases/$(database)/documents/app_meta/feature_flags).data
+        : {};
+    }
+
+    function isServerEvaluationEnabled() {
+      return getFeatureFlags().get('serverEvaluation', false) == true;
+    }
+
+    function isServerEvidenceEnabled() {
+      return getFeatureFlags().get('serverEvidence', false) == true;
+    }
+
+    function isRoleClaimsEnabled() {
+      return getFeatureFlags().get('roleClaims', false) == true;
+    }
+
+    // Helper: [K-03] Baca Custom Claims saat flag roleClaims aktif; fallback ke /roles/{email} atau 'Viewer'
     function getUserRole() {
       let hasEmail = request.auth.token != null && 'email' in request.auth.token && request.auth.token.email != null;
       let email = hasEmail ? request.auth.token.email : '';
+      let hasClaimRole = isRoleClaimsEnabled()
+        && request.auth.token != null
+        && 'role' in request.auth.token
+        && request.auth.token.role is string
+        && request.auth.token.role.size() > 0;
 
-      return (hasEmail && exists(/databases/$(database)/documents/roles/$(email)))
-        ? get(/databases/$(database)/documents/roles/$(email)).data.level
-        : 'Viewer';
+      return hasClaimRole
+        ? request.auth.token.role
+        : ((hasEmail && exists(/databases/$(database)/documents/roles/$(email)))
+          ? get(/databases/$(database)/documents/roles/$(email)).data.level
+          : 'Viewer');
     }
 
     // Helper: [SR-07] Akses darurat (Break-Glass) untuk pemulihan kegagalan sistem.
@@ -147,8 +172,9 @@ service cloud.firestore {
         && d.keys().hasOnly([
           'id', 'uid', 'timestamp', 'user', 'actorName', 'actorRole', 'module',
           'collection', 'recordId', 'action', 'details',
-          'beforeData', 'afterData', 'correctionReason', 'status'
+          'beforeData', 'afterData', 'correctionReason', 'status', 'source'
         ])
+        && d.get('source', 'client') == 'client'
         && d.uid == request.auth.uid
         && request.auth.token != null && 'email' in request.auth.token
         && d.user == request.auth.token.email
@@ -184,11 +210,12 @@ service cloud.firestore {
         && (d.get('clearedBy', null) == null || d.clearedBy is list);
     }
 
-    // Wastewater Validator (5-state evaluationStatus + legacy fallback compat + T-07 nullable)
+    // Wastewater Validator (5-state evaluationStatus + legacy fallback compat + T-07 nullable + K-04 serverEvaluation)
     function vWastewater(docId) {
       let d = request.resource.data;
-      return d.keys().hasAll(['id','date','location','officer','ph','tss','debit','fe','mn','status'])
-        && shapeOk(36)
+      return d.keys().hasAll(['id','date','location','officer','ph','tss','debit','fe','mn'])
+        && (isServerEvaluationEnabled() || 'status' in d)
+        && shapeOk(38)
         && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 20)
@@ -201,7 +228,7 @@ service cloud.firestore {
         && (d.mn == null ? (d.get('missingReasons', null) is map && 'mn' in d.missingReasons) : (d.mn is number && d.mn >= 0))
         && (d.get('missingReasons', null) == null || d.missingReasons is map)
         && (d.get('evaluationHistory', null) == null || d.evaluationHistory is list)
-        && d.status in ['Safe', 'Warning', 'Exceeded', 'Incomplete', 'Unevaluated', 'NotApplicable']
+        && (d.get('status', null) == null || d.status in ['Safe', 'Warning', 'Exceeded', 'Incomplete', 'Unevaluated', 'NotApplicable'])
         && (d.get('evaluationStatus', null) == null || d.evaluationStatus in ['MEMENUHI', 'TIDAK MEMENUHI', 'DATA TIDAK LENGKAP', 'BELUM DIEVALUASI', 'TIDAK BERLAKU'])
         && isOptText(d.get('evaluationReason', null), 1000)
         && (d.get('unitMap', null) == null || d.unitMap is map)
@@ -214,16 +241,18 @@ service cloud.firestore {
         && isOptText(d.get('standardId', null), 128)
         && isOptText(d.get('standardBasis', null), 400)
         && (d.get('standardSnapshot', null) == null || d.standardSnapshot is map)
+        && (d.get('serverEvaluatedAt', null) == null || d.serverEvaluatedAt is timestamp)
         && isOptText(d.get('correctionReason', null), 500)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // [SR-05, S-07, T-07] Surface Water Validator
+    // [SR-05, S-07, T-07, K-04] Surface Water Validator
     function vSurfaceWater(docId) {
       let d = request.resource.data;
-      return d.keys().hasAll(['id','date','location','officer','ph','tss','doVal','bod','cod','fe','mn','status'])
-        && shapeOk(34)
+      return d.keys().hasAll(['id','date','location','officer','ph','tss','doVal','bod','cod','fe','mn'])
+        && (isServerEvaluationEnabled() || 'status' in d)
+        && shapeOk(36)
         && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 50)
@@ -238,7 +267,7 @@ service cloud.firestore {
         && (d.mn == null ? (d.get('missingReasons', null) is map && 'mn' in d.missingReasons) : (d.mn is number && d.mn >= 0))
         && (d.get('missingReasons', null) == null || d.missingReasons is map)
         && (d.get('evaluationHistory', null) == null || d.evaluationHistory is list)
-        && d.status in ['Safe', 'Warning', 'Exceeded', 'Incomplete', 'Unevaluated', 'NotApplicable']
+        && (d.get('status', null) == null || d.status in ['Safe', 'Warning', 'Exceeded', 'Incomplete', 'Unevaluated', 'NotApplicable'])
         && (d.get('evaluationStatus', null) == null || d.evaluationStatus in ['MEMENUHI', 'TIDAK MEMENUHI', 'DATA TIDAK LENGKAP', 'BELUM DIEVALUASI', 'TIDAK BERLAKU'])
         && isOptText(d.get('evaluationReason', null), 1000)
         && (d.get('unitMap', null) == null || d.unitMap is map)
@@ -247,6 +276,7 @@ service cloud.firestore {
         && isOptText(d.get('standardId', null), 128)
         && isOptText(d.get('standardBasis', null), 400)
         && (d.get('standardSnapshot', null) == null || d.standardSnapshot is map)
+        && (d.get('serverEvaluatedAt', null) == null || d.serverEvaluatedAt is timestamp)
         && isOptText(d.get('correctionReason', null), 500)
         && isOptText(d.get('createdBy', null), 100)
         && isOptText(d.get('updatedBy', null), 100);
@@ -881,11 +911,12 @@ service cloud.firestore {
         && isOptText(d.get('updatedBy', null), 100);
     }
 
-    // Air Limbah Domestik Validator [T-07 nullable]
+    // Air Limbah Domestik Validator [T-07 nullable + K-04 serverEvaluation]
     function vDomesticWastewater(docId) {
       let d = request.resource.data;
-      return d.keys().hasAll(['id','date','facilityName','ph','bod','cod','tss','oilGrease','ammonia','totalColiform','debitM3Day','complianceStatus','officer'])
-        && shapeOk(36)
+      return d.keys().hasAll(['id','date','facilityName','ph','bod','cod','tss','oilGrease','ammonia','totalColiform','debitM3Day','officer'])
+        && (isServerEvaluationEnabled() || 'complianceStatus' in d)
+        && shapeOk(38)
         && d.id == docId
         && isValidDocId(d.id)
         && isText(d.date, 30)
@@ -901,13 +932,14 @@ service cloud.firestore {
         && (d.debitM3Day == null ? (d.get('missingReasons', null) is map && 'debitM3Day' in d.missingReasons) : (d.debitM3Day is number && d.debitM3Day >= 0))
         && (d.get('missingReasons', null) == null || d.missingReasons is map)
         && (d.get('evaluationHistory', null) == null || d.evaluationHistory is list)
-        && d.complianceStatus in ['Memenuhi', 'Warning', 'Tidak Memenuhi', 'Belum Ada Baku Mutu', 'Data Tidak Lengkap', 'Belum Dievaluasi', 'Tidak Berlaku']
+        && (d.get('complianceStatus', null) == null || d.complianceStatus in ['Memenuhi', 'Warning', 'Tidak Memenuhi', 'Belum Ada Baku Mutu', 'Data Tidak Lengkap', 'Belum Dievaluasi', 'Tidak Berlaku'])
         && (d.get('evaluationStatus', null) == null || d.evaluationStatus in ['MEMENUHI', 'TIDAK MEMENUHI', 'DATA TIDAK LENGKAP', 'BELUM DIEVALUASI', 'TIDAK BERLAKU'])
         && isOptText(d.get('evaluationReason', null), 1000)
         && (d.get('unitMap', null) == null || d.unitMap is map)
         && isOptText(d.get('standardId', null), 128)
         && isOptText(d.get('standardBasis', null), 350)
         && (d.get('standardSnapshot', null) == null || d.standardSnapshot is map)
+        && (d.get('serverEvaluatedAt', null) == null || d.serverEvaluatedAt is timestamp)
         && isOptText(d.get('correctionReason', null), 500)
         && isText(d.officer, 100)
         && isOptText(d.get('notes', null), 1000)
@@ -1006,7 +1038,7 @@ service cloud.firestore {
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'role', 'isApproved', 'status', 'isActive', 'deleted',
           'uid', 'email', 'createdAt', 'approvedBy', 'approvedAt',
-          'rejectedBy', 'rejectedAt', 'deletedBy', 'deletedAt'
+          'rejectedBy', 'rejectedAt', 'deletedBy', 'deletedAt', 'claimsUpdatedAt'
         ])
       );
       allow delete: if isActiveMember() && isStrictAdmin();
@@ -1172,10 +1204,11 @@ service cloud.firestore {
       allow delete: if isActiveMember() && isSuperintendent();
     }
 
-    // Evidence Reports (Dokumen Evidence Harian & Rekap Bulanan) [K-02]
+    // Evidence Reports (Dokumen Evidence Harian & Rekap Bulanan) [K-02 + Backend Callable Gate]
     match /evidence_reports/{id} {
       allow read: if isActiveMember();
-      allow create: if isActiveMember() && isOperator()
+      allow create: if !isServerEvidenceEnabled()
+        && isActiveMember() && isOperator()
         && vEvidenceReport(id)
         && request.resource.data.status == 'Disiapkan'
         && request.resource.data.revision == 0
@@ -1184,7 +1217,8 @@ service cloud.firestore {
         && request.resource.data.signatures.prepared.uid == request.auth.uid
         && request.resource.data.signatures.prepared.email == request.auth.token.email
         && request.resource.data.createdBy == request.auth.token.email;
-      allow update: if isActiveMember()
+      allow update: if !isServerEvidenceEnabled()
+        && isActiveMember()
         && vEvidenceReport(id)
         && request.resource.data.documentNo == resource.data.documentNo
         && request.resource.data.type == resource.data.type
@@ -1245,20 +1279,22 @@ service cloud.firestore {
             && request.resource.data.cancellationReason.size() <= 500
           )
         );
-      allow delete: if isActiveMember() && isAdmin() && resource.data.status == 'Draft';
+      allow delete: if !isServerEvidenceEnabled() && isActiveMember() && isAdmin() && resource.data.status == 'Draft';
     }
 
-    // Counters (Atomic sequential numbering FR-EMS-WQ-YYYY-xxxxx) [S-08]
+    // Counters (Atomic sequential numbering FR-EMS-WQ-YYYY-xxxxx) [S-08 + K-02 Server Gate]
     match /counters/{id} {
       allow read: if isActiveMember();
-      allow create: if isActiveMember() && isOperator()
+      allow create: if !isServerEvidenceEnabled()
+        && isActiveMember() && isOperator()
         && id.matches('^evidence(-daily-|_)[0-9]{4}$')
         && request.resource.data.value == 1
         && request.resource.data.keys().hasAll(['value', 'updatedAt', 'lastReportId'])
         && shapeOk(4)
         && isValidDocId(request.resource.data.lastReportId)
         && existsAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.lastReportId));
-      allow update: if isActiveMember() && isOperator()
+      allow update: if !isServerEvidenceEnabled()
+        && isActiveMember() && isOperator()
         && id.matches('^evidence(-daily-|_)[0-9]{4}$')
         && request.resource.data.value == resource.data.value + 1
         && request.resource.data.keys().hasAll(['value', 'updatedAt', 'lastReportId'])
@@ -1281,7 +1317,8 @@ service cloud.firestore {
     match /evidence_verify/{token} {
       allow get: if true;
       allow list: if false;
-      allow create: if isActiveMember() && vEvidenceVerify() && (
+      allow create: if !isServerEvidenceEnabled()
+        && isActiveMember() && vEvidenceVerify() && (
         (
           isOperator()
           && request.resource.data.status == 'Disiapkan'
@@ -1297,7 +1334,8 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId)).data.documentNo == request.resource.data.documentNo
         )
       );
-      allow update: if isActiveMember() && vEvidenceVerify() && (
+      allow update: if !isServerEvidenceEnabled()
+        && isActiveMember() && vEvidenceVerify() && (
         (
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportId', 'status', 'overall', 'hashPrefix'])
           && existsAfter(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId))
@@ -1321,24 +1359,42 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Environmental Monitoring Collections [D-01: Cabang Evaluasi Ulang khusus Superintendent+]
+    // Environmental Monitoring Collections [D-01 + K-04 Server Evaluation Gate]
     match /wastewater/{docId} {
       allow read: if isActiveMember();
       allow create: if isActiveMember() && isOperator() && vWastewater(docId)
-        && !('evaluationHistory' in request.resource.data);
+        && !('evaluationHistory' in request.resource.data)
+        && (
+          !isServerEvaluationEnabled()
+          || !request.resource.data.keys().hasAny([
+            'status', 'complianceStatus', 'evaluationStatus', 'evaluationReason',
+            'standardBasis', 'standardId', 'standardSnapshot', 'serverEvaluatedAt', 'evaluationHistory'
+          ])
+        );
       allow update: if isActiveMember() && vWastewater(docId) && (
         (
-          isSuperintendent()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status', 'evaluationStatus', 'evaluationReason',
-            'standardId', 'standardBasis', 'standardSnapshot',
-            'correctionReason', 'evaluationHistory', 'updatedAt', 'updatedBy'
+          isServerEvaluationEnabled()
+          && isOperator()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'status', 'complianceStatus', 'evaluationStatus', 'evaluationReason',
+            'standardBasis', 'standardId', 'standardSnapshot', 'serverEvaluatedAt', 'evaluationHistory'
           ])
-          && request.resource.data.correctionReason is string
-          && request.resource.data.correctionReason.size() >= 20
         ) || (
-          isOperator()
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['evaluationHistory'])
+          !isServerEvaluationEnabled() && (
+            (
+              isSuperintendent()
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'evaluationStatus', 'evaluationReason',
+                'standardId', 'standardBasis', 'standardSnapshot',
+                'correctionReason', 'evaluationHistory', 'updatedAt', 'updatedBy'
+              ])
+              && request.resource.data.correctionReason is string
+              && request.resource.data.correctionReason.size() >= 20
+            ) || (
+              isOperator()
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['evaluationHistory'])
+            )
+          )
         )
       );
       allow delete: if isActiveMember() && isSuperintendent();
@@ -1347,20 +1403,38 @@ service cloud.firestore {
     match /surfacewater/{docId} {
       allow read: if isActiveMember();
       allow create: if isActiveMember() && isOperator() && vSurfaceWater(docId)
-        && !('evaluationHistory' in request.resource.data);
+        && !('evaluationHistory' in request.resource.data)
+        && (
+          !isServerEvaluationEnabled()
+          || !request.resource.data.keys().hasAny([
+            'status', 'complianceStatus', 'evaluationStatus', 'evaluationReason',
+            'standardBasis', 'standardId', 'standardSnapshot', 'serverEvaluatedAt', 'evaluationHistory'
+          ])
+        );
       allow update: if isActiveMember() && vSurfaceWater(docId) && (
         (
-          isSuperintendent()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status', 'evaluationStatus', 'evaluationReason',
-            'standardId', 'standardBasis', 'standardSnapshot',
-            'correctionReason', 'evaluationHistory', 'updatedAt', 'updatedBy'
+          isServerEvaluationEnabled()
+          && isOperator()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'status', 'complianceStatus', 'evaluationStatus', 'evaluationReason',
+            'standardBasis', 'standardId', 'standardSnapshot', 'serverEvaluatedAt', 'evaluationHistory'
           ])
-          && request.resource.data.correctionReason is string
-          && request.resource.data.correctionReason.size() >= 20
         ) || (
-          isOperator()
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['evaluationHistory'])
+          !isServerEvaluationEnabled() && (
+            (
+              isSuperintendent()
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'evaluationStatus', 'evaluationReason',
+                'standardId', 'standardBasis', 'standardSnapshot',
+                'correctionReason', 'evaluationHistory', 'updatedAt', 'updatedBy'
+              ])
+              && request.resource.data.correctionReason is string
+              && request.resource.data.correctionReason.size() >= 20
+            ) || (
+              isOperator()
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['evaluationHistory'])
+            )
+          )
         )
       );
       allow delete: if isActiveMember() && isSuperintendent();
@@ -1492,20 +1566,38 @@ service cloud.firestore {
     match /domestic_wastewater/{docId} {
       allow read: if isActiveMember();
       allow create: if isActiveMember() && isOperator() && vDomesticWastewater(docId)
-        && !('evaluationHistory' in request.resource.data);
+        && !('evaluationHistory' in request.resource.data)
+        && (
+          !isServerEvaluationEnabled()
+          || !request.resource.data.keys().hasAny([
+            'status', 'complianceStatus', 'evaluationStatus', 'evaluationReason',
+            'standardBasis', 'standardId', 'standardSnapshot', 'serverEvaluatedAt', 'evaluationHistory'
+          ])
+        );
       allow update: if isActiveMember() && vDomesticWastewater(docId) && (
         (
-          isSuperintendent()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'complianceStatus', 'evaluationStatus', 'evaluationReason',
-            'standardId', 'standardBasis', 'standardSnapshot',
-            'correctionReason', 'evaluationHistory', 'updatedAt', 'updatedBy'
+          isServerEvaluationEnabled()
+          && isOperator()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'status', 'complianceStatus', 'evaluationStatus', 'evaluationReason',
+            'standardBasis', 'standardId', 'standardSnapshot', 'serverEvaluatedAt', 'evaluationHistory'
           ])
-          && request.resource.data.correctionReason is string
-          && request.resource.data.correctionReason.size() >= 20
         ) || (
-          isOperator()
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['evaluationHistory'])
+          !isServerEvaluationEnabled() && (
+            (
+              isSuperintendent()
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'complianceStatus', 'evaluationStatus', 'evaluationReason',
+                'standardId', 'standardBasis', 'standardSnapshot',
+                'correctionReason', 'evaluationHistory', 'updatedAt', 'updatedBy'
+              ])
+              && request.resource.data.correctionReason is string
+              && request.resource.data.correctionReason.size() >= 20
+            ) || (
+              isOperator()
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['evaluationHistory'])
+            )
+          )
         )
       );
       allow delete: if isActiveMember() && isSuperintendent();

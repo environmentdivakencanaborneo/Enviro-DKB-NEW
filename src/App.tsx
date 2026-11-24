@@ -1365,6 +1365,9 @@ export default function App() {
               <StandardsMasterView
                 standards={standards}
                 internalThresholds={internalThresholds}
+                wastewater={wastewater}
+                surfaceWater={surfaceWater}
+                domesticWastewater={domesticWastewater}
                 canManage={isSuperintendent(profile)}
                 canDelete={isAdmin(profile)}
               />

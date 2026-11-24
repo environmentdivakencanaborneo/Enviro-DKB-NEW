@@ -14,7 +14,7 @@ function extractBlock(marker: string, nextMarker?: string): string {
   return end >= 0 ? rulesContent.slice(start, end) : rulesContent.slice(start);
 }
 
-describe('Keamanan Firestore Rules Revisi 07 — Invarian Statis & Aturan Akses', () => {
+describe('Keamanan Firestore Rules Revisi 08 — Invarian Statis & Aturan Akses', () => {
   it('1 & 2. Pengguna tanpa login dan email belum terverifikasi ditolak oleh isVerifiedUser() & isActiveMember()', () => {
     const verifiedFn = extractBlock('function isVerifiedUser()', 'function isApprovedUser()');
     assert.ok(verifiedFn.includes('request.auth != null'));
@@ -38,10 +38,12 @@ describe('Keamanan Firestore Rules Revisi 07 — Invarian Statis & Aturan Akses'
     assert.ok(!approvedFn.includes("isApproved == true || userDoc.get('status'"), 'Tidak boleh memakai OR antara isApproved dan status');
   });
 
-  it('5, 6 & 10 [K-03]. Sumber peran tunggal /roles/{email}, blokir fallback /users.role, & cegah self-escalation', () => {
+  it('5, 6 & 10 [K-03]. Sumber peran /roles/{email} + feature-flagged Custom Claims, blokir fallback /users.role, & cegah self-escalation', () => {
     const roleFn = extractBlock('function getUserRole()', 'function isBreakGlassAdmin()');
     assert.ok(roleFn.includes('exists(/databases/$(database)/documents/roles/$(email))'));
-    assert.ok(roleFn.includes(": 'Viewer';"));
+    assert.ok(roleFn.includes(": 'Viewer'"));
+    assert.ok(roleFn.includes('isRoleClaimsEnabled()'));
+    assert.ok(roleFn.includes('request.auth.token.role'));
     assert.ok(!roleFn.includes('/users/$(uid)'), 'getUserRole tidak boleh jatuh ke /users/{uid}.role');
 
     const usersBlock = extractBlock('match /users/{userId}', '// --- COLLECTION: roles');
@@ -51,7 +53,7 @@ describe('Keamanan Firestore Rules Revisi 07 — Invarian Statis & Aturan Akses'
     assert.ok(usersBlock.includes("request.resource.data.get('role', null) == resource.data.get('role', null)"));
     assert.ok(usersBlock.includes('isStrictAdmin() && userId != request.auth.uid'));
 
-    for (const guardedKey of ['role', 'isApproved', 'status', 'isActive', 'deleted', 'approvedBy', 'approvedAt']) {
+    for (const guardedKey of ['role', 'isApproved', 'status', 'isActive', 'deleted', 'approvedBy', 'approvedAt', 'claimsUpdatedAt']) {
       assert.ok(usersBlock.includes(`'${guardedKey}'`), `Field ${guardedKey} harus dikunci dari self-update`);
     }
 
@@ -62,9 +64,10 @@ describe('Keamanan Firestore Rules Revisi 07 — Invarian Statis & Aturan Akses'
     assert.ok(rolesBlock.includes('allow delete: if isActiveMember() && isStrictAdmin();'));
   });
 
-  it('7 & 8. Audit log bersifat immutable append-only dan memblokir field tambahan dengan keys().hasOnly', () => {
+  it('7 & 8. Audit log bersifat immutable append-only, memblokir field tambahan dengan keys().hasOnly, dan mengunci source == client', () => {
     const auditFn = extractBlock('function vAuditLog()', 'function vNotification(');
     assert.ok(auditFn.includes('d.keys().hasOnly(['));
+    assert.ok(auditFn.includes("d.get('source', 'client') == 'client'"));
     assert.ok(auditFn.includes('d.uid == request.auth.uid'));
     assert.ok(auditFn.includes('d.user == request.auth.token.email'));
     assert.ok(auditFn.includes('d.timestamp == request.time'));
@@ -143,5 +146,66 @@ describe('Keamanan Firestore Rules Revisi 07 — Invarian Statis & Aturan Akses'
       assert.ok(rulesContent.includes(`function ${validatorName}`), `Validator ${validatorName} harus menerima docId`);
     }
     assert.ok(rulesContent.includes('d.id == docId'), 'Validator harus menegakkan d.id == docId');
+  });
+
+  it('13 [K-01, D-01]. Regenerasi evidence_verify oleh Strict Admin & proteksi evaluationHistory / cabang Evaluasi Ulang Superintendent+', () => {
+    const verifyBlock = extractBlock('match /evidence_verify/{token}', '// Environmental Monitoring Collections');
+    assert.ok(verifyBlock.includes('isStrictAdmin()'));
+    assert.ok(verifyBlock.includes('exists(/databases/$(database)/documents/evidence_reports/$(request.resource.data.reportId))'));
+
+    for (const colMarker of ['match /wastewater/{docId}', 'match /surfacewater/{docId}', 'match /domestic_wastewater/{docId}']) {
+      const colBlock = extractBlock(colMarker, 'allow delete:');
+      assert.ok(colBlock.includes("!('evaluationHistory' in request.resource.data)"), `${colMarker} harus melarang create dengan evaluationHistory`);
+      assert.ok(colBlock.includes("request.resource.data.diff(resource.data).affectedKeys().hasOnly(["), `${colMarker} harus punya cabang re-evaluasi terbatas`);
+      assert.ok(colBlock.includes('request.resource.data.correctionReason.size() >= 20'), `${colMarker} wajib mensyaratkan correctionReason >= 20 karakter`);
+      assert.ok(colBlock.includes("!request.resource.data.diff(resource.data).affectedKeys().hasAny(['evaluationHistory'])"), `${colMarker} Operator dilarang mengubah evaluationHistory`);
+    }
+  });
+
+  it('14 [Tahap 3 Feature Flags]. Helper app_meta/feature_flags tersedia dan app_meta hanya bisa ditulis Strict Admin untuk feature_flags', () => {
+    const flagsFn = extractBlock('function getFeatureFlags()', '// Helper: [K-03]');
+    assert.ok(flagsFn.includes('app_meta/feature_flags'));
+    assert.ok(flagsFn.includes('function isServerEvaluationEnabled()'));
+    assert.ok(flagsFn.includes('function isServerEvidenceEnabled()'));
+    assert.ok(flagsFn.includes('function isRoleClaimsEnabled()'));
+
+    const appMetaBlock = extractBlock('match /app_meta/{metaId}', '// --- COLLECTION: standards');
+    assert.ok(appMetaBlock.includes("isStrictAdmin() || (isSuperintendent() && metaId in ['env_thresholds', 'proper_criteria'])"));
+  });
+
+  it('15 [Tahap 3 K-04]. Saat serverEvaluation aktif, klien dilarang menulis field evaluasi server dan diperbolehkan mengirim sampel tanpa status', () => {
+    const wwFn = extractBlock('function vWastewater(docId)', 'function vSurfaceWater(docId)');
+    assert.ok(wwFn.includes("(isServerEvaluationEnabled() || 'status' in d)"));
+    assert.ok(wwFn.includes('serverEvaluatedAt is timestamp'));
+
+    const swFn = extractBlock('function vSurfaceWater(docId)', 'function vRainfall(docId)');
+    assert.ok(swFn.includes("(isServerEvaluationEnabled() || 'status' in d)"));
+    assert.ok(swFn.includes('serverEvaluatedAt is timestamp'));
+
+    const dwFn = extractBlock('function vDomesticWastewater(docId)', 'function vGhgFactor(docId)');
+    assert.ok(dwFn.includes("(isServerEvaluationEnabled() || 'complianceStatus' in d)"));
+    assert.ok(dwFn.includes('serverEvaluatedAt is timestamp'));
+
+    for (const colMarker of ['match /wastewater/{docId}', 'match /surfacewater/{docId}', 'match /domestic_wastewater/{docId}']) {
+      const colBlock = extractBlock(colMarker, 'allow delete:');
+      assert.ok(colBlock.includes('!isServerEvaluationEnabled()'), `${colMarker} harus memeriksa flag serverEvaluation`);
+      assert.ok(colBlock.includes("'serverEvaluatedAt'"), `${colMarker} harus mengunci serverEvaluatedAt dari klien`);
+      assert.ok(colBlock.includes("'evaluationStatus'"), `${colMarker} harus mengunci evaluationStatus dari klien`);
+    }
+  });
+
+  it('16 [Tahap 3 K-02]. Saat serverEvidence aktif, penulisan klien ke evidence_reports, counters, dan evidence_verify dikunci', () => {
+    const evidenceBlock = extractBlock('match /evidence_reports/{id}', '// Counters');
+    assert.ok(evidenceBlock.includes('allow create: if !isServerEvidenceEnabled()'));
+    assert.ok(evidenceBlock.includes('allow update: if !isServerEvidenceEnabled()'));
+    assert.ok(evidenceBlock.includes('allow delete: if !isServerEvidenceEnabled()'));
+
+    const countersBlock = extractBlock('match /counters/{id}', '// User Signatures');
+    assert.ok(countersBlock.includes('allow create: if !isServerEvidenceEnabled()'));
+    assert.ok(countersBlock.includes('allow update: if !isServerEvidenceEnabled()'));
+
+    const verifyBlock = extractBlock('match /evidence_verify/{token}', '// Environmental Monitoring Collections');
+    assert.ok(verifyBlock.includes('allow create: if !isServerEvidenceEnabled()'));
+    assert.ok(verifyBlock.includes('allow update: if !isServerEvidenceEnabled()'));
   });
 });

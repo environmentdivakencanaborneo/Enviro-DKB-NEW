@@ -61,6 +61,7 @@ import { NEON_CHART, NEON_TOOLTIP_CONTENT_STYLE } from '../utils/chartTheme';
 import {
   DEFAULT_INTERNAL_THRESHOLDS_VALUE,
   formatStandardLimitDisplay,
+  getLiveEvaluation,
   parseStrictNumber,
   resolveEffectiveStandardsMap,
 } from '../utils/waterQualityEval';
@@ -368,6 +369,16 @@ export default function DashboardView({
     evaluatedSurfaceWaterTests > 0
       ? Math.round((passedSurfaceWaterTests / evaluatedSurfaceWaterTests) * 100)
       : null;
+
+  const staleWwCount = useMemo(() => {
+    if (!standards || standards.length === 0) return 0;
+    return wastewater.filter((item) => getLiveEvaluation('air_limbah', item, standards, internalThresholds).isStale).length;
+  }, [wastewater, standards, internalThresholds]);
+
+  const staleSwCount = useMemo(() => {
+    if (!standards || standards.length === 0) return 0;
+    return surfaceWater.filter((item) => getLiveEvaluation('air_permukaan', item, standards, internalThresholds).isStale).length;
+  }, [surfaceWater, standards, internalThresholds]);
 
   // Solid waste stats
   const totalSolidWasteRecycled = solidWaste.reduce((sum, x) => sum + x.recycledKg + x.compostedKg, 0);
@@ -747,6 +758,14 @@ export default function DashboardView({
               </span>
             )}
           </div>
+          {staleWwCount > 0 && (
+            <div
+              className="mt-1.5 text-[10px] font-semibold text-neon-amber font-mono tabular-nums"
+              title="Baku mutu berubah setelah sampel dicatat — evaluasi ulang batch tersedia di Master Baku Mutu"
+            >
+              {staleWwCount} sampel perlu evaluasi ulang
+            </div>
+          )}
         </motion.div>
 
         {/* Card 2: Nursery Stocks */}
@@ -910,6 +929,14 @@ export default function DashboardView({
                 : 'PP 22/2021 Kelas II'}
             </span>
           </div>
+          {staleSwCount > 0 && (
+            <div
+              className="mt-1.5 text-[10px] font-semibold text-neon-amber font-mono tabular-nums"
+              title="Baku mutu berubah setelah sampel dicatat — evaluasi ulang batch tersedia di Master Baku Mutu"
+            >
+              {staleSwCount} sampel perlu evaluasi ulang
+            </div>
+          )}
         </motion.div>
 
         {/* Card 6: Solid Waste Recycling */}

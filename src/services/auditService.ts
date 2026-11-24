@@ -71,6 +71,7 @@ export function buildAuditLogPayload(params: AuditLogParam): { logId: string; lo
     afterData: sanitizeSnapshot(params.afterData),
     correctionReason: params.correctionReason ? params.correctionReason.slice(0, 400) : null,
     status: 'SUCCESS',
+    source: 'client',
   };
 
   return { logId, logData };

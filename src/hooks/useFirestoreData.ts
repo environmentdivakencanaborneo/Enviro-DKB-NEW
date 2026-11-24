@@ -73,6 +73,7 @@ import {
 } from '../types';
 import { DEFAULT_INTERNAL_THRESHOLDS, DEFAULT_PROPER_CRITERIA } from '../data/regulations';
 import { isSuperintendent, effectiveRole } from '../services/permissionService';
+import { subscribeFeatureFlags } from '../services/featureFlagService';
 
 export function useFirestoreData(activeTab: string) {
   const { user, profile } = useAuth();
@@ -214,7 +215,7 @@ export function useFirestoreData(activeTab: string) {
     }
     confidentialScopeRef.current = canReadConfidential;
 
-    const needsMonitoring = ['dashboard', 'monitoring', 'reports', 'evidence'].includes(activeTab);
+    const needsMonitoring = ['dashboard', 'monitoring', 'standards_master', 'reports', 'evidence'].includes(activeTab);
     const needsReclamation = ['dashboard', 'reclamation', 'reclamation_guarantee', 'reports', 'executive'].includes(activeTab);
     const needsWaste = ['dashboard', 'waste', 'reports'].includes(activeTab);
     const needsSolidWaste = ['dashboard', 'solid_waste', 'reports'].includes(activeTab);
@@ -234,7 +235,7 @@ export function useFirestoreData(activeTab: string) {
     const needsPertekSlo = ['dashboard', 'pertek_slo', 'reports', 'executive'].includes(activeTab);
     const needsReportingCalendar = ['dashboard', 'reporting_calendar', 'reports', 'executive'].includes(activeTab);
     const needsSupervisions = ['dashboard', 'supervision', 'reports', 'executive'].includes(activeTab);
-    const needsDomesticWastewater = ['dashboard', 'domestic_wastewater', 'reports'].includes(activeTab);
+    const needsDomesticWastewater = ['dashboard', 'domestic_wastewater', 'standards_master', 'reports'].includes(activeTab);
     const needsGhgInventory = ['dashboard', 'ghg_inventory', 'reports', 'executive'].includes(activeTab);
 
     try {
@@ -477,11 +478,15 @@ export function useFirestoreData(activeTab: string) {
   useEffect(() => {
     if (!user || !profile) return;
     setIsLoadingAlerts(true);
-    const unsubscribe = notificationService.subscribe((data) => {
+    const unsubscribeAlerts = notificationService.subscribe((data) => {
       setAlerts(data);
       setIsLoadingAlerts(false);
     });
-    return () => unsubscribe();
+    const unsubscribeFlags = subscribeFeatureFlags();
+    return () => {
+      unsubscribeAlerts();
+      unsubscribeFlags();
+    };
   }, [user, profile]);
 
   return {

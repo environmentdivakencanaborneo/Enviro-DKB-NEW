@@ -7,6 +7,8 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { 
   User, 
   signInWithPopup, 
+  reauthenticateWithPopup,
+  linkWithPopup,
   GoogleAuthProvider, 
   signOut as firebaseSignOut, 
   onAuthStateChanged,
@@ -17,13 +19,14 @@ import {
   reload,
   updateProfile
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../utils/firebaseAuth';
 import { UserProfile } from '../types';
 import { canWrite } from './permissionService';
 import { auditService } from './auditService';
 import { normalizeRole } from '../utils/roles';
 import { clearAllUserCaches } from '../utils/googleSync';
+import { getCachedFeatureFlags } from './featureFlagService';
 
 export interface RegisterUserData {
   fullName: string;
@@ -47,6 +50,7 @@ interface AuthContextType {
   hasWriteAuthority: boolean;
   emailVerified: boolean;
   loginWithGoogle: () => Promise<void>;
+  connectGoogleDrive: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   registerUser: (data: RegisterUserData) => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
@@ -130,7 +134,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         let effectiveUserRole = 'Viewer';
         const email = firebaseUser.email || data.email;
-        if (email) {
+        const flags = getCachedFeatureFlags();
+        let resolvedFromClaim = false;
+        if (flags.roleClaims) {
+          try {
+            const idTokenRes = await firebaseUser.getIdTokenResult();
+            if (typeof idTokenRes.claims?.role === 'string' && idTokenRes.claims.role.trim()) {
+              effectiveUserRole = idTokenRes.claims.role;
+              resolvedFromClaim = true;
+            }
+          } catch {
+            // fallback ke /roles/{email}
+          }
+        }
+        if (!resolvedFromClaim && email) {
           try {
             const roleDoc = await getDoc(doc(db, 'roles', email));
             if (roleDoc.exists() && roleDoc.data()?.level) {
@@ -323,9 +340,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // [K-03] Refresh ID token otomatis ketika Cloud Function memperbarui users/{uid}.claimsUpdatedAt
+  const lastClaimsUpdatedAtRef = useRef<string | null>(null);
+  useEffect(() => {
+    const uid = user?.uid;
+    if (!uid || !user?.emailVerified) {
+      lastClaimsUpdatedAtRef.current = null;
+      return;
+    }
+
+    const unsub = onSnapshot(
+      doc(db, 'users', uid),
+      async (snap) => {
+        if (!snap.exists()) return;
+        const rawTs = snap.data()?.claimsUpdatedAt;
+        if (!rawTs) return;
+        const tsKey =
+          typeof rawTs?.toMillis === 'function'
+            ? String(rawTs.toMillis())
+            : typeof rawTs?.seconds === 'number'
+            ? `${rawTs.seconds}:${rawTs.nanoseconds || 0}`
+            : String(rawTs);
+
+        if (lastClaimsUpdatedAtRef.current === null) {
+          lastClaimsUpdatedAtRef.current = tsKey;
+          return;
+        }
+        if (lastClaimsUpdatedAtRef.current !== tsKey) {
+          lastClaimsUpdatedAtRef.current = tsKey;
+          try {
+            await auth.currentUser?.getIdToken(true);
+            if (auth.currentUser) {
+              await fetchUserProfile(auth.currentUser);
+            }
+          } catch {
+            // non-fatal
+          }
+        }
+      },
+      () => {
+        // ignore listener error
+      }
+    );
+
+    return () => unsub();
+  }, [user?.uid, user?.emailVerified]);
+
   const loginWithGoogle = async () => {
+    // [T-08] Login Google hanya meminta scope minimal (openid/email/profile),
+    // tanpa drive.file. Scope Google Drive hanya diminta saat Admin menghubungkan Backup Drive.
     const provider = new GoogleAuthProvider();
-    provider.addScope('https://www.googleapis.com/auth/drive.file');
     
     try {
       setLoading(true);
@@ -336,16 +400,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         30000,
         "Proses masuk Google membutuhkan waktu terlalu lama atau dibatalkan."
       );
-
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const accessToken = credential?.accessToken || null;
-      
-      if (accessToken) {
-        setToken(accessToken);
-        if (result.user) {
-          sessionStorage.setItem(`gat_${result.user.uid}`, accessToken);
-        }
-      }
 
       if (result.user) {
         setUser(result.user);
@@ -372,6 +426,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // [T-08] Scope https://www.googleapis.com/auth/drive.file hanya diminta khusus oleh Admin
+  // ketika menghubungkan Google Drive Backup secara eksplisit di panel Pengaturan & Backup.
+  const connectGoogleDrive = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('Silakan masuk ke aplikasi terlebih dahulu sebelum menghubungkan Google Drive.');
+    }
+
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/drive.file');
+
+    const hasGoogleProvider = currentUser.providerData?.some((p) => p.providerId === 'google.com');
+    const result = hasGoogleProvider
+      ? await withTimeout(
+          reauthenticateWithPopup(currentUser, provider),
+          30000,
+          'Otorisasi Google Drive dibatalkan atau melebihi batas waktu.'
+        )
+      : await withTimeout(
+          linkWithPopup(currentUser, provider).catch((err: any) => {
+            if (err?.code === 'auth/provider-already-linked' || err?.code === 'auth/credential-already-in-use') {
+              return reauthenticateWithPopup(currentUser, provider);
+            }
+            throw err;
+          }),
+          30000,
+          'Otorisasi Google Drive dibatalkan atau melebihi batas waktu.'
+        );
+
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const accessToken = credential?.accessToken || null;
+    if (!accessToken) {
+      throw new Error('Token akses Google Drive tidak diterima. Pastikan izin Drive disetujui.');
+    }
+
+    setToken(accessToken);
+    sessionStorage.setItem(`gat_${currentUser.uid}`, accessToken);
   };
 
   const loginWithEmail = async (email: string, pass: string) => {
@@ -619,6 +712,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasWriteAuthority,
       emailVerified: Boolean(user?.emailVerified),
       loginWithGoogle,
+      connectGoogleDrive,
       loginWithEmail,
       registerUser,
       resendVerificationEmail,

@@ -438,6 +438,10 @@ export default function EvidenceHub({
     };
 
     try {
+      if (user?.uid && signatureDataUrl && signatureDataUrl !== savedUserSig) {
+        await signatureService.saveUserSignature(user.uid, signatureDataUrl);
+        setSavedUserSig(signatureDataUrl);
+      }
       // 1. Daily signatures
       if (signingType === 'prepare') {
         if (!activeDayItem) return;
@@ -1754,9 +1758,6 @@ export default function EvidenceHub({
                   if ((signingType === 'revision' || signingType === 'revision_monthly') && !revisionReasonInput.trim()) {
                     setErrorMessage('Alasan penerbitan revisi wajib diisi.');
                     return;
-                  }
-                  if (user?.uid) {
-                    signatureService.saveUserSignature(user.uid, sigDataUrl).catch(() => {});
                   }
                   handleSubmitSignature(sigDataUrl);
                 }}

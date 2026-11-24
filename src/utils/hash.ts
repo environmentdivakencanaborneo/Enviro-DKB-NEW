@@ -3,31 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * Deterministically stringify an object by sorting its keys alphabetically.
- * Ensures consistent hash generation across different clients and platforms.
- */
-export function canonicalStringify(obj: any): string {
-  if (obj === null || typeof obj !== 'object') {
-    return JSON.stringify(obj);
-  }
+import { canonicalStringify } from '../../shared/hash';
 
-  if (Array.isArray(obj)) {
-    return '[' + obj.map(canonicalStringify).join(',') + ']';
-  }
-
-  const sortedKeys = Object.keys(obj).sort();
-  const entries: string[] = [];
-
-  for (const key of sortedKeys) {
-    const val = obj[key];
-    if (val !== undefined && typeof val !== 'function') {
-      entries.push(JSON.stringify(key) + ':' + canonicalStringify(val));
-    }
-  }
-
-  return '{' + entries.join(',') + '}';
-}
+export { canonicalStringify };
 
 /**
  * Computes a SHA-256 hexadecimal hash string for any data payload using crypto.subtle.

@@ -18,10 +18,12 @@ import {
   evaluateSampleCompliance,
   formatLocaleNumberStrict,
   formatStandardLimitDisplay,
+  getLiveEvaluation,
   parseStrictNumber,
   resolveEffectiveStandardsMap,
 } from '../utils/waterQualityEval';
 import StatusBadge from './StatusBadge';
+import { useFeatureFlags } from '../services/featureFlagService';
 import TableSkeleton from './TableSkeleton';
 import EmptyState from './EmptyState';
 import {
@@ -59,6 +61,7 @@ export default function DomesticWastewaterView({
   onOpenStandardsMaster,
   onUnauthorizedAction,
 }: DomesticWastewaterViewProps) {
+  const featureFlags = useFeatureFlags();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
@@ -255,11 +258,15 @@ export default function DomesticWastewaterView({
         totalColiform: totalColiformNum!,
         debitM3Day: debitM3DayNum!,
         unitMap,
-        complianceStatus: liveEval.domesticStatus,
-        evaluationStatus: liveEval.overall,
-        evaluationReason: liveEval.evaluationReason,
-        standardId: idList.join(',').slice(0, 120) || undefined,
-        standardBasis: liveEval.standardsBasis.slice(0, 280),
+        ...(featureFlags.serverEvaluation
+          ? {}
+          : {
+              complianceStatus: liveEval.domesticStatus,
+              evaluationStatus: liveEval.overall,
+              evaluationReason: liveEval.evaluationReason,
+              standardId: idList.join(',').slice(0, 120) || undefined,
+              standardBasis: liveEval.standardsBasis.slice(0, 280),
+            }),
         officer: officer.trim(),
         notes: notes.trim() || undefined,
         ...(editingId && correctionReason.trim() ? { correctionReason: correctionReason.trim() } : {}),
@@ -499,14 +506,26 @@ export default function DomesticWastewaterView({
                     <td className="p-3.5 text-right text-text-hi">{formatLocaleNumberStrict(item.totalColiform, 0, 0)}</td>
                     <td className="p-3.5 text-center font-sans" title={item.evaluationReason || undefined}>
                       <StatusBadge
-                        status={item.evaluationStatus || item.complianceStatus}
-                        label={item.evaluationStatus || item.complianceStatus}
+                        status={item.evaluationStatus || item.complianceStatus || 'Menunggu evaluasi server'}
+                        label={item.evaluationStatus || item.complianceStatus || 'Menunggu evaluasi server'}
                       />
                       {item.evaluationReason && (
                         <span className="block text-[9px] text-text-low mt-0.5 max-w-[160px] truncate mx-auto">
                           {item.evaluationReason}
                         </span>
                       )}
+                      {standards.length > 0 && (() => {
+                        const liveEval = getLiveEvaluation('air_limbah_domestik', item, standards, internalThresholds);
+                        if (!liveEval.isStale) return null;
+                        return (
+                          <span
+                            className="block text-[9px] text-neon-amber font-semibold mt-0.5 max-w-[180px] truncate mx-auto"
+                            title={`Evaluasi tersimpan: ${liveEval.storedConclusion} → Evaluasi baku mutu saat ini: ${liveEval.live.overall}`}
+                          >
+                            Baku mutu diperbarui · Live: {liveEval.live.overall}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="p-3.5 text-center pr-5 font-sans">
                       <div className="flex items-center justify-center gap-1">

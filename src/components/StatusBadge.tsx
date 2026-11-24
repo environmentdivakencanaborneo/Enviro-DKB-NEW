@@ -101,6 +101,7 @@ export function resolveStatusTone(rawStatus?: string | null): CanonicalStatusTon
       'tidak berlaku',
       'notapplicable',
       'draft',
+      'menunggu evaluasi server',
     ].includes(s)
   ) {
     return 'dipantau';

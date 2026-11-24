@@ -53,6 +53,7 @@ import {
   evaluateSampleCompliance,
   formatLocaleNumberStrict,
   formatStandardLimitDisplay,
+  getLiveEvaluation,
   parseStrictNumber,
 } from '../utils/waterQualityEval';
 import { todayLocalISO } from '../utils/dateUtils';
@@ -1724,12 +1725,24 @@ export default function MonitoringView({
                           {formatLocaleNumberStrict(item.mn, 1, 3)}
                         </td>
                         <td className="p-3.5 text-center" title={item.evaluationReason || undefined}>
-                          <StatusBadge status={item.evaluationStatus || item.status} />
+                          <StatusBadge status={item.evaluationStatus || item.status || 'Menunggu evaluasi server'} />
                           {item.evaluationReason && (
                             <span className="block text-[9px] text-text-low mt-0.5 max-w-[180px] truncate mx-auto">
                               {item.evaluationReason}
                             </span>
                           )}
+                          {standards.length > 0 && (() => {
+                            const liveEval = getLiveEvaluation('air_limbah', item, standards, internalThresholds);
+                            if (!liveEval.isStale) return null;
+                            return (
+                              <span
+                                className="block text-[9px] text-neon-amber font-semibold mt-0.5 max-w-[190px] truncate mx-auto"
+                                title={`Evaluasi tersimpan: ${liveEval.storedConclusion} → Evaluasi baku mutu saat ini: ${liveEval.live.overall}`}
+                              >
+                                Baku mutu diperbarui · Live: {liveEval.live.overall}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="p-3.5 text-center pr-5">
                           <div className="flex items-center justify-center gap-1.5">
@@ -2318,7 +2331,19 @@ export default function MonitoringView({
                             )}
                           </td>
                           <td className="p-3.5 text-center" title={item.evaluationReason || undefined}>
-                            <StatusBadge status={item.evaluationStatus || item.status} />
+                            <StatusBadge status={item.evaluationStatus || item.status || 'Menunggu evaluasi server'} />
+                            {standards.length > 0 && (() => {
+                              const liveEval = getLiveEvaluation('air_permukaan', item, standards, internalThresholds);
+                              if (!liveEval.isStale) return null;
+                              return (
+                                <span
+                                  className="block text-[9px] text-neon-amber font-semibold mt-0.5 max-w-[190px] truncate mx-auto"
+                                  title={`Evaluasi tersimpan: ${liveEval.storedConclusion} → Evaluasi baku mutu saat ini: ${liveEval.live.overall}`}
+                                >
+                                  Baku mutu diperbarui · Live: {liveEval.live.overall}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="p-3.5 text-center pr-5">
                             <div className="flex items-center justify-center gap-1.5">
